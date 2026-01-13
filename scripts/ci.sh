@@ -4,6 +4,18 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+echo "=== Installing DSL dependencies ==="
+npm --prefix dsl ci --silent 2>/dev/null || npm --prefix dsl install --silent
+
+echo ""
+echo "=== DSL lint ==="
+npm --prefix dsl run lint
+
+echo ""
+echo "=== DSL codegen check ==="
+npm --prefix dsl run gen:check
+
+echo ""
 echo "=== Building engine ==="
 cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
 cmake --build engine/build --parallel
@@ -69,6 +81,23 @@ if echo '{}' | engine/bin/rankd --plan artifacts/plans/missing_input.plan.json 2
 else
     echo "PASS: missing_input.plan.json rejected as expected"
 fi
+
+echo ""
+echo "=== Test 5: Print registry ==="
+REGISTRY=$(engine/bin/rankd --print-registry)
+echo "Registry: $REGISTRY"
+
+echo "$REGISTRY" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert 'key_registry_digest' in r, 'missing key_registry_digest'
+assert 'param_registry_digest' in r, 'missing param_registry_digest'
+assert 'feature_registry_digest' in r, 'missing feature_registry_digest'
+assert r['num_keys'] == 8, f'expected 8 keys, got {r[\"num_keys\"]}'
+assert r['num_params'] == 3, f'expected 3 params, got {r[\"num_params\"]}'
+assert r['num_features'] == 2, f'expected 2 features, got {r[\"num_features\"]}'
+print('PASS: Registry info correct')
+"
 
 echo ""
 echo "=== All CI tests passed ==="

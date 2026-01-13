@@ -9,6 +9,9 @@
 #include "plan.h"
 #include "executor.h"
 #include "task_registry.h"
+#include "keys.h"
+#include "params.h"
+#include "features.h"
 
 using json = nlohmann::ordered_json;  // ordered for deterministic output
 
@@ -34,9 +37,25 @@ int main(int argc, char* argv[]) {
     CLI::App app{"rankd - Ranking DAG executor"};
 
     std::string plan_path;
+    bool print_registry = false;
+
     app.add_option("--plan", plan_path, "Path to plan JSON file");
+    app.add_flag("--print-registry", print_registry, "Print registry digests and exit");
 
     CLI11_PARSE(app, argc, argv);
+
+    // Handle --print-registry
+    if (print_registry) {
+        json output;
+        output["key_registry_digest"] = std::string(rankd::kKeyRegistryDigest);
+        output["param_registry_digest"] = std::string(rankd::kParamRegistryDigest);
+        output["feature_registry_digest"] = std::string(rankd::kFeatureRegistryDigest);
+        output["num_keys"] = rankd::kKeyCount;
+        output["num_params"] = rankd::kParamCount;
+        output["num_features"] = rankd::kFeatureCount;
+        std::cout << output.dump() << std::endl;
+        return 0;
+    }
 
     // Read all stdin
     std::ostringstream input_buf;

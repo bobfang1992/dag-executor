@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "param_id": 1,
+      "name": "media_age_penalty_weight",
+      "type": "float",
+      "nullable": false,
+      "doc": "Weight for media age penalty in final score calculation.",
+      "status": "active",
+      "allow_read": true,
+      "allow_write": true,
+      "replaced_by": null
+    },
+    {
+      "param_id": 2,
+      "name": "blocklist_regex",
+      "type": "string",
+      "nullable": true,
+      "doc": "Regex pattern for title blocklist filtering.",
+      "status": "active",
+      "allow_read": true,
+      "allow_write": true,
+      "replaced_by": null
+    },
+    {
+      "param_id": 3,
+      "name": "esr_cutoff",
+      "type": "float",
+      "nullable": false,
+      "doc": "Minimum ESR score threshold for candidates.",
+      "status": "active",
+      "allow_read": true,
+      "allow_write": true,
+      "replaced_by": null
+    }
+  ]
+}

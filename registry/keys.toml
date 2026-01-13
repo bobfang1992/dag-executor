@@ -1,0 +1,62 @@
+# Key Registry
+# Keys are append-only. Each key_id is stable and non-reusable.
+
+[[key]]
+key_id = 1
+name = "id"
+type = "int"
+nullable = false
+allow_write = false
+doc = "Entity identity (external system id). Special key that must exist on all rows."
+
+[[key]]
+key_id = 1001
+name = "model_score_1"
+type = "float"
+nullable = false
+default = 0.0
+doc = "Primary model score from ESR stage."
+
+[[key]]
+key_id = 1002
+name = "model_score_2"
+type = "float"
+nullable = false
+default = 0.0
+doc = "Secondary model score from ESR stage."
+
+[[key]]
+key_id = 2001
+name = "final_score"
+type = "float"
+nullable = false
+default = 0.0
+doc = "Final blended ranking score after all transformations."
+
+[[key]]
+key_id = 3001
+name = "country"
+type = "string"
+nullable = true
+doc = "Country code of the candidate item."
+
+[[key]]
+key_id = 3002
+name = "title"
+type = "string"
+nullable = true
+doc = "Title or display name of the candidate item."
+
+[[key]]
+key_id = 4001
+name = "features_esr"
+type = "feature_bundle"
+nullable = true
+doc = "Feature bundle for ESR stage."
+
+[[key]]
+key_id = 4002
+name = "features_lsr"
+type = "feature_bundle"
+nullable = true
+doc = "Feature bundle for LSR stage."

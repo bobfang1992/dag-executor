@@ -156,8 +156,17 @@ echo '{"request_id": "test"}' | engine/bin/rankd
 # Run rankd with plan
 echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/demo.plan.json
 
+# Print registry digests
+engine/bin/rankd --print-registry
+
 # Run all CI tests
 ./scripts/ci.sh
+
+# DSL commands
+npm --prefix dsl install    # Install DSL dependencies
+npm --prefix dsl run lint   # Lint TypeScript
+npm --prefix dsl run gen    # Run codegen (regenerate all outputs)
+npm --prefix dsl run gen:check  # Verify generated outputs are up-to-date
 ```
 
 ---
@@ -188,12 +197,25 @@ echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/demo.pla
 - Iteration semantics: order > selection > [0..N), with order+selection filtering
 - `engine/tests/test_rowset.cpp` - Unit tests for RowSet iteration and take behavior
 
+**Step 03: Registries + Codegen**
+- `registry/keys.toml` - Key Registry with 8 keys (id, model_score_1/2, final_score, country, title, features_esr/lsr)
+- `registry/params.toml` - Param Registry with 3 params (media_age_penalty_weight, blocklist_regex, esr_cutoff)
+- `registry/features.toml` - Feature Registry with 2 features (esr.country, esr.media_age_hours)
+- `dsl/` - TypeScript codegen tool with strict typing (no `any`)
+- `dsl/src/codegen.ts` - Generates TS tokens, C++ headers, and JSON artifacts with SHA-256 digests
+- Generated outputs:
+  - `dsl/src/generated/keys.ts`, `params.ts`, `features.ts` - TS tokens (Key, P, Feat)
+  - `engine/include/keys.h`, `params.h`, `features.h` - C++ enums + metadata
+  - `artifacts/keys.json`, `params.json`, `features.json` - JSON artifacts with digests
+- `--print-registry` flag for rankd to output registry digests
+- CI runs `npm --prefix dsl run gen:check` to verify generated outputs are up-to-date
+
 ### 🔲 Not Yet Implemented
 
 **Registries (§3)**
-- [ ] Key Registry (`registry/keys.toml`) + codegen
-- [ ] Param Registry (`registry/params.toml`) + codegen
-- [ ] Feature Registry (`registry/features.toml`) + codegen
+- [x] Key Registry (`registry/keys.toml`) + codegen
+- [x] Param Registry (`registry/params.toml`) + codegen
+- [x] Feature Registry (`registry/features.toml`) + codegen
 - [ ] Lifecycle/deprecation enforcement
 
 **DSL Layer (§4-7)**
