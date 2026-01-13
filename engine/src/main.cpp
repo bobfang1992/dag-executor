@@ -2,7 +2,13 @@
 #include <sstream>
 #include <random>
 #include <iomanip>
+#include <string>
 #include <nlohmann/json.hpp>
+#include <CLI/CLI.hpp>
+
+#include "plan.h"
+#include "executor.h"
+#include "task_registry.h"
 
 using json = nlohmann::ordered_json;  // ordered for deterministic output
 
@@ -24,7 +30,14 @@ std::string generate_uuid() {
     return ss.str();
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    CLI::App app{"rankd - Ranking DAG executor"};
+
+    std::string plan_path;
+    app.add_option("--plan", plan_path, "Path to plan JSON file");
+
+    CLI11_PARSE(app, argc, argv);
+
     // Read all stdin
     std::ostringstream input_buf;
     input_buf << std::cin.rdbuf();
@@ -55,14 +68,39 @@ int main() {
     // engine_request_id: always generated
     response["engine_request_id"] = generate_uuid();
 
-    // Generate 5 synthetic candidates
+    // Generate candidates
     json candidates = json::array();
-    for (int i = 1; i <= 5; ++i) {
-        json candidate;
-        candidate["id"] = i;
-        candidate["fields"] = json::object();
-        candidates.push_back(candidate);
+
+    if (plan_path.empty()) {
+        // Step 00 fallback: 5 synthetic candidates
+        for (int i = 1; i <= 5; ++i) {
+            json candidate;
+            candidate["id"] = i;
+            candidate["fields"] = json::object();
+            candidates.push_back(candidate);
+        }
+    } else {
+        // Load and execute plan
+        try {
+            rankd::Plan plan = rankd::parse_plan(plan_path);
+            rankd::validate_plan(plan);
+            auto outputs = rankd::execute_plan(plan);
+
+            // Merge all outputs into candidates
+            for (const auto& rowset : outputs) {
+                for (int64_t id : rowset.ids) {
+                    json candidate;
+                    candidate["id"] = id;
+                    candidate["fields"] = json::object();
+                    candidates.push_back(candidate);
+                }
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+            return 1;
+        }
     }
+
     response["candidates"] = candidates;
 
     std::cout << response.dump() << std::endl;

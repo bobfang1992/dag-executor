@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "plan_name": "demo",
+  "nodes": [
+    { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": { "fanout": 10, "trace": "src" } },
+    { "node_id": "n1", "op": "take", "inputs": ["n0"], "params": { "count": 5, "trace": "take" } }
+  ],
+  "outputs": ["n1"]
+}
