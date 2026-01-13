@@ -88,9 +88,10 @@ int main(int argc, char* argv[]) {
 
             // Merge all outputs into candidates
             for (const auto& rowset : outputs) {
-                for (int64_t id : rowset.ids) {
+                auto indices = rowset.materializeIndexViewForOutput(rowset.batch->size());
+                for (uint32_t idx : indices) {
                     json candidate;
-                    candidate["id"] = id;
+                    candidate["id"] = rowset.batch->getId(idx);
                     candidate["fields"] = json::object();
                     candidates.push_back(candidate);
                 }

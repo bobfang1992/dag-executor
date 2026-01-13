@@ -9,6 +9,10 @@ cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
 cmake --build engine/build --parallel
 
 echo ""
+echo "=== Test 0: RowSet unit tests ==="
+engine/bin/rowset_tests
+
+echo ""
 echo "=== Test 1: Step 00 fallback (no --plan) ==="
 REQUEST='{"request_id": "test-123"}'
 RESPONSE=$(echo "$REQUEST" | engine/bin/rankd)

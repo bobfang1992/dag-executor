@@ -36,3 +36,16 @@ target_link_libraries(rankd PRIVATE nlohmann_json::nlohmann_json CLI11::CLI11)
 set_target_properties(rankd PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )
+
+# Test executable
+add_executable(rowset_tests
+  tests/test_rowset.cpp
+  src/task_registry.cpp
+)
+
+target_include_directories(rowset_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rowset_tests PRIVATE nlohmann_json::nlohmann_json)
+
+set_target_properties(rowset_tests PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)

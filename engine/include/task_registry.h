@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rowset.h"
 #include <string>
 #include <vector>
 #include <functional>
@@ -7,10 +8,6 @@
 #include <nlohmann/json.hpp>
 
 namespace rankd {
-
-struct RowSet {
-    std::vector<int64_t> ids;
-};
 
 // Task function signature: (inputs, params) -> output
 using TaskFn = std::function<RowSet(const std::vector<RowSet>&, const nlohmann::json&)>;

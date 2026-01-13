@@ -1,5 +1,6 @@
 #include "task_registry.h"
 #include <stdexcept>
+#include <algorithm>
 
 namespace rankd {
 
@@ -23,11 +24,13 @@ TaskRegistry::TaskRegistry() {
             throw std::runtime_error("viewer.follow: 'fanout' must be > 0");
         }
 
-        RowSet result;
-        for (int i = 1; i <= fanout; ++i) {
-            result.ids.push_back(i);
+        // Create ColumnBatch with ids 1..fanout
+        auto batch = std::make_shared<ColumnBatch>(static_cast<size_t>(fanout));
+        for (int i = 0; i < fanout; ++i) {
+            batch->setId(static_cast<size_t>(i), i + 1);  // ids are 1-indexed
         }
-        return result;
+
+        return RowSet{.batch = batch, .selection = std::nullopt, .order = std::nullopt};
     });
 
     // Register take
@@ -44,12 +47,56 @@ TaskRegistry::TaskRegistry() {
             throw std::runtime_error("take: 'count' must be > 0");
         }
 
+        const auto& input = inputs[0];
+        size_t limit = static_cast<size_t>(count);
+
+        // Share the same batch - no column copy!
         RowSet result;
-        const auto& src = inputs[0].ids;
-        size_t limit = std::min(static_cast<size_t>(count), src.size());
-        for (size_t i = 0; i < limit; ++i) {
-            result.ids.push_back(src[i]);
+        result.batch = input.batch;
+
+        if (input.order && input.selection) {
+            // Both exist: filter order by selection, then truncate
+            std::vector<uint8_t> in_selection(input.batch->size(), 0);
+            for (uint32_t idx : *input.selection) {
+                in_selection[idx] = 1;
+            }
+            std::vector<uint32_t> filtered;
+            for (uint32_t idx : *input.order) {
+                if (in_selection[idx]) {
+                    filtered.push_back(idx);
+                    if (filtered.size() >= limit) break;
+                }
+            }
+            result.selection = std::move(filtered);
+            result.order = std::nullopt;
+        } else if (input.order) {
+            // Only order: truncate order
+            auto new_order = *input.order;
+            if (new_order.size() > limit) {
+                new_order.resize(limit);
+            }
+            result.order = std::move(new_order);
+            result.selection = std::nullopt;
+        } else if (input.selection) {
+            // Truncate selection
+            auto new_selection = *input.selection;
+            if (new_selection.size() > limit) {
+                new_selection.resize(limit);
+            }
+            result.selection = std::move(new_selection);
+            result.order = std::nullopt;
+        } else {
+            // Create selection [0..min(count, N)-1]
+            size_t n = std::min(limit, input.batch->size());
+            std::vector<uint32_t> new_selection;
+            new_selection.reserve(n);
+            for (size_t i = 0; i < n; ++i) {
+                new_selection.push_back(static_cast<uint32_t>(i));
+            }
+            result.selection = std::move(new_selection);
+            result.order = std::nullopt;
         }
+
         return result;
     });
 }

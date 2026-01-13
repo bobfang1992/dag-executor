@@ -147,6 +147,9 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
 cmake --build engine/build --parallel
 
+# Run RowSet unit tests
+engine/bin/rowset_tests
+
 # Run rankd (Step 00 fallback - no plan)
 echo '{"request_id": "test"}' | engine/bin/rankd
 
@@ -171,12 +174,19 @@ echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/demo.pla
 - Handles request_id (echo or generate) + engine_request_id
 
 **Step 01: Plan Loading + DAG Execution**
-- `--plan <path>` CLI argument for rankd
+- `--plan <path>` CLI argument for rankd (using CLI11)
 - `engine/include/plan.h` + `engine/src/plan.cpp` - Plan/Node structs, JSON parsing
 - `engine/include/executor.h` + `engine/src/executor.cpp` - Validation + topo sort execution
 - `engine/include/task_registry.h` + `engine/src/task_registry.cpp` - Task registry with `viewer.follow` and `take`
 - Fail-closed validation: schema_version, unique node_ids, valid inputs, known ops, cycle detection
 - Test artifacts: `demo.plan.json`, `cycle.plan.json`, `missing_input.plan.json`
+
+**Step 02: Columnar RowSet Model**
+- `engine/include/column_batch.h` - ColumnBatch with id column + validity + DebugCounters
+- `engine/include/rowset.h` - RowSet with batch/selection/order + materializeIndexViewForOutput()
+- `take` shares batch pointer (no column copy), materialize_count stays 0
+- Iteration semantics: order > selection > [0..N), with order+selection filtering
+- `engine/tests/test_rowset.cpp` - Unit tests for RowSet iteration and take behavior
 
 ### 🔲 Not Yet Implemented
 
@@ -196,19 +206,19 @@ echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/demo.pla
 - [ ] QuickJS graph builder
 
 **Engine Core (§9)**
-- [ ] ColumnBatch (SoA storage)
-- [ ] SelectionVector / PermutationVector
+- [x] ColumnBatch (SoA storage) - id column only for now
+- [x] SelectionVector / PermutationVector (order)
 - [ ] Dictionary-encoded strings
 - [x] Task interface + registry (basic)
 - [x] DAG validation and linking (basic)
 - [ ] Budget enforcement
 
 **Tasks (§8)**
-- [x] Source tasks: `viewer.follow` (basic)
+- [x] Source tasks: `viewer.follow` (columnar)
 - [ ] concat
 - [ ] fetch_features / call_models
 - [ ] vm / filter / dedupe / sort
-- [x] take (basic)
+- [x] take (columnar, no-copy)
 - [ ] join (left/inner/semi/anti)
 - [ ] extract_features
 
