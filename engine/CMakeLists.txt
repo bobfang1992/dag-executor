@@ -14,7 +14,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(json)
 
-add_executable(rankd src/main.cpp)
+add_executable(rankd
+  src/main.cpp
+  src/plan.cpp
+  src/executor.cpp
+  src/task_registry.cpp
+)
+
+target_include_directories(rankd PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(rankd PRIVATE nlohmann_json::nlohmann_json)
 
 # Output to engine/bin/

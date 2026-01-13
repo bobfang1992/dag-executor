@@ -18,6 +18,7 @@ out/
 .vscode/
 *.swp
 *.swo
+.cache/
 
 # OS
 .DS_Store

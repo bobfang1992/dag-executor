@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "plan_name": "cycle",
+  "nodes": [
+    { "node_id": "a", "op": "take", "inputs": ["b"], "params": { "count": 5 } },
+    { "node_id": "b", "op": "take", "inputs": ["a"], "params": { "count": 5 } }
+  ],
+  "outputs": ["a"]
+}

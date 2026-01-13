@@ -140,6 +140,25 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 
 ---
 
+## Build Commands
+
+```bash
+# Build engine
+cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
+cmake --build engine/build --parallel
+
+# Run rankd (Step 00 fallback - no plan)
+echo '{"request_id": "test"}' | engine/bin/rankd
+
+# Run rankd with plan
+echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/demo.plan.json
+
+# Run all CI tests
+./scripts/ci.sh
+```
+
+---
+
 ## Implementation Progress
 
 ### ✅ Completed
@@ -150,6 +169,14 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 - `scripts/ci.sh` - Build + smoke test gate
 - Returns 5 synthetic candidates (ids 1-5)
 - Handles request_id (echo or generate) + engine_request_id
+
+**Step 01: Plan Loading + DAG Execution**
+- `--plan <path>` CLI argument for rankd
+- `engine/include/plan.h` + `engine/src/plan.cpp` - Plan/Node structs, JSON parsing
+- `engine/include/executor.h` + `engine/src/executor.cpp` - Validation + topo sort execution
+- `engine/include/task_registry.h` + `engine/src/task_registry.cpp` - Task registry with `viewer.follow` and `take`
+- Fail-closed validation: schema_version, unique node_ids, valid inputs, known ops, cycle detection
+- Test artifacts: `demo.plan.json`, `cycle.plan.json`, `missing_input.plan.json`
 
 ### 🔲 Not Yet Implemented
 
@@ -172,15 +199,16 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 - [ ] ColumnBatch (SoA storage)
 - [ ] SelectionVector / PermutationVector
 - [ ] Dictionary-encoded strings
-- [ ] Task interface + registry
-- [ ] DAG validation and linking
+- [x] Task interface + registry (basic)
+- [x] DAG validation and linking (basic)
 - [ ] Budget enforcement
 
 **Tasks (§8)**
-- [ ] Source tasks (viewer.follow, etc.)
+- [x] Source tasks: `viewer.follow` (basic)
 - [ ] concat
 - [ ] fetch_features / call_models
-- [ ] vm / filter / dedupe / sort / take
+- [ ] vm / filter / dedupe / sort
+- [x] take (basic)
 - [ ] join (left/inner/semi/anti)
 - [ ] extract_features
 

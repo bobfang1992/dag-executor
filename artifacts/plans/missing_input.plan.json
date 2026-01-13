@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "plan_name": "missing_input",
+  "nodes": [
+    { "node_id": "n0", "op": "take", "inputs": ["nonexistent"], "params": { "count": 5 } }
+  ],
+  "outputs": ["n0"]
+}
