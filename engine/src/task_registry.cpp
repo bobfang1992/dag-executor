@@ -54,14 +54,29 @@ TaskRegistry::TaskRegistry() {
         RowSet result;
         result.batch = input.batch;
 
-        if (input.order) {
-            // Truncate order
+        if (input.order && input.selection) {
+            // Both exist: filter order by selection, then truncate
+            std::vector<uint8_t> in_selection(input.batch->size(), 0);
+            for (uint32_t idx : *input.selection) {
+                in_selection[idx] = 1;
+            }
+            std::vector<uint32_t> filtered;
+            for (uint32_t idx : *input.order) {
+                if (in_selection[idx]) {
+                    filtered.push_back(idx);
+                    if (filtered.size() >= limit) break;
+                }
+            }
+            result.selection = std::move(filtered);
+            result.order = std::nullopt;
+        } else if (input.order) {
+            // Only order: truncate order
             auto new_order = *input.order;
             if (new_order.size() > limit) {
                 new_order.resize(limit);
             }
             result.order = std::move(new_order);
-            result.selection = input.selection;  // preserve selection if any
+            result.selection = std::nullopt;
         } else if (input.selection) {
             // Truncate selection
             auto new_selection = *input.selection;

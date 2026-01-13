@@ -133,6 +133,52 @@ void test_no_selection_no_order() {
     std::cout << "  PASS: default iteration [0..N) works" << std::endl;
 }
 
+void test_take_with_selection_and_order() {
+    std::cout << "Test: take with both selection and order" << std::endl;
+
+    auto& registry = TaskRegistry::instance();
+
+    // Create batch with ids [10, 20, 30, 40]
+    auto batch = std::make_shared<ColumnBatch>(4);
+    for (size_t i = 0; i < 4; ++i) {
+        batch->setId(i, static_cast<int64_t>((i + 1) * 10));
+    }
+
+    // selection=[0, 2] (indices 1, 3 filtered out)
+    // order=[3, 2, 1, 0] (reverse)
+    // Effective iteration: [2, 0] (3 and 1 filtered out by selection)
+    RowSet input;
+    input.batch = batch;
+    input.selection = std::vector<uint32_t>{0, 2};
+    input.order = std::vector<uint32_t>{3, 2, 1, 0};
+
+    // take(1) should give first row in iteration order = index 2 (id=30)
+    nlohmann::json take_params;
+    take_params["count"] = 1;
+    RowSet result = registry.execute("take", {input}, take_params);
+
+    // Same batch pointer
+    assert(result.batch.get() == input.batch.get());
+
+    auto indices = result.materializeIndexViewForOutput(result.batch->size());
+    assert(indices.size() == 1);
+    assert(indices[0] == 2);
+    assert(result.batch->getId(indices[0]) == 30);
+
+    std::cout << "  PASS: take(1) with selection+order yields index 2 (id=30)" << std::endl;
+
+    // take(2) should give both rows in iteration order = [2, 0]
+    take_params["count"] = 2;
+    RowSet result2 = registry.execute("take", {input}, take_params);
+
+    auto indices2 = result2.materializeIndexViewForOutput(result2.batch->size());
+    assert(indices2.size() == 2);
+    std::vector<uint32_t> expected = {2, 0};
+    assert(indices2 == expected);
+
+    std::cout << "  PASS: take(2) with selection+order yields [2, 0]" << std::endl;
+}
+
 int main() {
     std::cout << "=== RowSet Tests ===" << std::endl;
 
@@ -140,6 +186,7 @@ int main() {
     test_selection_and_order_combined();
     test_order_only();
     test_no_selection_no_order();
+    test_take_with_selection_and_order();
 
     std::cout << std::endl << "All tests passed!" << std::endl;
     return 0;
