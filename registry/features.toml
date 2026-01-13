@@ -1,0 +1,20 @@
+# Feature Registry
+# Features are append-only. Each feature_id is stable and non-reusable.
+
+[[feature]]
+feature_id = 20001
+stage = "esr"
+name = "country"
+type = "string"
+nullable = true
+status = "active"
+doc = "Viewer country for ESR stage."
+
+[[feature]]
+feature_id = 20002
+stage = "esr"
+name = "media_age_hours"
+type = "float"
+nullable = true
+status = "active"
+doc = "Age of media in hours for ESR stage."

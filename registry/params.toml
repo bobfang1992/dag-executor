@@ -1,0 +1,23 @@
+# Param Registry
+# Params are append-only. Each param_id is stable and non-reusable.
+
+[[param]]
+param_id = 1
+name = "media_age_penalty_weight"
+type = "float"
+nullable = false
+doc = "Weight for media age penalty in final score calculation."
+
+[[param]]
+param_id = 2
+name = "blocklist_regex"
+type = "string"
+nullable = true
+doc = "Regex pattern for title blocklist filtering."
+
+[[param]]
+param_id = 3
+name = "esr_cutoff"
+type = "float"
+nullable = false
+doc = "Minimum ESR score threshold for candidates."

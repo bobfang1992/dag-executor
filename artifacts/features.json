@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "feature_id": 20001,
+      "stage": "esr",
+      "name": "country",
+      "type": "string",
+      "nullable": true,
+      "status": "active",
+      "doc": "Viewer country for ESR stage."
+    },
+    {
+      "feature_id": 20002,
+      "stage": "esr",
+      "name": "media_age_hours",
+      "type": "float",
+      "nullable": true,
+      "status": "active",
+      "doc": "Age of media in hours for ESR stage."
+    }
+  ]
+}

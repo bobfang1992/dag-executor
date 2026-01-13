@@ -7,9 +7,9 @@
 namespace rankd {
 
 // Validate plan (fail-closed). Throws std::runtime_error on failure.
-void validate_plan(const Plan& plan);
+void validate_plan(const Plan &plan);
 
 // Execute plan and return output RowSets (one per outputs entry).
-std::vector<RowSet> execute_plan(const Plan& plan);
+std::vector<RowSet> execute_plan(const Plan &plan);
 
 } // namespace rankd
