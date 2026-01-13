@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <string>
 #include <nlohmann/json.hpp>
+#include <CLI/CLI.hpp>
 
 #include "plan.h"
 #include "executor.h"
@@ -29,32 +30,13 @@ std::string generate_uuid() {
     return ss.str();
 }
 
-void print_usage(const char* prog) {
-    std::cerr << "Usage: " << prog << " [--plan <path>]" << std::endl;
-}
-
 int main(int argc, char* argv[]) {
-    std::string plan_path;
+    CLI::App app{"rankd - Ranking DAG executor"};
 
-    // Parse CLI args
-    for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg == "--plan") {
-            if (i + 1 >= argc) {
-                std::cerr << "Error: --plan requires a path argument" << std::endl;
-                print_usage(argv[0]);
-                return 1;
-            }
-            plan_path = argv[++i];
-        } else if (arg == "--help" || arg == "-h") {
-            print_usage(argv[0]);
-            return 0;
-        } else {
-            std::cerr << "Error: Unknown argument: " << arg << std::endl;
-            print_usage(argv[0]);
-            return 1;
-        }
-    }
+    std::string plan_path;
+    app.add_option("--plan", plan_path, "Path to plan JSON file");
+
+    CLI11_PARSE(app, argc, argv);
 
     // Read all stdin
     std::ostringstream input_buf;
