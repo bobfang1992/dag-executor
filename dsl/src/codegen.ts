@@ -505,7 +505,10 @@ function generateKeysH(keys: KeyEntry[], digest: string): string {
   lines.push("inline constexpr std::array<KeyMeta, kKeyCount> kKeyRegistry = {{");
 
   for (const k of keys) {
-    const defaultJson = k.default !== null ? JSON.stringify(String(k.default)) : '""';
+    // Double-stringify: first creates valid JSON, second wraps it as a C++ string literal
+    // e.g., number 0 → JSON "0" → C++ literal "0"
+    // e.g., string "US" → JSON "\"US\"" → C++ literal "\"US\""
+    const defaultJson = k.default !== null ? JSON.stringify(JSON.stringify(k.default)) : '""';
     lines.push(`    {${k.key_id}, "${k.name}", KeyType::${cppType(k.type)}, ${k.nullable}, Status::${cppStatus(k.status)}, ${k.allow_read}, ${k.allow_write}, ${k.replaced_by ?? 0}, ${k.default !== null}, ${defaultJson}},`);
   }
 
