@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <string_view>
 
+#include "keys.h" // for Status
+
 namespace rankd {
 
 enum class FeatureId : uint32_t {
