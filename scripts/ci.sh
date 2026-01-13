@@ -5,7 +5,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "=== Installing DSL dependencies ==="
-pnpm -C dsl ci --silent 2>/dev/null || pnpm -C dsl install --silent
+pnpm -C dsl install --frozen-lockfile
 
 echo ""
 echo "=== DSL lint ==="
