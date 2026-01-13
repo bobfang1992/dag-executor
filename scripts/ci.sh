@@ -5,15 +5,15 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "=== Installing DSL dependencies ==="
-npm --prefix dsl ci --silent 2>/dev/null || npm --prefix dsl install --silent
+pnpm -C dsl ci --silent 2>/dev/null || pnpm -C dsl install --silent
 
 echo ""
 echo "=== DSL lint ==="
-npm --prefix dsl run lint
+pnpm -C dsl run lint
 
 echo ""
 echo "=== DSL codegen check ==="
-npm --prefix dsl run gen:check
+pnpm -C dsl run gen:check
 
 echo ""
 echo "=== Building engine ==="

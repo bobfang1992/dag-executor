@@ -163,10 +163,10 @@ engine/bin/rankd --print-registry
 ./scripts/ci.sh
 
 # DSL commands
-npm --prefix dsl install    # Install DSL dependencies
-npm --prefix dsl run lint   # Lint TypeScript
-npm --prefix dsl run gen    # Run codegen (regenerate all outputs)
-npm --prefix dsl run gen:check  # Verify generated outputs are up-to-date
+pnpm -C dsl install    # Install DSL dependencies
+pnpm -C dsl run lint   # Lint TypeScript
+pnpm -C dsl run gen    # Run codegen (regenerate all outputs)
+pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 ```
 
 ---
@@ -208,7 +208,7 @@ npm --prefix dsl run gen:check  # Verify generated outputs are up-to-date
   - `engine/include/keys.h`, `params.h`, `features.h` - C++ enums + metadata
   - `artifacts/keys.json`, `params.json`, `features.json` - JSON artifacts with digests
 - `--print-registry` flag for rankd to output registry digests
-- CI runs `npm --prefix dsl run gen:check` to verify generated outputs are up-to-date
+- CI runs `pnpm -C dsl run gen:check` to verify generated outputs are up-to-date
 
 ### 🔲 Not Yet Implemented
 

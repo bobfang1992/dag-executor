@@ -21,6 +21,9 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Set up pnpm
+        run: corepack enable && corepack prepare pnpm@latest --activate
+
       - name: Install dependencies (Ubuntu)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y cmake clang-format

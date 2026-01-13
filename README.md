@@ -8,7 +8,7 @@ A governed, type-safe DSL for building ranking pipelines.
 
 ```bash
 # Install DSL dependencies and build engine
-npm --prefix dsl install
+pnpm -C dsl install
 cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
 cmake --build engine/build --parallel
 ```
@@ -35,9 +35,9 @@ engine/bin/rankd --print-registry
 ### DSL Commands
 
 ```bash
-npm --prefix dsl run lint       # Lint TypeScript
-npm --prefix dsl run gen        # Regenerate all outputs from registry TOML
-npm --prefix dsl run gen:check  # Verify generated outputs are up-to-date
+pnpm -C dsl run lint       # Lint TypeScript
+pnpm -C dsl run gen        # Regenerate all outputs from registry TOML
+pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 ```
 
 ## Project Structure
