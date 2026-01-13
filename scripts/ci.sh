@@ -8,6 +8,10 @@ echo "=== Installing DSL dependencies ==="
 pnpm -C dsl install --frozen-lockfile
 
 echo ""
+echo "=== DSL typecheck ==="
+pnpm -C dsl run typecheck
+
+echo ""
 echo "=== DSL lint ==="
 pnpm -C dsl run lint
 

@@ -6,7 +6,8 @@
   "scripts": {
     "gen": "tsx src/codegen.ts",
     "gen:check": "tsx src/codegen.ts --check",
-    "lint": "eslint src/**/*.ts"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/**/*.ts *.js"
   },
   "devDependencies": {
     "@iarna/toml": "^2.2.5",
