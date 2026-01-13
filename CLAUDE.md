@@ -137,3 +137,62 @@ Three log streams (JSON Lines):
 ## SourceRef for Debugging
 
 Compiled artifacts include source mapping tables (`source_files`, `source_spans`) so runtime errors can reference original TypeScript locations.
+
+---
+
+## Implementation Progress
+
+### ✅ Completed
+
+**Step 00: Minimal Engine Skeleton**
+- `engine/src/main.cpp` - rankd binary reading JSON from stdin, writing to stdout
+- `engine/CMakeLists.txt` - C++23 build with nlohmann/json
+- `scripts/ci.sh` - Build + smoke test gate
+- Returns 5 synthetic candidates (ids 1-5)
+- Handles request_id (echo or generate) + engine_request_id
+
+### 🔲 Not Yet Implemented
+
+**Registries (§3)**
+- [ ] Key Registry (`registry/keys.toml`) + codegen
+- [ ] Param Registry (`registry/params.toml`) + codegen
+- [ ] Feature Registry (`registry/features.toml`) + codegen
+- [ ] Lifecycle/deprecation enforcement
+
+**DSL Layer (§4-7)**
+- [ ] TypeScript runtime package (`dsl/packages/runtime`)
+- [ ] Compiler (`dsl/packages/compiler`, dslc CLI)
+- [ ] Generated bindings (`dsl/packages/generated`)
+- [ ] Plan/Fragment authoring surface
+- [ ] ExprIR extraction (vm expressions)
+- [ ] PredIR extraction (filter predicates)
+- [ ] QuickJS graph builder
+
+**Engine Core (§9)**
+- [ ] ColumnBatch (SoA storage)
+- [ ] SelectionVector / PermutationVector
+- [ ] Dictionary-encoded strings
+- [ ] Task interface + registry
+- [ ] DAG validation and linking
+- [ ] Budget enforcement
+
+**Tasks (§8)**
+- [ ] Source tasks (viewer.follow, etc.)
+- [ ] concat
+- [ ] fetch_features / call_models
+- [ ] vm / filter / dedupe / sort / take
+- [ ] join (left/inner/semi/anti)
+- [ ] extract_features
+
+**HTTP Server (§13)**
+- [ ] POST /rank endpoint (currently stdin/stdout only)
+
+**Audit Logging (§11)**
+- [ ] Request-level logs
+- [ ] Task-level logs
+- [ ] Param-level logs
+- [ ] Critical path tracing
+
+**Tooling (§14)**
+- [ ] dslc compiler CLI
+- [ ] SourceRef generation

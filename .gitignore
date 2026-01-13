@@ -34,6 +34,8 @@ Thumbs.db
 *.tsbuildinfo
 
 # C++ build
+engine/build/
+engine/bin/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
