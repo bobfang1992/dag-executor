@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string_view>
 
-#include "keys.h" // for Status
+#include "key_registry.h" // for Status
 
 namespace rankd {
 

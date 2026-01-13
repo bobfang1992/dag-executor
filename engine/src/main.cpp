@@ -7,9 +7,9 @@
 #include <string>
 
 #include "executor.h"
-#include "features.h"
-#include "keys.h"
-#include "params.h"
+#include "feature_registry.h"
+#include "key_registry.h"
+#include "param_registry.h"
 #include "plan.h"
 #include "task_registry.h"
 

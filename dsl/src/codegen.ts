@@ -527,7 +527,7 @@ function generateParamsH(params: ParamEntry[], digest: string): string {
     "#include <cstdint>",
     "#include <string_view>",
     "",
-    '#include "keys.h"  // for Status',
+    '#include "key_registry.h"  // for Status',
     "",
     "namespace rankd {",
     "",
@@ -580,7 +580,7 @@ function generateFeaturesH(features: FeatureEntry[], digest: string): string {
     "#include <cstdint>",
     "#include <string_view>",
     "",
-    '#include "keys.h"  // for Status',
+    '#include "key_registry.h"  // for Status',
     "",
     "namespace rankd {",
     "",
@@ -659,9 +659,10 @@ function main() {
     { path: "dsl/packages/generated/features.ts", content: generateFeaturesTs(features, featuresDigest) },
     { path: "dsl/packages/generated/index.ts", content: generateIndexTs() },
     // C++ headers (formatted with clang-format)
-    { path: "engine/include/keys.h", content: formatCpp(generateKeysH(keys, keysDigest)) },
-    { path: "engine/include/params.h", content: formatCpp(generateParamsH(params, paramsDigest)) },
-    { path: "engine/include/features.h", content: formatCpp(generateFeaturesH(features, featuresDigest)) },
+    // Note: We use *_registry.h names to avoid shadowing system headers (e.g. <features.h>)
+    { path: "engine/include/key_registry.h", content: formatCpp(generateKeysH(keys, keysDigest)) },
+    { path: "engine/include/param_registry.h", content: formatCpp(generateParamsH(params, paramsDigest)) },
+    { path: "engine/include/feature_registry.h", content: formatCpp(generateFeaturesH(features, featuresDigest)) },
   ];
 
   if (checkMode) {
