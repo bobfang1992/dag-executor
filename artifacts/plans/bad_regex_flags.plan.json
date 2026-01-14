@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "plan_name": "bad_regex_flags",
+  "nodes": [
+    { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": { "fanout": 5 } },
+    { "node_id": "n1", "op": "filter", "inputs": ["n0"], "params": { "pred_id": "p0" } }
+  ],
+  "outputs": ["n1"],
+  "pred_table": {
+    "p0": {
+      "op": "regex",
+      "key_id": 3001,
+      "pattern": { "kind": "literal", "value": "US" },
+      "flags": "gi"
+    }
+  }
+}

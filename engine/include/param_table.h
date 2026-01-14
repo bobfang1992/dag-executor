@@ -2,6 +2,7 @@
 
 #include "param_registry.h"
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -231,11 +232,17 @@ using ExprNodePtr = std::shared_ptr<ExprNode>;
 struct PredNode;
 using PredNodePtr = std::shared_ptr<PredNode>;
 
+// Execution statistics for performance tracking and testing
+struct ExecStats {
+  uint64_t regex_re2_calls = 0; // Number of RE2 regex evaluations (per dict entry)
+};
+
 // Execution context passed to task run functions
 struct ExecCtx {
   const ParamTable *params = nullptr;
   const std::unordered_map<std::string, ExprNodePtr> *expr_table = nullptr;
   const std::unordered_map<std::string, PredNodePtr> *pred_table = nullptr;
+  ExecStats *stats = nullptr; // nullable, for instrumentation
   // Future: request_id, engine_request_id, mode, logger, budgets...
 };
 

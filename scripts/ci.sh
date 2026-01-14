@@ -374,4 +374,57 @@ else
 fi
 
 echo ""
+echo "=== Regex tests (simple main) ==="
+engine/bin/regex_tests
+
+echo ""
+echo "=== Test 25: Execute regex_demo plan (literal pattern) ==="
+REQUEST='{"request_id": "regex-demo-test"}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/regex_demo.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'regex-demo-test', 'request_id mismatch'
+assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+# viewer.follow: country alternates US,CA. Regex 'US' keeps odd indices (id 1,3,5,7,9)
+expected_ids = [1, 3, 5, 7, 9]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+print('PASS: regex_demo plan with literal pattern')
+"
+
+echo ""
+echo "=== Test 26: Execute regex_param_demo plan (param pattern) ==="
+REQUEST='{"request_id": "regex-param-test", "param_overrides": {"blocklist_regex": "CA"}}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/regex_param_demo.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'regex-param-test', 'request_id mismatch'
+assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+# Regex 'CA' (from param) keeps even indices (id 2,4,6,8,10)
+expected_ids = [2, 4, 6, 8, 10]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+print('PASS: regex_param_demo plan with param pattern')
+"
+
+echo ""
+echo "=== Test 27: Reject bad_regex_flags.plan.json (invalid flags) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/bad_regex_flags.plan.json 2>/dev/null; then
+    echo "FAIL: bad_regex_flags.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: bad_regex_flags.plan.json rejected as expected"
+fi
+
+echo ""
 echo "=== All CI tests passed ==="

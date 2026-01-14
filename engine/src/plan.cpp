@@ -74,7 +74,8 @@ PredNodePtr parse_pred_node(const nlohmann::json &j) {
   node->op = j["op"].get<std::string>();
 
   static const std::unordered_set<std::string> valid_ops = {
-      "const_bool", "and", "or", "not", "cmp", "in", "is_null", "not_null"};
+      "const_bool", "and", "or",  "not",    "cmp",
+      "in",         "is_null", "not_null", "regex"};
 
   if (valid_ops.find(node->op) == valid_ops.end()) {
     throw std::runtime_error("Unknown PredNode op: " + node->op);
@@ -159,6 +160,49 @@ PredNodePtr parse_pred_node(const nlohmann::json &j) {
       throw std::runtime_error(node->op + " missing 'x'");
     }
     node->value_a = parse_expr_node(j["x"]);
+  } else if (node->op == "regex") {
+    // Required: key_id (must reference string column)
+    if (!j.contains("key_id") || !j["key_id"].is_number_unsigned()) {
+      throw std::runtime_error("regex missing or invalid 'key_id'");
+    }
+    node->regex_key_id = j["key_id"].get<uint32_t>();
+
+    // Required: pattern object with kind
+    if (!j.contains("pattern") || !j["pattern"].is_object()) {
+      throw std::runtime_error("regex missing or invalid 'pattern'");
+    }
+    const auto &pat = j["pattern"];
+    if (!pat.contains("kind") || !pat["kind"].is_string()) {
+      throw std::runtime_error("regex pattern missing 'kind'");
+    }
+    std::string kind = pat["kind"].get<std::string>();
+
+    if (kind == "literal") {
+      if (!pat.contains("value") || !pat["value"].is_string()) {
+        throw std::runtime_error("regex literal pattern missing 'value'");
+      }
+      node->regex_pattern = pat["value"].get<std::string>();
+      node->regex_param_id = 0;
+    } else if (kind == "param") {
+      if (!pat.contains("param_id") || !pat["param_id"].is_number_unsigned()) {
+        throw std::runtime_error("regex param pattern missing 'param_id'");
+      }
+      node->regex_param_id = pat["param_id"].get<uint32_t>();
+    } else {
+      throw std::runtime_error("regex pattern kind must be 'literal' or 'param'");
+    }
+
+    // Optional: flags (default "")
+    node->regex_flags = "";
+    if (j.contains("flags")) {
+      if (!j["flags"].is_string()) {
+        throw std::runtime_error("regex 'flags' must be string");
+      }
+      node->regex_flags = j["flags"].get<std::string>();
+      if (node->regex_flags != "" && node->regex_flags != "i") {
+        throw std::runtime_error("regex 'flags' must be '' or 'i'");
+      }
+    }
   }
 
   return node;
