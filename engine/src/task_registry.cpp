@@ -21,7 +21,10 @@ TaskRegistry::TaskRegistry() {
       .params_schema =
           {
               {.name = "fanout", .type = TaskParamType::Int, .required = true},
-              {.name = "trace", .type = TaskParamType::String, .required = false},
+              {.name = "trace",
+               .type = TaskParamType::String,
+               .required = false,
+               .nullable = true},
           },
       .reads = {},
       .writes = {},
@@ -38,6 +41,11 @@ TaskRegistry::TaskRegistry() {
         int64_t fanout = params.get_int("fanout");
         if (fanout <= 0) {
           throw std::runtime_error("viewer.follow: 'fanout' must be > 0");
+        }
+        constexpr int64_t kMaxFanout = 10'000'000; // 10M limit
+        if (fanout > kMaxFanout) {
+          throw std::runtime_error(
+              "viewer.follow: 'fanout' exceeds maximum limit (10000000)");
         }
 
         // Create ColumnBatch with ids 1..fanout
@@ -57,7 +65,10 @@ TaskRegistry::TaskRegistry() {
       .params_schema =
           {
               {.name = "count", .type = TaskParamType::Int, .required = true},
-              {.name = "trace", .type = TaskParamType::String, .required = false},
+              {.name = "trace",
+               .type = TaskParamType::String,
+               .required = false,
+               .nullable = true},
           },
       .reads = {},
       .writes = {},
@@ -179,70 +190,109 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
                              "': params must be an object or null");
   }
 
+  // Helper to apply default value
+  auto apply_default = [&result](const ParamField &field) {
+    if (!field.default_value) {
+      return;
+    }
+    const auto &def = *field.default_value;
+    switch (field.type) {
+    case TaskParamType::Int:
+      result.int_params[field.name] = std::get<int64_t>(def);
+      break;
+    case TaskParamType::Float:
+      result.float_params[field.name] = std::get<double>(def);
+      break;
+    case TaskParamType::Bool:
+      result.bool_params[field.name] = std::get<bool>(def);
+      break;
+    case TaskParamType::String:
+      result.string_params[field.name] = std::get<std::string>(def);
+      break;
+    }
+  };
+
   // Validate each field in schema
   for (const auto &field : spec.params_schema) {
     bool present = params.is_object() && params.contains(field.name);
+    bool is_null = present && params[field.name].is_null();
 
-    if (field.required && !present) {
-      throw std::runtime_error("Invalid params for op '" + op +
-                               "': missing required field '" + field.name +
-                               "'");
+    // Handle absent or null values
+    if (!present || is_null) {
+      if (field.required) {
+        throw std::runtime_error("Invalid params for op '" + op +
+                                 "': missing required field '" + field.name +
+                                 "'");
+      }
+      if (field.default_value) {
+        // Use default value
+        apply_default(field);
+      } else if (!field.nullable) {
+        // Not nullable and no default - fail for null, skip for absent
+        if (is_null) {
+          throw std::runtime_error("Invalid params for op '" + op +
+                                   "': field '" + field.name +
+                                   "' cannot be null");
+        }
+        // Absent optional without default - just skip
+      }
+      // else: nullable without default - skip (no value in ValidatedParams)
+      continue;
     }
 
-    if (present) {
-      const auto &value = params[field.name];
+    // Value is present and not null - validate type
+    const auto &value = params[field.name];
 
-      switch (field.type) {
-      case TaskParamType::Int: {
-        if (!value.is_number_integer()) {
-          // Also check if it's a float that happens to be a whole number
-          if (value.is_number_float()) {
-            double d = value.get<double>();
-            if (std::floor(d) != d || d < std::numeric_limits<int64_t>::min() ||
-                d > std::numeric_limits<int64_t>::max()) {
-              throw std::runtime_error("Invalid params for op '" + op +
-                                       "': field '" + field.name +
-                                       "' must be int");
-            }
-            result.int_params[field.name] = static_cast<int64_t>(d);
-          } else {
+    switch (field.type) {
+    case TaskParamType::Int: {
+      if (!value.is_number_integer()) {
+        // Also check if it's a float that happens to be a whole number
+        if (value.is_number_float()) {
+          double d = value.get<double>();
+          if (std::floor(d) != d || d < std::numeric_limits<int64_t>::min() ||
+              d > std::numeric_limits<int64_t>::max()) {
             throw std::runtime_error("Invalid params for op '" + op +
                                      "': field '" + field.name +
                                      "' must be int");
           }
+          result.int_params[field.name] = static_cast<int64_t>(d);
         } else {
-          result.int_params[field.name] = value.get<int64_t>();
-        }
-        break;
-      }
-      case TaskParamType::Float: {
-        if (!value.is_number()) {
           throw std::runtime_error("Invalid params for op '" + op +
                                    "': field '" + field.name +
-                                   "' must be float");
+                                   "' must be int");
         }
-        result.float_params[field.name] = value.get<double>();
-        break;
+      } else {
+        result.int_params[field.name] = value.get<int64_t>();
       }
-      case TaskParamType::Bool: {
-        if (!value.is_boolean()) {
-          throw std::runtime_error("Invalid params for op '" + op +
-                                   "': field '" + field.name +
-                                   "' must be bool");
-        }
-        result.bool_params[field.name] = value.get<bool>();
-        break;
+      break;
+    }
+    case TaskParamType::Float: {
+      if (!value.is_number()) {
+        throw std::runtime_error("Invalid params for op '" + op +
+                                 "': field '" + field.name +
+                                 "' must be float");
       }
-      case TaskParamType::String: {
-        if (!value.is_string()) {
-          throw std::runtime_error("Invalid params for op '" + op +
-                                   "': field '" + field.name +
-                                   "' must be string");
-        }
-        result.string_params[field.name] = value.get<std::string>();
-        break;
+      result.float_params[field.name] = value.get<double>();
+      break;
+    }
+    case TaskParamType::Bool: {
+      if (!value.is_boolean()) {
+        throw std::runtime_error("Invalid params for op '" + op +
+                                 "': field '" + field.name +
+                                 "' must be bool");
       }
+      result.bool_params[field.name] = value.get<bool>();
+      break;
+    }
+    case TaskParamType::String: {
+      if (!value.is_string()) {
+        throw std::runtime_error("Invalid params for op '" + op +
+                                 "': field '" + field.name +
+                                 "' must be string");
       }
+      result.string_params[field.name] = value.get<std::string>();
+      break;
+    }
     }
   }
 
@@ -293,7 +343,17 @@ std::string TaskRegistry::compute_manifest_digest() const {
     nlohmann::ordered_json params_json = nlohmann::json::array();
     for (const auto &p : sorted_params) {
       nlohmann::ordered_json pj;
+      // Use alphabetical order for deterministic JSON
+      if (p.default_value) {
+        std::visit(
+            [&pj](const auto &v) {
+              pj["default"] = v;
+            },
+            *p.default_value);
+      }
       pj["name"] = p.name;
+      pj["nullable"] = p.nullable;
+      pj["required"] = p.required;
       switch (p.type) {
       case TaskParamType::Int:
         pj["type"] = "int";
@@ -308,7 +368,6 @@ std::string TaskRegistry::compute_manifest_digest() const {
         pj["type"] = "string";
         break;
       }
-      pj["required"] = p.required;
       params_json.push_back(pj);
     }
     task_json["params"] = params_json;

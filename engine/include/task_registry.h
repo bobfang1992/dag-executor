@@ -15,11 +15,16 @@ namespace rankd {
 // conflict with generated ParamType in param_registry.h)
 enum class TaskParamType { Int, Float, Bool, String };
 
+// Default value type for task params
+using ParamDefaultValue = std::variant<int64_t, double, bool, std::string>;
+
 // A single parameter field in a task's param schema
 struct ParamField {
   std::string name;
   TaskParamType type;
   bool required;
+  bool nullable = false; // if true, null is a valid value
+  std::optional<ParamDefaultValue> default_value; // used when absent or null
 };
 
 // Default budget for task execution (MVP: included but ignored by executor)
