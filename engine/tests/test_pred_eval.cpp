@@ -320,7 +320,7 @@ TEST_CASE("cmp predicates with non-null values", "[pred_eval]") {
   }
 }
 
-TEST_CASE("cmp predicates with null operands (SQL semantics)", "[pred_eval]") {
+TEST_CASE("cmp predicates with null operands (per spec §7.2)", "[pred_eval]") {
   auto batch = make_batch_with_id(1);
   auto ctx = make_empty_ctx();
 
@@ -337,60 +337,62 @@ TEST_CASE("cmp predicates with null operands (SQL semantics)", "[pred_eval]") {
     return node;
   };
 
-  SECTION("== with left null returns false") {
+  // Per spec: == null / != null have explicit null semantics (like is_null/not_null)
+  SECTION("x == null returns true if x is null (like is_null)") {
     PredNode node;
     node.op = "cmp";
     node.cmp_op = "==";
     node.value_a = make_null_expr();
-    node.value_b = make_const_expr(5.0);
-    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+    node.value_b = make_null_expr();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == true); // null == null → true
   }
 
-  SECTION("== with right null returns false") {
+  SECTION("x == null returns false if x is not null") {
     PredNode node;
     node.op = "cmp";
     node.cmp_op = "==";
     node.value_a = make_const_expr(5.0);
     node.value_b = make_null_expr();
-    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false); // 5 == null → false
   }
 
-  SECTION("== with both null returns false") {
+  SECTION("null == x returns false if x is not null") {
     PredNode node;
     node.op = "cmp";
     node.cmp_op = "==";
     node.value_a = make_null_expr();
-    node.value_b = make_null_expr();
-    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
-  }
-
-  SECTION("!= with left null returns false") {
-    PredNode node;
-    node.op = "cmp";
-    node.cmp_op = "!=";
-    node.value_a = make_null_expr();
     node.value_b = make_const_expr(5.0);
-    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false); // null == 5 → false
   }
 
-  SECTION("!= with right null returns false") {
+  SECTION("x != null returns true if x is not null (like not_null)") {
     PredNode node;
     node.op = "cmp";
     node.cmp_op = "!=";
     node.value_a = make_const_expr(5.0);
     node.value_b = make_null_expr();
-    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == true); // 5 != null → true
   }
 
-  SECTION("!= with both null returns false") {
+  SECTION("null != x returns true if x is not null") {
+    PredNode node;
+    node.op = "cmp";
+    node.cmp_op = "!=";
+    node.value_a = make_null_expr();
+    node.value_b = make_const_expr(5.0);
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == true); // null != 5 → true
+  }
+
+  SECTION("null != null returns false") {
     PredNode node;
     node.op = "cmp";
     node.cmp_op = "!=";
     node.value_a = make_null_expr();
     node.value_b = make_null_expr();
-    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false); // null != null → false
   }
 
+  // Per spec: other comparisons with null yield false
   SECTION("< with null returns false") {
     PredNode node;
     node.op = "cmp";
