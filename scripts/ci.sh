@@ -142,4 +142,24 @@ else
 fi
 
 echo ""
+echo "=== Test 10: Accept null_trace.plan.json (null for nullable param) ==="
+RESPONSE=$(echo '{"request_id": "null-trace-test"}' | engine/bin/rankd --plan artifacts/plans/null_trace.plan.json 2>&1)
+if echo "$RESPONSE" | grep -q '"candidates"'; then
+    echo "PASS: null_trace.plan.json accepted as expected"
+else
+    echo "FAIL: null_trace.plan.json should have been accepted"
+    echo "Response: $RESPONSE"
+    exit 1
+fi
+
+echo ""
+echo "=== Test 11: Reject large_fanout.plan.json (exceeds 10M limit) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/large_fanout.plan.json 2>/dev/null; then
+    echo "FAIL: large_fanout.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: large_fanout.plan.json rejected as expected"
+fi
+
+echo ""
 echo "=== All CI tests passed ==="
