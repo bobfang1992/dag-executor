@@ -151,7 +151,7 @@ TaskRegistry::TaskRegistry() {
           {
               {.name = "out_key", .type = TaskParamType::Int, .required = true},
               {.name = "expr_id",
-               .type = TaskParamType::String,
+               .type = TaskParamType::ExprId,
                .required = true},
               {.name = "trace",
                .type = TaskParamType::String,
@@ -286,7 +286,7 @@ TaskRegistry::TaskRegistry() {
       .params_schema =
           {
               {.name = "pred_id",
-               .type = TaskParamType::String,
+               .type = TaskParamType::PredId,
                .required = true},
               {.name = "trace",
                .type = TaskParamType::String,
@@ -438,6 +438,8 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
       result.bool_params[field.name] = std::get<bool>(def);
       break;
     case TaskParamType::String:
+    case TaskParamType::ExprId:
+    case TaskParamType::PredId:
       result.string_params[field.name] = std::get<std::string>(def);
       break;
     }
@@ -524,6 +526,18 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
       result.string_params[field.name] = value.get<std::string>();
       break;
     }
+    case TaskParamType::ExprId:
+    case TaskParamType::PredId: {
+      // ExprId/PredId are stored as strings; validation against
+      // expr_table/pred_table happens in validate_plan
+      if (!value.is_string()) {
+        throw std::runtime_error("Invalid params for op '" + op +
+                                 "': field '" + field.name +
+                                 "' must be string");
+      }
+      result.string_params[field.name] = value.get<std::string>();
+      break;
+    }
     }
   }
 
@@ -598,6 +612,12 @@ std::string TaskRegistry::compute_manifest_digest() const {
         break;
       case TaskParamType::String:
         pj["type"] = "string";
+        break;
+      case TaskParamType::ExprId:
+        pj["type"] = "expr_id";
+        break;
+      case TaskParamType::PredId:
+        pj["type"] = "pred_id";
         break;
       }
       params_json.push_back(pj);
