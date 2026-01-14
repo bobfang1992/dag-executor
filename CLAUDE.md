@@ -269,6 +269,34 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
 - Demo plan filters: `final_score >= 0.6`
 - Negative test plans: missing_pred_id, unknown_pred_id, bad_pred_table_shape, bad_in_list
 
+**Step 07: StringDictColumn, concat task, and output contracts**
+- `engine/include/column_batch.h` - StringDictColumn with dictionary-encoded strings
+- `concat` task: concatenates two RowSets with schema validation
+- Output contracts: validates output_keys against available columns
+- Plan artifacts: `concat_demo.plan.json`
+
+**Step 08: Regex PredIR with Dictionary Optimization**
+- `engine/CMakeLists.txt` - RE2 dependency (2022-04-01)
+- `engine/include/param_table.h` - ExecStats struct for regex_re2_calls tracking
+- `engine/include/plan.h` - PredNode regex fields (regex_key_id, regex_pattern, regex_param_id, regex_flags)
+- `engine/include/pred_eval.h` - Regex evaluation with thread_local cache, dict-scan optimization
+- `engine/tests/test_regex.cpp` - Simple main test binary (not Catch2)
+- Dict-scan optimization: regex runs once per dict entry (O(dict_size)), lookup via codes (O(1))
+- Plan artifacts: `regex_demo.plan.json`, `regex_param_demo.plan.json`, `bad_regex_flags.plan.json`
+
+**Step 09: Node-based Plan Authoring (TypeScript DSL)**
+- `dsl/packages/runtime/` - TypeScript runtime package
+  - `plan.ts` - PlanCtx, CandidateSet, definePlan() for node-based plan authoring
+  - `expr.ts` - E builder: const, constNull, key, param, add, sub, mul, neg, coalesce
+  - `pred.ts` - Pred builder: constBool, and, or, not, cmp, in, isNull, notNull, regex
+  - `guards.ts` - assertNotUndefined, checkNoUndefined helpers
+- `dsl/packages/compiler-node/` - Simple CLI compiler
+  - `cli.ts` - Compiles `*.plan.ts` → `artifacts/plans/*.plan.json`
+  - `stable-stringify.ts` - Deterministic JSON serialization
+- `dsl/packages/generated/` - Generated Key/Param/Feature tokens re-exported
+- Example plans: `reels_plan_a.plan.ts`, `concat_plan.plan.ts`, `regex_plan.plan.ts`
+- Build: `pnpm run build:dsl` then `pnpm run plan:build examples/plans/*.plan.ts`
+
 ### 🔲 Not Yet Implemented
 
 **Registries (§3)**
@@ -278,30 +306,31 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
 - [ ] Lifecycle/deprecation enforcement
 
 **DSL Layer (§4-7)**
-- [ ] TypeScript runtime package (`dsl/packages/runtime`)
-- [ ] Compiler (`dsl/packages/compiler`, dslc CLI)
-- [ ] Generated bindings (`dsl/packages/generated`)
-- [ ] Plan/Fragment authoring surface
-- [ ] ExprIR extraction (vm expressions)
-- [ ] PredIR extraction (filter predicates)
-- [ ] QuickJS graph builder
+- [x] TypeScript runtime package (`dsl/packages/runtime`)
+- [x] Compiler (`dsl/packages/compiler-node`, plan-build CLI)
+- [x] Generated bindings (`dsl/packages/generated`)
+- [x] Plan authoring surface (definePlan, CandidateSet)
+- [x] ExprIR builder (E.const, E.key, E.param, E.add, E.sub, E.mul, E.neg, E.coalesce)
+- [x] PredIR builder (Pred.cmp, Pred.in, Pred.isNull, Pred.notNull, Pred.and, Pred.or, Pred.not, Pred.regex)
+- [ ] Fragment authoring surface
+- [ ] QuickJS graph builder (for complex AST extraction)
 
 **Engine Core (§9)**
 - [x] ColumnBatch (SoA storage) - id + float columns with validity
 - [x] SelectionVector / PermutationVector (order)
-- [ ] Dictionary-encoded strings
+- [x] Dictionary-encoded strings (StringDictColumn)
 - [x] Task interface + registry with TaskSpec validation
 - [x] DAG validation and linking with param validation
 - [x] ExprIR evaluation (expr_table)
-- [x] PredIR evaluation (pred_table)
+- [x] PredIR evaluation (pred_table) including regex with dict optimization
 - [ ] Budget enforcement
 
 **Tasks (§8)**
 - [x] Source tasks: `viewer.follow` (columnar)
-- [ ] concat
+- [x] concat (with schema validation)
 - [ ] fetch_features / call_models
 - [x] vm (expression evaluation, float column output)
-- [x] filter (predicate evaluation, selection update)
+- [x] filter (predicate evaluation, selection update, regex support)
 - [ ] dedupe / sort
 - [x] take (columnar, no-copy)
 - [ ] join (left/inner/semi/anti)
@@ -317,5 +346,6 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
 - [ ] Critical path tracing
 
 **Tooling (§14)**
-- [ ] dslc compiler CLI
+- [x] plan-build CLI (simple TS→JSON compiler)
+- [ ] dslc compiler CLI (full AST extraction)
 - [ ] SourceRef generation
