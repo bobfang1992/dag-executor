@@ -456,17 +456,19 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
 - `dsl/packages/compiler/` - QuickJS-based dslc compiler (replaces Node-based compiler)
   - `bundler.ts` - esbuild integration: bundles plan + runtime → single IIFE script
   - `executor.ts` - QuickJS sandbox: executes bundle, captures __emitPlan(), validates artifact
-  - `cli.ts` - Main dslc CLI: `dslc build <plan.ts> --out <dir>`
+  - `cli.ts` - Main dslc CLI: `dslc build <plan.ts> --out <dir>`, full artifact schema validation
   - `stable-stringify.ts` - Deterministic JSON serialization
 - Runtime refactoring:
   - `plan.ts`: `definePlan()` detects QuickJS mode via `global.__emitPlan` and emits artifact
   - Maintains backward compatibility with Node-based compiler-node
 - Security:
-  - Sandbox disables: eval, Function, process, require, module, dynamic imports
-  - Validates artifacts: no undefined, no functions, no symbols, no cycles
+  - Sandbox disables: eval, Function (including prototype bypass), process, require, module, dynamic imports
+  - Validates artifacts: no undefined, no functions, no symbols, no cycles (shared refs OK)
+  - Full schema validation: schema_version, plan_name, nodes, outputs, node inputs reference existing nodes
 - Testing:
-  - `examples/plans/evil.plan.ts` - Attempts eval() → dslc fails with exit code 1 ✅
-  - CI Test 32: Verifies evil plan rejection
+  - `examples/plans/evil.plan.ts` - Attempts eval() → rejected ✅
+  - `examples/plans/evil_proto.plan.ts` - Attempts Function via prototype → rejected ✅
+  - CI Tests 32-33: Verify sandbox security
 - Build: `pnpm run dslc build <plan.ts> --out artifacts/plans` (default for `pnpm run build`)
 - Benefits: Deterministic builds, sandboxed execution, portable (WASM, no native addons)
 

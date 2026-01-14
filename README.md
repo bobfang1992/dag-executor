@@ -108,14 +108,11 @@ Pred.and(p1, p2)  Pred.or(p1, p2)  Pred.not(p)
 ### Compile & Run
 
 ```bash
-# Compile all plans (QuickJS sandbox)
+# Compile all plans (manifest-based, QuickJS sandbox)
 pnpm run plan:build:all
 
 # Compile a single plan
 pnpm run dslc build examples/plans/my_plan.plan.ts --out artifacts/plans
-
-# Compile all plans (manifest-based, QuickJS backend - CI default)
-pnpm run plan:build:all
 
 # Run with engine
 echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/my_plan.plan.json
