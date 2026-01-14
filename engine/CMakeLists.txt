@@ -26,10 +26,19 @@ FetchContent_Declare(
   GIT_TAG v3.5.2
 )
 
+FetchContent_Declare(
+  re2
+  GIT_REPOSITORY https://github.com/google/re2.git
+  GIT_TAG 2022-04-01
+)
+
 # Disable Catch2's own tests
 set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(json cli11 Catch2)
+# Disable RE2 tests
+set(RE2_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(json cli11 Catch2 re2)
 
 # Task source files (self-registering via static TaskRegistrar)
 set(TASK_SOURCES
@@ -51,7 +60,7 @@ add_executable(rankd
 )
 
 target_include_directories(rankd PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(rankd PRIVATE nlohmann_json::nlohmann_json CLI11::CLI11)
+target_link_libraries(rankd PRIVATE nlohmann_json::nlohmann_json CLI11::CLI11 re2::re2)
 
 # Output to engine/bin/
 set_target_properties(rankd PROPERTIES
@@ -69,7 +78,7 @@ add_executable(rankd_tests
 )
 
 target_include_directories(rankd_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(rankd_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain)
+target_link_libraries(rankd_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2)
 
 set_target_properties(rankd_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
@@ -86,8 +95,25 @@ add_executable(concat_tests
 )
 
 target_include_directories(concat_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(concat_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain)
+target_link_libraries(concat_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2)
 
 set_target_properties(concat_tests PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)
+
+# Regex tests executable (simple main, no Catch2)
+add_executable(regex_tests
+  tests/test_regex.cpp
+  src/plan.cpp
+  src/executor.cpp
+  src/task_registry.cpp
+  src/output_contract.cpp
+  ${TASK_SOURCES}
+)
+
+target_include_directories(regex_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(regex_tests PRIVATE nlohmann_json::nlohmann_json re2::re2)
+
+set_target_properties(regex_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )

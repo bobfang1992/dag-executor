@@ -47,7 +47,7 @@ struct PredNode;
 using PredNodePtr = std::shared_ptr<PredNode>;
 
 struct PredNode {
-  std::string op; // const_bool, and, or, not, cmp, in, is_null, not_null
+  std::string op; // const_bool, and, or, not, cmp, in, is_null, not_null, regex
 
   // For const_bool
   bool const_value = false;
@@ -65,8 +65,14 @@ struct PredNode {
   PredNodePtr pred_b;
 
   // For in: list of literals (either all numbers or all strings)
-  std::vector<double> in_list;        // numeric literals
+  std::vector<double> in_list;          // numeric literals
   std::vector<std::string> in_list_str; // string literals (for Key.country.in(["US","CA"]))
+
+  // For regex: pattern matching on string columns
+  uint32_t regex_key_id = 0;     // StringDictColumn key_id
+  std::string regex_pattern;     // literal pattern (if regex_param_id == 0)
+  uint32_t regex_param_id = 0;   // param_id for pattern (0 = use literal)
+  std::string regex_flags;       // "" or "i" only
 };
 
 // Parse PredNode from JSON. Throws on invalid structure.

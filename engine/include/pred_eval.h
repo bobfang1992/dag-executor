@@ -4,8 +4,78 @@
 #include "expr_eval.h"
 #include "plan.h"
 #include <optional>
+#include <re2/re2.h>
+#include <unordered_map>
 
 namespace rankd {
+
+// Cache key for regex match tables: (dict_ptr, pattern, flags)
+struct RegexCacheKey {
+  const std::vector<std::string> *dict_ptr;
+  std::string pattern;
+  std::string flags;
+
+  bool operator==(const RegexCacheKey &other) const {
+    return dict_ptr == other.dict_ptr && pattern == other.pattern &&
+           flags == other.flags;
+  }
+};
+
+struct RegexCacheKeyHash {
+  size_t operator()(const RegexCacheKey &k) const {
+    size_t h1 = std::hash<const void *>{}(k.dict_ptr);
+    size_t h2 = std::hash<std::string>{}(k.pattern);
+    size_t h3 = std::hash<std::string>{}(k.flags);
+    return h1 ^ (h2 << 1) ^ (h3 << 2);
+  }
+};
+
+// Thread-local cache for regex match tables
+inline std::unordered_map<RegexCacheKey, std::vector<bool>, RegexCacheKeyHash> &
+getRegexCache() {
+  thread_local std::unordered_map<RegexCacheKey, std::vector<bool>,
+                                  RegexCacheKeyHash>
+      cache;
+  return cache;
+}
+
+// Clear regex cache (call between requests to avoid stale data)
+inline void clearRegexCache() { getRegexCache().clear(); }
+
+// Build regex match table for dictionary entries
+inline const std::vector<bool> &
+getOrBuildRegexMatchTable(const std::vector<std::string> &dict,
+                          const std::string &pattern, const std::string &flags,
+                          ExecStats *stats) {
+  RegexCacheKey key{&dict, pattern, flags};
+  auto &cache = getRegexCache();
+
+  auto it = cache.find(key);
+  if (it != cache.end()) {
+    return it->second;
+  }
+
+  // Build RE2 regex with options
+  RE2::Options opts;
+  opts.set_case_sensitive(flags != "i");
+
+  RE2 re(pattern, opts);
+  if (!re.ok()) {
+    throw std::runtime_error("Invalid regex pattern: " + re.error());
+  }
+
+  // Build match table by scanning dictionary once
+  std::vector<bool> matches(dict.size());
+  for (size_t i = 0; i < dict.size(); ++i) {
+    matches[i] = RE2::PartialMatch(dict[i], re);
+    if (stats) {
+      stats->regex_re2_calls++;
+    }
+  }
+
+  auto [inserted_it, _] = cache.emplace(key, std::move(matches));
+  return inserted_it->second;
+}
 
 // Three-valued predicate result: true, false, or unknown (nullopt)
 // Null semantics (per spec §7.2):
@@ -180,6 +250,48 @@ inline PredResult eval_pred_impl(const PredNode &node, size_t row,
       }
     }
     return false;
+  }
+
+  if (node.op == "regex") {
+    // Get string column
+    const StringDictColumn *col = batch.getStringCol(node.regex_key_id);
+    if (!col) {
+      // Column missing = all null = all false
+      return false;
+    }
+
+    // Check row validity - null string doesn't match regex
+    if ((*col->valid)[row] == 0) {
+      return false;
+    }
+
+    // Get pattern (literal or from param)
+    std::string pattern;
+    if (node.regex_param_id != 0) {
+      // Pattern from param
+      if (!ctx.params) {
+        throw std::runtime_error(
+            "regex: param_ref pattern but no params in context");
+      }
+      auto pat = ctx.params->getString(static_cast<ParamId>(node.regex_param_id));
+      if (!pat) {
+        // Null/missing param = fail-closed (deterministic error)
+        throw std::runtime_error(
+            "regex: param pattern is null or missing (param_id=" +
+            std::to_string(node.regex_param_id) + ")");
+      }
+      pattern = std::string(*pat);
+    } else {
+      pattern = node.regex_pattern;
+    }
+
+    // Get or build match table (dict-scan optimization)
+    const std::vector<bool> &match_table = getOrBuildRegexMatchTable(
+        *col->dict, pattern, node.regex_flags, ctx.stats);
+
+    // Lookup code in match table
+    int32_t code = (*col->codes)[row];
+    return match_table[static_cast<size_t>(code)];
   }
 
   throw std::runtime_error("Unknown pred op: " + node.op);

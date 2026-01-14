@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "plan_name": "regex_param_demo",
+  "nodes": [
+    { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": { "fanout": 10 } },
+    { "node_id": "n1", "op": "filter", "inputs": ["n0"], "params": { "pred_id": "p0" } }
+  ],
+  "outputs": ["n1"],
+  "pred_table": {
+    "p0": {
+      "op": "regex",
+      "key_id": 3001,
+      "pattern": { "kind": "param", "param_id": 2 },
+      "flags": ""
+    }
+  }
+}
