@@ -14,8 +14,9 @@
  */
 
 import { resolve, dirname, basename } from "node:path";
-import { mkdir, writeFile, access } from "node:fs/promises";
+import { mkdir, writeFile, access, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import { bundlePlan } from "./bundler.js";
 import { executePlan } from "./executor.js";
 import { stableStringify } from "./stable-stringify.js";
@@ -100,6 +101,19 @@ function validatePlanArtifact(artifact: unknown, planFileName: string): void {
       `Invalid artifact from ${planFileName}: pred_table must be an object if present`
     );
   }
+}
+
+// Read package version
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJsonPath = resolve(__dirname, "../package.json");
+let PACKAGE_VERSION = "unknown";
+try {
+  const pkgContent = await readFile(packageJsonPath, "utf-8");
+  const pkg = JSON.parse(pkgContent) as { version?: string };
+  PACKAGE_VERSION = pkg.version ?? "unknown";
+} catch {
+  // Ignore errors, use "unknown"
 }
 
 async function main() {
@@ -211,12 +225,24 @@ async function compilePlan(
 
     const planName = (artifact as { plan_name: string }).plan_name;
 
-    // Step 4: Write to output directory
+    // Step 4: Add built_by metadata
+    const bundleDigest = createHash("sha256").update(code).digest("hex").substring(0, 16);
+    const artifactWithMetadata = {
+      ...artifact,
+      built_by: {
+        backend: "quickjs",
+        tool: "dslc",
+        tool_version: PACKAGE_VERSION,
+        bundle_digest: bundleDigest,
+      },
+    };
+
+    // Step 5: Write to output directory
     const absOutputDir = resolve(process.cwd(), outputDir);
     await mkdir(absOutputDir, { recursive: true });
 
     const outputPath = resolve(absOutputDir, `${planName}.plan.json`);
-    const json = stableStringify(artifact);
+    const json = stableStringify(artifactWithMetadata);
     await writeFile(outputPath, json + "\n", "utf-8");
 
     console.log(`✓ Generated: ${outputPath}`);

@@ -114,13 +114,8 @@ pnpm run plan:build:all
 # Compile a single plan
 pnpm run dslc build examples/plans/my_plan.plan.ts --out artifacts/plans
 
-# Or step by step:
-pnpm run gen              # Regenerate registry tokens
-pnpm run build:dsl        # Build TypeScript packages
-pnpm run plan:build:all   # Compile plans with dslc
-
-# Legacy Node-based compiler (fallback)
-pnpm run plan:build examples/plans/my_plan.plan.ts
+# Compile all plans (manifest-based, QuickJS backend - CI default)
+pnpm run plan:build:all
 
 # Run with engine
 echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/my_plan.plan.json
@@ -130,14 +125,33 @@ echo '{"request_id": "t", "param_overrides": {"media_age_penalty_weight": 0.5}}'
   | engine/bin/rankd --plan artifacts/plans/my_plan.plan.json
 ```
 
-### Security
+### Alternative: Node-based Compiler (Debug/Fallback)
 
-The `dslc` compiler executes plans in a QuickJS sandbox with strict security:
+```bash
+# Single plan with Node compiler (faster iteration, less secure)
+pnpm run plan:build:node examples/plans/my_plan.plan.ts --out artifacts/plans
+
+# All plans with Node backend
+pnpm run plan:build:all:node
+```
+
+**Note:** Edit `examples/plans/manifest.json` to add/remove plans from batch compilation.
+
+### Security & Compiler Backends
+
+**QuickJS-based compiler (dslc)** - Primary, used in CI:
 - ❌ No `eval()` or `Function` constructor
 - ❌ No `process`, `require`, `module`, or Node.js globals
 - ❌ No file system, network, or dynamic imports
 - ✅ Deterministic builds (same input → same output)
 - ✅ Portable (WASM-based, no native addons)
+
+**Node-based compiler (compiler-node)** - Legacy fallback for debugging:
+- ⚠️ Full Node.js access (less secure)
+- ✅ Faster iteration during development
+- ✅ Incremental builds (skip up-to-date plans)
+
+**See [Plan Compiler Guide](docs/PLAN_COMPILER_GUIDE.md) for detailed usage.**
 
 ## Project Structure
 

@@ -9,11 +9,23 @@
  */
 
 import { resolve, dirname } from "node:path";
-import { mkdir, writeFile, stat, readdir, access } from "node:fs/promises";
+import { mkdir, writeFile, stat, readdir, access, readFile } from "node:fs/promises";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import type { PlanDef } from "@ranking-dsl/runtime";
 import { PlanCtx } from "@ranking-dsl/runtime";
 import { stableStringify } from "./stable-stringify.js";
+
+// Read package version
+const __filename = fileURLToPath(import.meta.url);
+let PACKAGE_VERSION = "unknown";
+try {
+  const packageJsonPath = resolve(dirname(__filename), "../package.json");
+  const pkgContent = await readFile(packageJsonPath, "utf-8");
+  const pkg = JSON.parse(pkgContent) as { version?: string };
+  PACKAGE_VERSION = pkg.version ?? "unknown";
+} catch {
+  // Ignore errors, use "unknown"
+}
 
 // Files that affect all plan outputs (registry + generated tokens + runtime)
 // NOTE: This does not track helper modules imported by plans. If a plan imports
@@ -59,17 +71,36 @@ async function findRepoRoot(): Promise<string> {
 
 async function main() {
   const args = process.argv.slice(2);
-  const force = args.includes("--force") || args.includes("-f");
-  const planPaths = args.filter((a) => !a.startsWith("-"));
+  let force = false;
+  let outputDir: string | null = null;
+  const planPaths: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--force" || args[i] === "-f") {
+      force = true;
+    } else if (args[i] === "--out") {
+      if (i + 1 >= args.length) {
+        console.error("Error: --out requires an argument");
+        process.exit(1);
+      }
+      outputDir = args[++i];
+    } else if (!args[i].startsWith("-")) {
+      planPaths.push(args[i]);
+    } else {
+      console.error(`Error: Unknown option '${args[i]}'`);
+      process.exit(1);
+    }
+  }
 
   if (planPaths.length === 0) {
-    console.error("Usage: plan-build [--force] <plan.ts> [<plan.ts>...]");
-    console.error("  --force, -f  Rebuild even if output is up-to-date");
+    console.error("Usage: plan-build [--force] [--out <dir>] <plan.ts> [<plan.ts>...]");
+    console.error("  --force, -f     Rebuild even if output is up-to-date");
+    console.error("  --out <dir>     Output directory (default: artifacts/plans)");
     process.exit(1);
   }
 
   for (const planPath of planPaths) {
-    await compilePlan(planPath, force);
+    await compilePlan(planPath, force, outputDir);
   }
 }
 
@@ -124,10 +155,14 @@ async function getDependencyMtime(): Promise<number> {
   return maxMtime;
 }
 
-async function compilePlan(planPath: string, force: boolean) {
+async function compilePlan(planPath: string, force: boolean, customOutputDir: string | null) {
   const absPath = resolve(process.cwd(), planPath);
   const repoRoot = await findRepoRoot();
-  const outputDir = resolve(repoRoot, "artifacts/plans");
+
+  // Use custom output dir if provided, otherwise default to artifacts/plans
+  const outputDir = customOutputDir
+    ? resolve(process.cwd(), customOutputDir)
+    : resolve(repoRoot, "artifacts/plans");
 
   // Import the plan module first to get the actual plan name
   const planUrl = pathToFileURL(absPath).href;
@@ -164,10 +199,20 @@ async function compilePlan(planPath: string, force: boolean) {
   const result = planDef.build(ctx);
   const artifact = ctx.finalize(result.getNodeId(), planDef.name);
 
-  // Write to artifacts/plans/<plan_name>.plan.json
+  // Add built_by metadata
+  const artifactWithMetadata = {
+    ...artifact,
+    built_by: {
+      backend: "node",
+      tool: "compiler-node",
+      tool_version: PACKAGE_VERSION,
+    },
+  };
+
+  // Write to output directory
   await mkdir(outputDir, { recursive: true });
 
-  const json = stableStringify(artifact);
+  const json = stableStringify(artifactWithMetadata);
   await writeFile(outputPath, json + "\n", "utf-8");
 
   console.log(`✓ Generated: ${outputPath}`);

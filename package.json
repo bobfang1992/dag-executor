@@ -8,7 +8,8 @@
     "gen": "pnpm -C dsl run gen",
     "build:dsl": "pnpm -r run build",
     "dslc": "node dsl/packages/compiler/dist/cli.js",
-    "plan:build:all": "node dsl/packages/compiler/dist/cli.js build examples/plans/reels_plan_a.plan.ts examples/plans/concat_plan.plan.ts examples/plans/regex_plan.plan.ts --out artifacts/plans",
+    "plan:build:all": "tsx dsl/tools/build_all_plans.ts --backend quickjs",
+    "plan:build:all:node": "tsx dsl/tools/build_all_plans.ts --backend node",
     "plan:build:node": "tsx dsl/packages/compiler-node/src/cli.ts"
   },
   "dependencies": {

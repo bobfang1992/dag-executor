@@ -73,39 +73,73 @@ Use `unknown` for untyped inputs and validate into typed structures. ESLint enfo
 
 ## Plan Compilation (dslc)
 
-The `dslc` compiler uses QuickJS for sandboxed, deterministic plan compilation:
+Two compilers are available. **QuickJS-based (dslc)** is the primary compiler used in CI.
 
-### Security Model
+### QuickJS Compiler (Primary)
+
+Uses QuickJS for sandboxed, deterministic plan compilation:
+
+**Security Model:**
 - **No eval/Function**: Dynamic code generation is blocked
 - **No Node globals**: No access to process, require, module, fs, network
 - **No dynamic imports**: All code must be statically bundled
 - **Artifact validation**: Ensures no undefined, functions, symbols, or cycles
 
-### Usage
+**Usage:**
 ```bash
 # Compile single plan
 pnpm run dslc build examples/plans/reels_plan_a.plan.ts --out artifacts/plans
 
-# Compile multiple plans
-pnpm run dslc build plan1.plan.ts plan2.plan.ts --out artifacts/plans
-
-# Via npm script (compiles all plans)
+# Compile all plans (manifest-based, default for CI)
 pnpm run plan:build:all
 ```
 
-### How It Works
+**How It Works:**
 1. **Bundle**: esbuild combines plan + runtime + generated tokens → single IIFE
 2. **Execute**: QuickJS runs bundle in sandbox, plan calls `definePlan()`
 3. **Emit**: `definePlan()` detects sandbox via `global.__emitPlan` and emits artifact
 4. **Validate**: Compiler validates artifact structure and JSON-serializability
-5. **Write**: Deterministic JSON with stable key ordering
+5. **Write**: Deterministic JSON with stable key ordering + built_by metadata
 
-### Error Handling
+**Error Handling:**
 Plans that attempt forbidden operations fail with clear errors:
 ```bash
 $ pnpm run dslc build examples/plans/evil.plan.ts --out artifacts/plans
 Error: QuickJS execution failed for evil.plan.ts: not a function
 ```
+
+### Node Compiler (Legacy/Fallback)
+
+Uses Node.js for fast iteration during development:
+
+**Usage:**
+```bash
+# Single plan
+pnpm run plan:build:node examples/plans/my_plan.plan.ts --out artifacts/plans
+
+# All plans (Node backend)
+pnpm run plan:build:all:node
+```
+
+**Use for:** Debugging, development iteration. **Not for CI.**
+
+### Manifest-based Build System
+
+Plans to compile are listed in `examples/plans/manifest.json`:
+```json
+{
+  "schema_version": 1,
+  "plans": [
+    "examples/plans/reels_plan_a.plan.ts",
+    "examples/plans/concat_plan.plan.ts",
+    "examples/plans/regex_plan.plan.ts"
+  ]
+}
+```
+
+**To add a plan:** Add its path to the `plans` array. The manifest controls `plan:build:all`.
+
+See [docs/PLAN_COMPILER_GUIDE.md](docs/PLAN_COMPILER_GUIDE.md) for detailed usage.
 
 ## Core Concepts
 
@@ -276,11 +310,18 @@ pnpm run plan:build:all           # Compile all plans using QuickJS-based dslc
 # Compile single plan with dslc (QuickJS sandbox)
 pnpm run dslc build examples/plans/reels_plan_a.plan.ts --out artifacts/plans
 
-# Or using direct node command
-node dsl/packages/compiler/dist/cli.js build examples/plans/foo.plan.ts --out artifacts/plans
+# Compile all plans with Node backend (debugging/fallback)
+pnpm run plan:build:all:node
 
 # Fallback: Node-based compiler (legacy, for development)
-pnpm run plan:build:node examples/plans/foo.plan.ts
+pnpm run plan:build:node examples/plans/foo.plan.ts --out artifacts/plans
+
+# Advanced: Direct invocation
+node dsl/packages/compiler/dist/cli.js build examples/plans/foo.plan.ts --out artifacts/plans
+tsx dsl/packages/compiler-node/src/cli.ts examples/plans/foo.plan.ts --out artifacts/plans
+
+# Custom manifest and output directory
+tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir --backend quickjs
 ```
 
 ---
