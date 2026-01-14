@@ -2,7 +2,6 @@
 #include <queue>
 #include <stdexcept>
 #include <unordered_map>
-#include <unordered_set>
 
 namespace rankd {
 
@@ -24,7 +23,7 @@ void validate_plan(const Plan &plan) {
     node_index[node.node_id] = i;
   }
 
-  // Check all inputs exist and ops are known
+  // Check all inputs exist, ops are known, and params are valid
   const auto &registry = TaskRegistry::instance();
   for (const auto &node : plan.nodes) {
     if (!registry.has_task(node.op)) {
@@ -36,6 +35,12 @@ void validate_plan(const Plan &plan) {
         throw std::runtime_error("Node '" + node.node_id +
                                  "' references missing input: " + inp);
       }
+    }
+    // Validate params against TaskSpec (fail-closed)
+    try {
+      registry.validate_params(node.op, node.params);
+    } catch (const std::runtime_error &e) {
+      throw std::runtime_error("Node '" + node.node_id + "': " + e.what());
     }
   }
 
@@ -138,7 +143,8 @@ std::vector<RowSet> execute_plan(const Plan &plan) {
       inputs.push_back(results[inp]);
     }
 
-    results[node_id] = registry.execute(node.op, inputs, node.params);
+    auto validated_params = registry.validate_params(node.op, node.params);
+    results[node_id] = registry.execute(node.op, inputs, validated_params);
   }
 
   // Collect outputs

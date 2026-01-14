@@ -47,14 +47,17 @@ int main(int argc, char *argv[]) {
 
   // Handle --print-registry
   if (print_registry) {
+    const auto &task_registry = rankd::TaskRegistry::instance();
     json output;
     output["key_registry_digest"] = std::string(rankd::kKeyRegistryDigest);
     output["param_registry_digest"] = std::string(rankd::kParamRegistryDigest);
     output["feature_registry_digest"] =
         std::string(rankd::kFeatureRegistryDigest);
+    output["task_manifest_digest"] = task_registry.compute_manifest_digest();
     output["num_keys"] = rankd::kKeyCount;
     output["num_params"] = rankd::kParamCount;
     output["num_features"] = rankd::kFeatureCount;
+    output["num_tasks"] = task_registry.num_tasks();
     std::cout << output.dump() << std::endl;
     return 0;
   }

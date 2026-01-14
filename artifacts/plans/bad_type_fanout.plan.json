@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "plan_name": "bad_type_fanout",
+  "nodes": [
+    { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": { "fanout": "ten" } }
+  ],
+  "outputs": ["n0"]
+}

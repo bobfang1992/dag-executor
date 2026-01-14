@@ -97,11 +97,69 @@ r = json.load(sys.stdin)
 assert 'key_registry_digest' in r, 'missing key_registry_digest'
 assert 'param_registry_digest' in r, 'missing param_registry_digest'
 assert 'feature_registry_digest' in r, 'missing feature_registry_digest'
+assert 'task_manifest_digest' in r, 'missing task_manifest_digest'
 assert r['num_keys'] == 8, f'expected 8 keys, got {r[\"num_keys\"]}'
 assert r['num_params'] == 3, f'expected 3 params, got {r[\"num_params\"]}'
 assert r['num_features'] == 2, f'expected 2 features, got {r[\"num_features\"]}'
+assert r['num_tasks'] == 2, f'expected 2 tasks, got {r[\"num_tasks\"]}'
 print('PASS: Registry info correct')
 "
+
+echo ""
+echo "=== Test 6: Reject bad_type_fanout.plan.json (string instead of int) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/bad_type_fanout.plan.json 2>/dev/null; then
+    echo "FAIL: bad_type_fanout.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: bad_type_fanout.plan.json rejected as expected"
+fi
+
+echo ""
+echo "=== Test 7: Reject missing_fanout.plan.json (missing required param) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/missing_fanout.plan.json 2>/dev/null; then
+    echo "FAIL: missing_fanout.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: missing_fanout.plan.json rejected as expected"
+fi
+
+echo ""
+echo "=== Test 8: Reject extra_param.plan.json (unknown param) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/extra_param.plan.json 2>/dev/null; then
+    echo "FAIL: extra_param.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: extra_param.plan.json rejected as expected"
+fi
+
+echo ""
+echo "=== Test 9: Reject bad_trace_type.plan.json (int instead of string) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/bad_trace_type.plan.json 2>/dev/null; then
+    echo "FAIL: bad_trace_type.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: bad_trace_type.plan.json rejected as expected"
+fi
+
+echo ""
+echo "=== Test 10: Accept null_trace.plan.json (null for nullable param) ==="
+RESPONSE=$(echo '{"request_id": "null-trace-test"}' | engine/bin/rankd --plan artifacts/plans/null_trace.plan.json 2>&1)
+if echo "$RESPONSE" | grep -q '"candidates"'; then
+    echo "PASS: null_trace.plan.json accepted as expected"
+else
+    echo "FAIL: null_trace.plan.json should have been accepted"
+    echo "Response: $RESPONSE"
+    exit 1
+fi
+
+echo ""
+echo "=== Test 11: Reject large_fanout.plan.json (exceeds 10M limit) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/large_fanout.plan.json 2>/dev/null; then
+    echo "FAIL: large_fanout.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: large_fanout.plan.json rejected as expected"
+fi
 
 echo ""
 echo "=== All CI tests passed ==="

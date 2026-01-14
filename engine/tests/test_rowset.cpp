@@ -13,8 +13,9 @@ void test_viewer_follow_and_take() {
   auto &registry = TaskRegistry::instance();
 
   // viewer.follow with fanout=10
-  nlohmann::json follow_params;
-  follow_params["fanout"] = 10;
+  nlohmann::json follow_params_json;
+  follow_params_json["fanout"] = 10;
+  auto follow_params = registry.validate_params("viewer.follow", follow_params_json);
   RowSet source = registry.execute("viewer.follow", {}, follow_params);
 
   assert(source.batch->size() == 10);
@@ -27,8 +28,9 @@ void test_viewer_follow_and_take() {
   }
 
   // take with count=5
-  nlohmann::json take_params;
-  take_params["count"] = 5;
+  nlohmann::json take_params_json;
+  take_params_json["count"] = 5;
+  auto take_params = registry.validate_params("take", take_params_json);
   RowSet result = registry.execute("take", {source}, take_params);
 
   // Same batch pointer (no copy)
@@ -153,8 +155,9 @@ void test_take_with_selection_and_order() {
   input.order = std::vector<uint32_t>{3, 2, 1, 0};
 
   // take(1) should give first row in iteration order = index 2 (id=30)
-  nlohmann::json take_params;
-  take_params["count"] = 1;
+  nlohmann::json take_params_json;
+  take_params_json["count"] = 1;
+  auto take_params = registry.validate_params("take", take_params_json);
   RowSet result = registry.execute("take", {input}, take_params);
 
   // Same batch pointer
@@ -169,8 +172,10 @@ void test_take_with_selection_and_order() {
             << std::endl;
 
   // take(2) should give both rows in iteration order = [2, 0]
-  take_params["count"] = 2;
-  RowSet result2 = registry.execute("take", {input}, take_params);
+  nlohmann::json take_params2_json;
+  take_params2_json["count"] = 2;
+  auto take_params2 = registry.validate_params("take", take_params2_json);
+  RowSet result2 = registry.execute("take", {input}, take_params2);
 
   auto indices2 = result2.materializeIndexViewForOutput(result2.batch->size());
   assert(indices2.size() == 2);
