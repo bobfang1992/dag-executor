@@ -5,11 +5,22 @@
  */
 
 import { resolve } from "node:path";
-import { mkdir, writeFile, stat } from "node:fs/promises";
+import { mkdir, writeFile, stat, readdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import type { PlanDef } from "@ranking-dsl/runtime";
 import { PlanCtx } from "@ranking-dsl/runtime";
 import { stableStringify } from "./stable-stringify.js";
+
+// Files that affect all plan outputs (registry + generated tokens + runtime)
+const DEPENDENCY_PATTERNS = [
+  "registry/keys.toml",
+  "registry/params.toml",
+  "registry/features.toml",
+  "dsl/packages/generated/src",  // directory
+  "dsl/packages/runtime/src",    // directory
+];
+
+let cachedDepMtime: number | null = null;
 
 async function main() {
   const args = process.argv.slice(2);
@@ -36,6 +47,48 @@ async function getMtime(path: string): Promise<number | null> {
   }
 }
 
+async function getMaxMtimeInDir(dirPath: string): Promise<number> {
+  let maxMtime = 0;
+  try {
+    const entries = await readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = resolve(dirPath, entry.name);
+      if (entry.isFile() && entry.name.endsWith(".ts")) {
+        const mtime = await getMtime(fullPath);
+        if (mtime !== null && mtime > maxMtime) {
+          maxMtime = mtime;
+        }
+      }
+    }
+  } catch {
+    // Directory doesn't exist
+  }
+  return maxMtime;
+}
+
+async function getDependencyMtime(): Promise<number> {
+  if (cachedDepMtime !== null) {
+    return cachedDepMtime;
+  }
+
+  const cwd = process.cwd();
+  let maxMtime = 0;
+
+  for (const pattern of DEPENDENCY_PATTERNS) {
+    const fullPath = resolve(cwd, pattern);
+    const s = await stat(fullPath).catch(() => null);
+    if (s?.isDirectory()) {
+      const dirMtime = await getMaxMtimeInDir(fullPath);
+      if (dirMtime > maxMtime) maxMtime = dirMtime;
+    } else if (s?.isFile()) {
+      if (s.mtimeMs > maxMtime) maxMtime = s.mtimeMs;
+    }
+  }
+
+  cachedDepMtime = maxMtime;
+  return maxMtime;
+}
+
 async function compilePlan(planPath: string, force: boolean) {
   const absPath = resolve(process.cwd(), planPath);
 
@@ -47,8 +100,12 @@ async function compilePlan(planPath: string, force: boolean) {
   // Check if incremental skip is possible
   if (!force) {
     const srcMtime = await getMtime(absPath);
+    const depMtime = await getDependencyMtime();
     const outMtime = await getMtime(expectedOutput);
-    if (srcMtime !== null && outMtime !== null && outMtime >= srcMtime) {
+
+    // Rebuild if source or any dependency is newer than output
+    const newestInput = Math.max(srcMtime ?? 0, depMtime);
+    if (outMtime !== null && outMtime >= newestInput) {
       console.log(`Skipping (up-to-date): ${planPath}`);
       return;
     }
