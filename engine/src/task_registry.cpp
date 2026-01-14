@@ -1,6 +1,7 @@
 #include "task_registry.h"
 #include "expr_eval.h"
 #include "param_table.h"
+#include "pred_eval.h"
 #include "sha256.h"
 #include <algorithm>
 #include <cmath>
@@ -150,7 +151,7 @@ TaskRegistry::TaskRegistry() {
           {
               {.name = "out_key", .type = TaskParamType::Int, .required = true},
               {.name = "expr_id",
-               .type = TaskParamType::String,
+               .type = TaskParamType::ExprId,
                .required = true},
               {.name = "trace",
                .type = TaskParamType::String,
@@ -218,14 +219,19 @@ TaskRegistry::TaskRegistry() {
         const auto &input = inputs[0];
         size_t n = input.batch->size();
 
-        // Build active set from selection
+        // Build active set: honor selection if present, else order, else full batch
         std::vector<uint8_t> active(n, 0);
         if (input.selection) {
           for (uint32_t idx : *input.selection) {
             active[idx] = 1;
           }
+        } else if (input.order) {
+          // Order-only RowSet: only rows in order are active
+          for (uint32_t idx : *input.order) {
+            active[idx] = 1;
+          }
         } else {
-          // All rows active
+          // No selection or order: all rows active
           for (size_t i = 0; i < n; ++i) {
             active[i] = 1;
           }
@@ -272,6 +278,98 @@ TaskRegistry::TaskRegistry() {
         return RowSet{.batch = new_batch,
                       .selection = input.selection,
                       .order = input.order};
+      });
+
+  // Register filter
+  TaskSpec filter_spec{
+      .op = "filter",
+      .params_schema =
+          {
+              {.name = "pred_id",
+               .type = TaskParamType::PredId,
+               .required = true},
+              {.name = "trace",
+               .type = TaskParamType::String,
+               .required = false,
+               .nullable = true},
+          },
+      .reads = {},
+      .writes = {},
+      .default_budget = {.timeout_ms = 50},
+  };
+
+  register_task(
+      std::move(filter_spec),
+      [](const std::vector<RowSet> &inputs, const ValidatedParams &params,
+         const ExecCtx &ctx) -> RowSet {
+        if (inputs.size() != 1) {
+          throw std::runtime_error("filter: expected exactly 1 input");
+        }
+
+        const std::string &pred_id = params.get_string("pred_id");
+        if (pred_id.empty()) {
+          throw std::runtime_error("filter: 'pred_id' must be non-empty");
+        }
+
+        // pred_id must exist in pred_table
+        if (!ctx.pred_table) {
+          throw std::runtime_error("filter: no pred_table in context");
+        }
+        auto pred_it = ctx.pred_table->find(pred_id);
+        if (pred_it == ctx.pred_table->end()) {
+          throw std::runtime_error("filter: pred_id '" + pred_id +
+                                   "' not found in pred_table");
+        }
+        const PredNode &pred = *pred_it->second;
+
+        const auto &input = inputs[0];
+        size_t n = input.batch->size();
+
+        // Build new selection by filtering active rows
+        // Active rows are determined by: selection > order > [0..n)
+        std::vector<uint32_t> new_selection;
+
+        if (input.order && input.selection) {
+          // Both exist: iterate order, filter by selection membership, then
+          // predicate
+          std::vector<uint8_t> in_selection(n, 0);
+          for (uint32_t idx : *input.selection) {
+            in_selection[idx] = 1;
+          }
+          for (uint32_t idx : *input.order) {
+            if (in_selection[idx] &&
+                eval_pred(pred, idx, *input.batch, ctx)) {
+              new_selection.push_back(idx);
+            }
+          }
+        } else if (input.selection) {
+          // Only selection: iterate over selection
+          for (uint32_t idx : *input.selection) {
+            if (eval_pred(pred, idx, *input.batch, ctx)) {
+              new_selection.push_back(idx);
+            }
+          }
+        } else if (input.order) {
+          // Only order: iterate over order (these are the active rows)
+          for (uint32_t idx : *input.order) {
+            if (eval_pred(pred, idx, *input.batch, ctx)) {
+              new_selection.push_back(idx);
+            }
+          }
+        } else {
+          // Neither: iterate over all rows
+          for (size_t i = 0; i < n; ++i) {
+            if (eval_pred(pred, i, *input.batch, ctx)) {
+              new_selection.push_back(static_cast<uint32_t>(i));
+            }
+          }
+        }
+
+        // Return new RowSet with same batch, updated selection
+        // Order is cleared since new_selection captures the iteration order
+        return RowSet{.batch = input.batch,
+                      .selection = std::move(new_selection),
+                      .order = std::nullopt};
       });
 }
 
@@ -340,6 +438,8 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
       result.bool_params[field.name] = std::get<bool>(def);
       break;
     case TaskParamType::String:
+    case TaskParamType::ExprId:
+    case TaskParamType::PredId:
       result.string_params[field.name] = std::get<std::string>(def);
       break;
     }
@@ -426,6 +526,18 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
       result.string_params[field.name] = value.get<std::string>();
       break;
     }
+    case TaskParamType::ExprId:
+    case TaskParamType::PredId: {
+      // ExprId/PredId are stored as strings; validation against
+      // expr_table/pred_table happens in validate_plan
+      if (!value.is_string()) {
+        throw std::runtime_error("Invalid params for op '" + op +
+                                 "': field '" + field.name +
+                                 "' must be string");
+      }
+      result.string_params[field.name] = value.get<std::string>();
+      break;
+    }
     }
   }
 
@@ -500,6 +612,12 @@ std::string TaskRegistry::compute_manifest_digest() const {
         break;
       case TaskParamType::String:
         pj["type"] = "string";
+        break;
+      case TaskParamType::ExprId:
+        pj["type"] = "expr_id";
+        break;
+      case TaskParamType::PredId:
+        pj["type"] = "pred_id";
         break;
       }
       params_json.push_back(pj);

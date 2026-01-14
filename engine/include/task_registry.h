@@ -16,7 +16,14 @@ struct ExecCtx;
 
 // Param types supported in task param schemas (named TaskParamType to avoid
 // conflict with generated ParamType in param_registry.h)
-enum class TaskParamType { Int, Float, Bool, String };
+enum class TaskParamType {
+  Int,
+  Float,
+  Bool,
+  String,
+  ExprId, // Reference to expr_table entry (validated at plan load)
+  PredId  // Reference to pred_table entry (validated at plan load)
+};
 
 // Default value type for task params
 using ParamDefaultValue = std::variant<int64_t, double, bool, std::string>;

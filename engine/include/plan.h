@@ -16,7 +16,7 @@ struct Node {
   nlohmann::json params;
 };
 
-// ExprNode: recursive expression tree
+// ExprNode: recursive expression tree (for vm expressions)
 struct ExprNode;
 using ExprNodePtr = std::shared_ptr<ExprNode>;
 
@@ -42,6 +42,36 @@ struct ExprNode {
 // Parse ExprNode from JSON. Throws on invalid structure.
 ExprNodePtr parse_expr_node(const nlohmann::json &j);
 
+// PredNode: recursive predicate tree (for filter predicates)
+struct PredNode;
+using PredNodePtr = std::shared_ptr<PredNode>;
+
+struct PredNode {
+  std::string op; // const_bool, and, or, not, cmp, in, is_null, not_null
+
+  // For const_bool
+  bool const_value = false;
+
+  // For cmp: comparison operator
+  std::string cmp_op; // ==, !=, <, <=, >, >=
+
+  // For cmp, is_null, not_null: operand as ExprNode (value expression)
+  ExprNodePtr value_a;
+  ExprNodePtr value_b;
+
+  // For and, or: binary predicate operands
+  // For not: unary predicate operand stored in pred_a
+  PredNodePtr pred_a;
+  PredNodePtr pred_b;
+
+  // For in: list of literals (either all numbers or all strings)
+  std::vector<double> in_list;        // numeric literals
+  std::vector<std::string> in_list_str; // string literals (for Key.country.in(["US","CA"]))
+};
+
+// Parse PredNode from JSON. Throws on invalid structure.
+PredNodePtr parse_pred_node(const nlohmann::json &j);
+
 struct Plan {
   int schema_version = 0;
   std::string plan_name;
@@ -50,6 +80,9 @@ struct Plan {
 
   // expr_table: expr_id -> ExprNode tree
   std::unordered_map<std::string, ExprNodePtr> expr_table;
+
+  // pred_table: pred_id -> PredNode tree
+  std::unordered_map<std::string, PredNodePtr> pred_table;
 };
 
 // Parse plan from JSON file. Throws std::runtime_error on parse failure.

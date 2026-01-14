@@ -131,8 +131,9 @@ int main(int argc, char *argv[]) {
       rankd::Plan plan = rankd::parse_plan(plan_path);
       rankd::validate_plan(plan);
 
-      // Set expr_table in context
+      // Set expr_table and pred_table in context
       ctx.expr_table = &plan.expr_table;
+      ctx.pred_table = &plan.pred_table;
 
       auto outputs = rankd::execute_plan(plan, ctx);
 

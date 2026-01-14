@@ -42,6 +42,29 @@ void validate_plan(const Plan &plan) {
     } catch (const std::runtime_error &e) {
       throw std::runtime_error("Node '" + node.node_id + "': " + e.what());
     }
+
+    // Validate ExprId/PredId references against plan tables (generic, based on TaskSpec)
+    const auto &spec = registry.get_spec(node.op);
+    for (const auto &field : spec.params_schema) {
+      if (!node.params.contains(field.name) || !node.params[field.name].is_string()) {
+        continue;
+      }
+      std::string ref = node.params[field.name].get<std::string>();
+
+      if (field.type == TaskParamType::ExprId) {
+        if (plan.expr_table.find(ref) == plan.expr_table.end()) {
+          throw std::runtime_error("Node '" + node.node_id +
+                                   "': expr_id '" + ref +
+                                   "' not found in expr_table");
+        }
+      } else if (field.type == TaskParamType::PredId) {
+        if (plan.pred_table.find(ref) == plan.pred_table.end()) {
+          throw std::runtime_error("Node '" + node.node_id +
+                                   "': pred_id '" + ref +
+                                   "' not found in pred_table");
+        }
+      }
+    }
   }
 
   // Check outputs exist
