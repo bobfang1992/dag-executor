@@ -62,6 +62,90 @@ ExprNodePtr parse_expr_node(const nlohmann::json &j) {
   return node;
 }
 
+PredNodePtr parse_pred_node(const nlohmann::json &j) {
+  if (!j.is_object()) {
+    throw std::runtime_error("PredNode must be an object");
+  }
+  if (!j.contains("op") || !j["op"].is_string()) {
+    throw std::runtime_error("PredNode missing or invalid 'op'");
+  }
+
+  auto node = std::make_shared<PredNode>();
+  node->op = j["op"].get<std::string>();
+
+  static const std::unordered_set<std::string> valid_ops = {
+      "const_bool", "and", "or", "not", "cmp", "in", "is_null", "not_null"};
+
+  if (valid_ops.find(node->op) == valid_ops.end()) {
+    throw std::runtime_error("Unknown PredNode op: " + node->op);
+  }
+
+  if (node->op == "const_bool") {
+    if (!j.contains("value") || !j["value"].is_boolean()) {
+      throw std::runtime_error("const_bool missing or invalid 'value'");
+    }
+    node->const_value = j["value"].get<bool>();
+  } else if (node->op == "and" || node->op == "or") {
+    if (!j.contains("a")) {
+      throw std::runtime_error(node->op + " missing 'a'");
+    }
+    if (!j.contains("b")) {
+      throw std::runtime_error(node->op + " missing 'b'");
+    }
+    node->pred_a = parse_pred_node(j["a"]);
+    node->pred_b = parse_pred_node(j["b"]);
+  } else if (node->op == "not") {
+    if (!j.contains("x")) {
+      throw std::runtime_error("not missing 'x'");
+    }
+    node->pred_a = parse_pred_node(j["x"]);
+  } else if (node->op == "cmp") {
+    if (!j.contains("cmp") || !j["cmp"].is_string()) {
+      throw std::runtime_error("cmp missing or invalid 'cmp' operator");
+    }
+    node->cmp_op = j["cmp"].get<std::string>();
+
+    static const std::unordered_set<std::string> valid_cmp_ops = {
+        "==", "!=", "<", "<=", ">", ">="};
+    if (valid_cmp_ops.find(node->cmp_op) == valid_cmp_ops.end()) {
+      throw std::runtime_error("Unknown cmp operator: " + node->cmp_op);
+    }
+
+    if (!j.contains("a")) {
+      throw std::runtime_error("cmp missing 'a'");
+    }
+    if (!j.contains("b")) {
+      throw std::runtime_error("cmp missing 'b'");
+    }
+    node->value_a = parse_expr_node(j["a"]);
+    node->value_b = parse_expr_node(j["b"]);
+  } else if (node->op == "in") {
+    if (!j.contains("lhs")) {
+      throw std::runtime_error("in missing 'lhs'");
+    }
+    if (!j.contains("list") || !j["list"].is_array()) {
+      throw std::runtime_error("in missing or invalid 'list'");
+    }
+    node->value_a = parse_expr_node(j["lhs"]);
+
+    // Parse list - Step 06 only supports numeric literals
+    for (const auto &item : j["list"]) {
+      if (!item.is_number()) {
+        throw std::runtime_error(
+            "in list contains non-numeric literal (only numbers supported)");
+      }
+      node->in_list.push_back(item.get<double>());
+    }
+  } else if (node->op == "is_null" || node->op == "not_null") {
+    if (!j.contains("x")) {
+      throw std::runtime_error(node->op + " missing 'x'");
+    }
+    node->value_a = parse_expr_node(j["x"]);
+  }
+
+  return node;
+}
+
 Plan parse_plan(const std::string &path) {
   std::ifstream file(path);
   if (!file) {
@@ -151,6 +235,22 @@ Plan parse_plan(const std::string &path) {
         plan.expr_table[expr_id] = parse_expr_node(it.value());
       } catch (const std::runtime_error &e) {
         throw std::runtime_error("Error parsing expr '" + expr_id +
+                                 "': " + e.what());
+      }
+    }
+  }
+
+  // pred_table (optional)
+  if (j.contains("pred_table")) {
+    if (!j["pred_table"].is_object()) {
+      throw std::runtime_error("Plan 'pred_table' must be an object");
+    }
+    for (auto it = j["pred_table"].begin(); it != j["pred_table"].end(); ++it) {
+      const std::string &pred_id = it.key();
+      try {
+        plan.pred_table[pred_id] = parse_pred_node(it.value());
+      } catch (const std::runtime_error &e) {
+        throw std::runtime_error("Error parsing pred '" + pred_id +
                                  "': " + e.what());
       }
     }

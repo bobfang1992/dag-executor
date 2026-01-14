@@ -62,17 +62,18 @@ r = json.load(sys.stdin)
 assert r['request_id'] == 'demo-test', 'request_id mismatch'
 assert 'engine_request_id' in r, 'missing engine_request_id'
 assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
-expected_ids = [1, 2, 3, 4, 5]
+# With filter (final_score >= 0.6), ids 3-7 pass, take 5 gives [3,4,5,6,7]
+expected_ids = [3, 4, 5, 6, 7]
 actual_ids = [c['id'] for c in r['candidates']]
 assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
-# Verify final_score values (id * 0.2 default)
-expected_scores = [0.2, 0.4, 0.6, 0.8, 1.0]
+# Verify final_score values (id * 0.2 default, filtered to >= 0.6)
+expected_scores = [0.6, 0.8, 1.0, 1.2, 1.4]
 for i, c in enumerate(r['candidates']):
-    assert 'final_score' in c['fields'], f'candidate {i+1} missing final_score'
+    assert 'final_score' in c['fields'], f'candidate {expected_ids[i]} missing final_score'
     actual = c['fields']['final_score']
     expected = expected_scores[i]
-    assert abs(actual - expected) < 0.0001, f'candidate {i+1} final_score: expected {expected}, got {actual}'
-print('PASS: Demo plan executed correctly with final_score')
+    assert abs(actual - expected) < 0.0001, f'candidate {expected_ids[i]} final_score: expected {expected}, got {actual}'
+print('PASS: Demo plan executed correctly with filter and final_score')
 "
 
 echo ""
@@ -108,7 +109,7 @@ assert 'task_manifest_digest' in r, 'missing task_manifest_digest'
 assert r['num_keys'] == 8, f'expected 8 keys, got {r[\"num_keys\"]}'
 assert r['num_params'] == 3, f'expected 3 params, got {r[\"num_params\"]}'
 assert r['num_features'] == 2, f'expected 2 features, got {r[\"num_features\"]}'
-assert r['num_tasks'] == 3, f'expected 3 tasks, got {r[\"num_tasks\"]}'
+assert r['num_tasks'] == 4, f'expected 4 tasks, got {r[\"num_tasks\"]}'
 print('PASS: Registry info correct')
 "
 
@@ -180,14 +181,18 @@ import sys, json
 r = json.load(sys.stdin)
 assert r['request_id'] == 'param-test', 'request_id mismatch'
 assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+# With override 0.5: final_score = id * 0.5, filter >= 0.6 gives ids 2-10, take 5 gives [2,3,4,5,6]
+expected_ids = [2, 3, 4, 5, 6]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
 # Verify final_score values (id * 0.5 from override)
-expected_scores = [0.5, 1.0, 1.5, 2.0, 2.5]
+expected_scores = [1.0, 1.5, 2.0, 2.5, 3.0]
 for i, c in enumerate(r['candidates']):
-    assert 'final_score' in c['fields'], f'candidate {i+1} missing final_score'
+    assert 'final_score' in c['fields'], f'candidate {expected_ids[i]} missing final_score'
     actual = c['fields']['final_score']
     expected = expected_scores[i]
-    assert abs(actual - expected) < 0.0001, f'candidate {i+1} final_score: expected {expected}, got {actual}'
-print('PASS: Valid param_overrides with correct final_score')
+    assert abs(actual - expected) < 0.0001, f'candidate {expected_ids[i]} final_score: expected {expected}, got {actual}'
+print('PASS: Valid param_overrides with filter and correct final_score')
 "
 
 echo ""
@@ -256,8 +261,48 @@ import sys, json
 r = json.load(sys.stdin)
 assert r['request_id'] == 'null-nullable', 'request_id mismatch'
 assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+# Filter still applies: ids 3-7 with default weight
+expected_ids = [3, 4, 5, 6, 7]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
 print('PASS: Null for nullable param accepted')
 "
+
+echo ""
+echo "=== Test 17: Reject missing_pred_id.plan.json (filter without pred_id) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/missing_pred_id.plan.json 2>/dev/null; then
+    echo "FAIL: missing_pred_id.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: missing_pred_id.plan.json rejected as expected"
+fi
+
+echo ""
+echo "=== Test 18: Reject unknown_pred_id.plan.json (pred_id not in pred_table) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/unknown_pred_id.plan.json 2>/dev/null; then
+    echo "FAIL: unknown_pred_id.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: unknown_pred_id.plan.json rejected as expected"
+fi
+
+echo ""
+echo "=== Test 19: Reject bad_pred_table_shape.plan.json (unknown pred op) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/bad_pred_table_shape.plan.json 2>/dev/null; then
+    echo "FAIL: bad_pred_table_shape.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: bad_pred_table_shape.plan.json rejected as expected"
+fi
+
+echo ""
+echo "=== Test 20: Reject bad_in_list.plan.json (non-numeric in list) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/bad_in_list.plan.json 2>/dev/null; then
+    echo "FAIL: bad_in_list.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: bad_in_list.plan.json rejected as expected"
+fi
 
 echo ""
 echo "=== All CI tests passed ==="

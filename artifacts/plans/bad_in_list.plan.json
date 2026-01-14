@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "plan_name": "bad_in_list",
+  "nodes": [
+    { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": { "fanout": 10 } },
+    { "node_id": "n1", "op": "filter", "inputs": ["n0"], "params": { "pred_id": "p0" } }
+  ],
+  "outputs": ["n1"],
+  "pred_table": {
+    "p0": {
+      "op": "in",
+      "lhs": { "op": "key_ref", "key_id": 1 },
+      "list": [1, 2, "three"]
+    }
+  }
+}

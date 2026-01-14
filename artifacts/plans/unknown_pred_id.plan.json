@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "plan_name": "unknown_pred_id",
+  "nodes": [
+    { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": { "fanout": 10 } },
+    { "node_id": "n1", "op": "filter", "inputs": ["n0"], "params": { "pred_id": "does_not_exist" } }
+  ],
+  "outputs": ["n1"],
+  "pred_table": {
+    "p0": { "op": "const_bool", "value": true }
+  }
+}

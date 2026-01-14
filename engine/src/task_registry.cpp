@@ -1,6 +1,7 @@
 #include "task_registry.h"
 #include "expr_eval.h"
 #include "param_table.h"
+#include "pred_eval.h"
 #include "sha256.h"
 #include <algorithm>
 #include <cmath>
@@ -271,6 +272,76 @@ TaskRegistry::TaskRegistry() {
 
         return RowSet{.batch = new_batch,
                       .selection = input.selection,
+                      .order = input.order};
+      });
+
+  // Register filter
+  TaskSpec filter_spec{
+      .op = "filter",
+      .params_schema =
+          {
+              {.name = "pred_id",
+               .type = TaskParamType::String,
+               .required = true},
+              {.name = "trace",
+               .type = TaskParamType::String,
+               .required = false,
+               .nullable = true},
+          },
+      .reads = {},
+      .writes = {},
+      .default_budget = {.timeout_ms = 50},
+  };
+
+  register_task(
+      std::move(filter_spec),
+      [](const std::vector<RowSet> &inputs, const ValidatedParams &params,
+         const ExecCtx &ctx) -> RowSet {
+        if (inputs.size() != 1) {
+          throw std::runtime_error("filter: expected exactly 1 input");
+        }
+
+        const std::string &pred_id = params.get_string("pred_id");
+        if (pred_id.empty()) {
+          throw std::runtime_error("filter: 'pred_id' must be non-empty");
+        }
+
+        // pred_id must exist in pred_table
+        if (!ctx.pred_table) {
+          throw std::runtime_error("filter: no pred_table in context");
+        }
+        auto pred_it = ctx.pred_table->find(pred_id);
+        if (pred_it == ctx.pred_table->end()) {
+          throw std::runtime_error("filter: pred_id '" + pred_id +
+                                   "' not found in pred_table");
+        }
+        const PredNode &pred = *pred_it->second;
+
+        const auto &input = inputs[0];
+        size_t n = input.batch->size();
+
+        // Build new selection by filtering active rows
+        std::vector<uint32_t> new_selection;
+
+        if (input.selection) {
+          // Iterate over existing selection
+          for (uint32_t idx : *input.selection) {
+            if (eval_pred(pred, idx, *input.batch, ctx)) {
+              new_selection.push_back(idx);
+            }
+          }
+        } else {
+          // Iterate over all rows
+          for (size_t i = 0; i < n; ++i) {
+            if (eval_pred(pred, i, *input.batch, ctx)) {
+              new_selection.push_back(static_cast<uint32_t>(i));
+            }
+          }
+        }
+
+        // Return new RowSet with same batch, updated selection, preserved order
+        return RowSet{.batch = input.batch,
+                      .selection = std::move(new_selection),
                       .order = input.order};
       });
 }
