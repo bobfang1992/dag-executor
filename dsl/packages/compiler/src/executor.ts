@@ -139,19 +139,10 @@ function formatQuickJSError(error: unknown): string {
  * Throws if artifact contains undefined, functions, or symbols.
  */
 function validateArtifact(artifact: unknown, planPath: string): void {
-  const seen = new Set<unknown>();
+  // Track current recursion stack to detect true cycles (not shared references)
+  const stack = new Set<unknown>();
 
   function visit(value: unknown, path: string): void {
-    // Detect cycles
-    if (value !== null && typeof value === "object") {
-      if (seen.has(value)) {
-        throw new Error(
-          `Plan ${planPath} emitted artifact with circular reference at ${path}`
-        );
-      }
-      seen.add(value);
-    }
-
     // Check for non-JSON-serializable types
     if (value === undefined) {
       throw new Error(
@@ -170,15 +161,30 @@ function validateArtifact(artifact: unknown, planPath: string): void {
       );
     }
 
-    // Recurse into objects and arrays
-    if (Array.isArray(value)) {
-      value.forEach((item, i) => visit(item, `${path}[${i}]`));
-    } else if (value !== null && typeof value === "object") {
-      for (const [key, val] of Object.entries(value)) {
-        // Skip undefined values - they're omitted in JSON serialization
-        if (val !== undefined) {
-          visit(val, `${path}.${key}`);
+    // Recurse into objects and arrays (with cycle detection)
+    if (value !== null && typeof value === "object") {
+      // Detect cycles: if value is already on the current recursion stack
+      if (stack.has(value)) {
+        throw new Error(
+          `Plan ${planPath} emitted artifact with circular reference at ${path}`
+        );
+      }
+      stack.add(value);
+
+      try {
+        if (Array.isArray(value)) {
+          value.forEach((item, i) => visit(item, `${path}[${i}]`));
+        } else {
+          for (const [key, val] of Object.entries(value)) {
+            // Skip undefined values - they're omitted in JSON serialization
+            if (val !== undefined) {
+              visit(val, `${path}.${key}`);
+            }
+          }
         }
+      } finally {
+        // Remove from stack when exiting recursion (allows shared refs)
+        stack.delete(value);
       }
     }
   }
