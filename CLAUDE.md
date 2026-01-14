@@ -140,6 +140,58 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 
 ---
 
+## Feature Parity (Engine vs DSL)
+
+### Expression Ops (ExprIR)
+| Op | Engine | DSL | Notes |
+|----|--------|-----|-------|
+| const_number | ✅ | ✅ `E.const()` | |
+| const_null | ✅ | ✅ `E.constNull()` | |
+| key_ref | ✅ | ✅ `E.key()` | Float columns only |
+| param_ref | ✅ | ✅ `E.param()` | |
+| add | ✅ | ✅ `E.add()` | |
+| sub | ✅ | ✅ `E.sub()` | |
+| mul | ✅ | ✅ `E.mul()` | |
+| neg | ✅ | ✅ `E.neg()` | |
+| coalesce | ✅ | ✅ `E.coalesce()` | Null fallback |
+| div | ❌ | ❌ | Not implemented |
+
+### Predicate Ops (PredIR)
+| Op | Engine | DSL | Notes |
+|----|--------|-----|-------|
+| const_bool | ✅ | ✅ `Pred.constBool()` | |
+| and | ✅ | ✅ `Pred.and()` | |
+| or | ✅ | ✅ `Pred.or()` | |
+| not | ✅ | ✅ `Pred.not()` | |
+| cmp | ✅ | ✅ `Pred.cmp()` | ==, !=, <, <=, >, >= |
+| in (numeric) | ✅ | ✅ `Pred.in()` | Homogeneous list |
+| in (string) | ✅ | ✅ `Pred.in()` | Dictionary lookup |
+| is_null | ✅ | ✅ `Pred.isNull()` | |
+| not_null | ✅ | ✅ `Pred.notNull()` | |
+| regex | ✅ | ✅ `Pred.regex()` | RE2, dict optimization |
+
+### Tasks
+| Task | Engine | DSL | Notes |
+|------|--------|-----|-------|
+| viewer.follow | ✅ | ✅ `ctx.viewer.follow()` | |
+| viewer.fetch_cached_recommendation | ✅ | ✅ `ctx.viewer.fetch_cached_recommendation()` | |
+| vm | ✅ | ✅ `.vm()` | Expression evaluation |
+| filter | ✅ | ✅ `.filter()` | Predicate evaluation |
+| take | ✅ | ✅ `.take()` | |
+| concat | ✅ | ✅ `.concat()` | |
+| sort | ❌ | ❌ | Not implemented |
+| dedupe | ❌ | ❌ | Not implemented |
+| join | ❌ | ❌ | Not implemented |
+
+### Column Types
+| Type | Engine | DSL | Notes |
+|------|--------|-----|-------|
+| id (int64) | ✅ | ✅ | Read-only |
+| float | ✅ | ✅ | Via vm task |
+| string | ✅ | ✅ | Dictionary-encoded |
+
+---
+
 ## Build Commands
 
 ```bash
