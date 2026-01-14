@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build:dsl": "pnpm -r run build",
-    "plan:build": "tsx dsl/packages/compiler-node/src/cli.ts"
+    "plan:build": "tsx dsl/packages/compiler-node/src/cli.ts",
+    "plan:build:all": "tsx dsl/packages/compiler-node/src/cli.ts examples/plans/*.plan.ts"
   },
   "dependencies": {
     "@ranking-dsl/runtime": "workspace:*",
