@@ -8,13 +8,13 @@
 namespace rankd {
 
 // Three-valued predicate result: true, false, or unknown (nullopt)
-// SQL-like null semantics:
+// Null semantics:
 // - cmp operations with null operands yield unknown (nullopt)
 // - is_null/not_null always yield true/false (never unknown)
 // - NOT unknown = unknown
 // - true AND unknown = unknown, false AND unknown = false
 // - true OR unknown = true, false OR unknown = unknown
-// - in with null lhs yields unknown
+// - in with null lhs yields false (null is not a member of any literal list)
 using PredResult = std::optional<bool>;
 
 // Internal evaluation returning three-valued result
@@ -120,9 +120,11 @@ inline PredResult eval_pred_impl(const PredNode &node, size_t row,
   if (node.op == "in") {
     ExprResult lhs = eval_expr(*node.value_a, row, batch, ctx);
 
-    // If lhs is null, in yields unknown
+    // If lhs is null, in yields false (per spec: null is not a member of any list)
+    // This is different from cmp which yields unknown - in is a membership test
+    // where null definitively is not in the set of literal values
     if (!lhs) {
-      return std::nullopt;
+      return false;
     }
 
     double val = *lhs;

@@ -473,6 +473,20 @@ TEST_CASE("in predicate", "[pred_eval]") {
     REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
   }
 
+  SECTION("not (null in list) returns true") {
+    // Since (null in list) = false, not (null in list) = true
+    // This is different from cmp where unknown propagates through NOT
+    auto in_pred = std::make_shared<PredNode>();
+    in_pred->op = "in";
+    in_pred->value_a = make_null_expr();
+    in_pred->in_list = {1.0, 2.0, 3.0};
+
+    PredNode node;
+    node.op = "not";
+    node.pred_a = in_pred;
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == true);
+  }
+
   SECTION("empty list") {
     PredNode node;
     node.op = "in";
