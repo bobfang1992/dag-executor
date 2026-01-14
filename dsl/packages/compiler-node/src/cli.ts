@@ -16,8 +16,8 @@ const DEPENDENCY_PATTERNS = [
   "registry/keys.toml",
   "registry/params.toml",
   "registry/features.toml",
-  "dsl/packages/generated/src",  // directory
-  "dsl/packages/runtime/src",    // directory
+  "dsl/packages/generated",      // generated tokens (*.ts at root)
+  "dsl/packages/runtime/src",    // runtime sources
 ];
 
 let cachedDepMtime: number | null = null;
@@ -91,17 +91,27 @@ async function getDependencyMtime(): Promise<number> {
 
 async function compilePlan(planPath: string, force: boolean) {
   const absPath = resolve(process.cwd(), planPath);
-
-  // Derive expected output path from input filename (foo.plan.ts -> foo.plan.json)
-  const baseName = planPath.split("/").pop()?.replace(/\.ts$/, ".json") ?? "";
   const outputDir = resolve(process.cwd(), "artifacts/plans");
-  const expectedOutput = resolve(outputDir, baseName);
 
-  // Check if incremental skip is possible
+  // Import the plan module first to get the actual plan name
+  const planUrl = pathToFileURL(absPath).href;
+  const module = await import(planUrl);
+
+  const planDef: PlanDef = module.default;
+  if (!planDef || typeof planDef.build !== "function") {
+    throw new Error(
+      `Plan module must export a default PlanDef with build() method: ${planPath}`
+    );
+  }
+
+  // Use actual plan name for output path
+  const outputPath = resolve(outputDir, `${planDef.name}.plan.json`);
+
+  // Check if incremental skip is possible (after knowing actual output path)
   if (!force) {
     const srcMtime = await getMtime(absPath);
     const depMtime = await getDependencyMtime();
-    const outMtime = await getMtime(expectedOutput);
+    const outMtime = await getMtime(outputPath);
 
     // Rebuild if source or any dependency is newer than output
     const newestInput = Math.max(srcMtime ?? 0, depMtime);
@@ -113,18 +123,6 @@ async function compilePlan(planPath: string, force: boolean) {
 
   console.log(`Compiling: ${planPath}`);
 
-  // Import the plan module using dynamic import
-  const planUrl = pathToFileURL(absPath).href;
-  const module = await import(planUrl);
-
-  // Find the default export (should be PlanDef)
-  const planDef: PlanDef = module.default;
-  if (!planDef || typeof planDef.build !== "function") {
-    throw new Error(
-      `Plan module must export a default PlanDef with build() method: ${planPath}`
-    );
-  }
-
   // Build the plan
   const ctx = new PlanCtx();
   const result = planDef.build(ctx);
@@ -133,7 +131,6 @@ async function compilePlan(planPath: string, force: boolean) {
   // Write to artifacts/plans/<plan_name>.plan.json
   await mkdir(outputDir, { recursive: true });
 
-  const outputPath = resolve(outputDir, `${planDef.name}.plan.json`);
   const json = stableStringify(artifact);
   await writeFile(outputPath, json + "\n", "utf-8");
 
