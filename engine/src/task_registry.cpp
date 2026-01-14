@@ -1,4 +1,5 @@
 #include "task_registry.h"
+#include "param_table.h"
 #include "sha256.h"
 #include <algorithm>
 #include <cmath>
@@ -33,8 +34,8 @@ TaskRegistry::TaskRegistry() {
 
   register_task(
       std::move(viewer_follow_spec),
-      [](const std::vector<RowSet> &inputs,
-         const ValidatedParams &params) -> RowSet {
+      [](const std::vector<RowSet> &inputs, const ValidatedParams &params,
+         [[maybe_unused]] const ExecCtx &ctx) -> RowSet {
         if (!inputs.empty()) {
           throw std::runtime_error("viewer.follow: expected 0 inputs");
         }
@@ -77,8 +78,8 @@ TaskRegistry::TaskRegistry() {
 
   register_task(
       std::move(take_spec),
-      [](const std::vector<RowSet> &inputs,
-         const ValidatedParams &params) -> RowSet {
+      [](const std::vector<RowSet> &inputs, const ValidatedParams &params,
+         [[maybe_unused]] const ExecCtx &ctx) -> RowSet {
         if (inputs.size() != 1) {
           throw std::runtime_error("take: expected exactly 1 input");
         }
@@ -301,12 +302,13 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
 
 RowSet TaskRegistry::execute(const std::string &op,
                              const std::vector<RowSet> &inputs,
-                             const ValidatedParams &params) const {
+                             const ValidatedParams &params,
+                             const ExecCtx &ctx) const {
   auto it = tasks_.find(op);
   if (it == tasks_.end()) {
     throw std::runtime_error("Unknown op: " + op);
   }
-  return it->second.run(inputs, params);
+  return it->second.run(inputs, params, ctx);
 }
 
 std::vector<TaskSpec> TaskRegistry::get_all_specs() const {

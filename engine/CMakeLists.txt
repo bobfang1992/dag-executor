@@ -20,7 +20,16 @@ FetchContent_Declare(
   GIT_TAG v2.4.2
 )
 
-FetchContent_MakeAvailable(json cli11)
+FetchContent_Declare(
+  Catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG v3.5.2
+)
+
+# Disable Catch2's own tests
+set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(json cli11 Catch2)
 
 add_executable(rankd
   src/main.cpp
@@ -37,15 +46,16 @@ set_target_properties(rankd PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )
 
-# Test executable
-add_executable(rowset_tests
+# Test executable (Catch2)
+add_executable(rankd_tests
   tests/test_rowset.cpp
+  tests/test_param_table.cpp
   src/task_registry.cpp
 )
 
-target_include_directories(rowset_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(rowset_tests PRIVATE nlohmann_json::nlohmann_json)
+target_include_directories(rankd_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rankd_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain)
 
-set_target_properties(rowset_tests PROPERTIES
+set_target_properties(rankd_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )

@@ -11,6 +11,9 @@
 
 namespace rankd {
 
+// Forward declaration
+struct ExecCtx;
+
 // Param types supported in task param schemas (named TaskParamType to avoid
 // conflict with generated ParamType in param_registry.h)
 enum class TaskParamType { Int, Float, Bool, String };
@@ -74,9 +77,9 @@ struct ValidatedParams {
   }
 };
 
-// Task function signature: (inputs, validated_params) -> output
-using TaskFn =
-    std::function<RowSet(const std::vector<RowSet> &, const ValidatedParams &)>;
+// Task function signature: (inputs, validated_params, exec_ctx) -> output
+using TaskFn = std::function<RowSet(const std::vector<RowSet> &,
+                                    const ValidatedParams &, const ExecCtx &)>;
 
 // Combined task entry: spec + run function
 struct TaskEntry {
@@ -98,7 +101,7 @@ public:
 
   // Execute task with pre-validated params
   RowSet execute(const std::string &op, const std::vector<RowSet> &inputs,
-                 const ValidatedParams &params) const;
+                 const ValidatedParams &params, const ExecCtx &ctx) const;
 
   // Get all task specs (for manifest digest)
   std::vector<TaskSpec> get_all_specs() const;
