@@ -8,9 +8,9 @@
  * Plain Node.js cannot import .ts files without a loader.
  */
 
-import { resolve } from "node:path";
-import { mkdir, writeFile, stat, readdir } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+import { resolve, dirname } from "node:path";
+import { mkdir, writeFile, stat, readdir, access } from "node:fs/promises";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import type { PlanDef } from "@ranking-dsl/runtime";
 import { PlanCtx } from "@ranking-dsl/runtime";
 import { stableStringify } from "./stable-stringify.js";
@@ -27,6 +27,35 @@ const DEPENDENCY_PATTERNS = [
 ];
 
 let cachedDepMtime: number | null = null;
+let cachedRepoRoot: string | null = null;
+
+/**
+ * Find repo root by looking for pnpm-workspace.yaml or .git
+ */
+async function findRepoRoot(): Promise<string> {
+  if (cachedRepoRoot !== null) {
+    return cachedRepoRoot;
+  }
+
+  // Start from CLI file location and walk up
+  const __filename = fileURLToPath(import.meta.url);
+  let dir = dirname(__filename);
+
+  while (dir !== "/") {
+    try {
+      await access(resolve(dir, "pnpm-workspace.yaml"));
+      cachedRepoRoot = dir;
+      return dir;
+    } catch {
+      // Not found, go up
+    }
+    dir = dirname(dir);
+  }
+
+  // Fallback to cwd if not found
+  cachedRepoRoot = process.cwd();
+  return cachedRepoRoot;
+}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -77,11 +106,11 @@ async function getDependencyMtime(): Promise<number> {
     return cachedDepMtime;
   }
 
-  const cwd = process.cwd();
+  const repoRoot = await findRepoRoot();
   let maxMtime = 0;
 
   for (const pattern of DEPENDENCY_PATTERNS) {
-    const fullPath = resolve(cwd, pattern);
+    const fullPath = resolve(repoRoot, pattern);
     const s = await stat(fullPath).catch(() => null);
     if (s?.isDirectory()) {
       const dirMtime = await getMaxMtimeInDir(fullPath);
@@ -97,7 +126,8 @@ async function getDependencyMtime(): Promise<number> {
 
 async function compilePlan(planPath: string, force: boolean) {
   const absPath = resolve(process.cwd(), planPath);
-  const outputDir = resolve(process.cwd(), "artifacts/plans");
+  const repoRoot = await findRepoRoot();
+  const outputDir = resolve(repoRoot, "artifacts/plans");
 
   // Import the plan module first to get the actual plan name
   const planUrl = pathToFileURL(absPath).href;

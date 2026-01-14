@@ -155,6 +155,11 @@ export class CandidateSet {
    */
   concat(rhs: CandidateSet, opts?: { trace?: string }): CandidateSet {
     assertNotUndefined(rhs, "concat(rhs)");
+    if (rhs.ctx !== this.ctx) {
+      throw new Error(
+        "concat: CandidateSets must belong to the same PlanCtx"
+      );
+    }
     if (opts !== undefined) {
       checkNoUndefined(opts as Record<string, unknown>, "concat(opts)");
     }
