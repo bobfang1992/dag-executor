@@ -5,7 +5,7 @@
  */
 
 import { resolve } from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, stat } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import type { PlanDef } from "@ranking-dsl/runtime";
 import { PlanCtx } from "@ranking-dsl/runtime";
@@ -13,18 +13,47 @@ import { stableStringify } from "./stable-stringify.js";
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.length === 0) {
-    console.error("Usage: plan-build <plan.ts> [<plan.ts>...]");
+  const force = args.includes("--force") || args.includes("-f");
+  const planPaths = args.filter((a) => !a.startsWith("-"));
+
+  if (planPaths.length === 0) {
+    console.error("Usage: plan-build [--force] <plan.ts> [<plan.ts>...]");
+    console.error("  --force, -f  Rebuild even if output is up-to-date");
     process.exit(1);
   }
 
-  for (const planPath of args) {
-    await compilePlan(planPath);
+  for (const planPath of planPaths) {
+    await compilePlan(planPath, force);
   }
 }
 
-async function compilePlan(planPath: string) {
+async function getMtime(path: string): Promise<number | null> {
+  try {
+    const s = await stat(path);
+    return s.mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+async function compilePlan(planPath: string, force: boolean) {
   const absPath = resolve(process.cwd(), planPath);
+
+  // Derive expected output path from input filename (foo.plan.ts -> foo.plan.json)
+  const baseName = planPath.split("/").pop()?.replace(/\.ts$/, ".json") ?? "";
+  const outputDir = resolve(process.cwd(), "artifacts/plans");
+  const expectedOutput = resolve(outputDir, baseName);
+
+  // Check if incremental skip is possible
+  if (!force) {
+    const srcMtime = await getMtime(absPath);
+    const outMtime = await getMtime(expectedOutput);
+    if (srcMtime !== null && outMtime !== null && outMtime >= srcMtime) {
+      console.log(`Skipping (up-to-date): ${planPath}`);
+      return;
+    }
+  }
+
   console.log(`Compiling: ${planPath}`);
 
   // Import the plan module using dynamic import
@@ -45,7 +74,6 @@ async function compilePlan(planPath: string) {
   const artifact = ctx.finalize(result.getNodeId(), planDef.name);
 
   // Write to artifacts/plans/<plan_name>.plan.json
-  const outputDir = resolve(process.cwd(), "artifacts/plans");
   await mkdir(outputDir, { recursive: true });
 
   const outputPath = resolve(outputDir, `${planDef.name}.plan.json`);

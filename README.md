@@ -104,8 +104,11 @@ Pred.and(p1, p2)  Pred.or(p1, p2)  Pred.not(p)
 # Build DSL packages first
 pnpm run build:dsl
 
-# Compile all plans
+# Compile all plans (incremental - skips up-to-date)
 pnpm run plan:build:all
+
+# Force rebuild all
+pnpm run plan:build:all -- --force
 
 # Compile a single plan
 pnpm run plan:build examples/plans/my_plan.plan.ts
