@@ -122,8 +122,26 @@ public:
   size_t num_tasks() const { return tasks_.size(); }
 
 private:
-  TaskRegistry();
+  TaskRegistry() = default;
   std::unordered_map<std::string, TaskEntry> tasks_;
+};
+
+// =============================================================================
+// TaskRegistrar: Auto-registration helper for class-based tasks
+// =============================================================================
+//
+// Each task class should define:
+//   static TaskSpec spec();
+//   static RowSet run(const std::vector<RowSet>&, const ValidatedParams&, const ExecCtx&);
+//
+// Then add at the bottom of the task .cpp file:
+//   static TaskRegistrar<MyTask> registrar;
+//
+// This will auto-register the task when the translation unit is loaded.
+//
+template <typename T> class TaskRegistrar {
+public:
+  TaskRegistrar() { TaskRegistry::instance().register_task(T::spec(), T::run); }
 };
 
 } // namespace rankd
