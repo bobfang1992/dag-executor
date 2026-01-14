@@ -55,7 +55,8 @@ function validatePlanArtifact(artifact: unknown, planFileName: string): void {
     );
   }
 
-  // Validate nodes structure
+  // First pass: collect all node_ids and validate basic structure
+  const nodeIds = new Set<string>();
   for (let i = 0; i < obj.nodes.length; i++) {
     const node = obj.nodes[i];
     if (node === null || typeof node !== "object") {
@@ -79,13 +80,37 @@ function validatePlanArtifact(artifact: unknown, planFileName: string): void {
         `Invalid artifact from ${planFileName}: nodes[${i}].inputs missing or invalid`
       );
     }
+    nodeIds.add(n.node_id);
   }
 
-  // Validate outputs are strings
+  // Second pass: validate inputs reference existing nodes
+  for (let i = 0; i < obj.nodes.length; i++) {
+    const n = obj.nodes[i] as Record<string, unknown>;
+    const inputs = n.inputs as unknown[];
+    for (let j = 0; j < inputs.length; j++) {
+      if (typeof inputs[j] !== "string") {
+        throw new Error(
+          `Invalid artifact from ${planFileName}: nodes[${i}].inputs[${j}] is not a string`
+        );
+      }
+      if (!nodeIds.has(inputs[j] as string)) {
+        throw new Error(
+          `Invalid artifact from ${planFileName}: nodes[${i}].inputs[${j}] references unknown node "${inputs[j]}"`
+        );
+      }
+    }
+  }
+
+  // Validate outputs are strings and reference existing nodes
   for (let i = 0; i < obj.outputs.length; i++) {
     if (typeof obj.outputs[i] !== "string") {
       throw new Error(
         `Invalid artifact from ${planFileName}: outputs[${i}] is not a string`
+      );
+    }
+    if (!nodeIds.has(obj.outputs[i] as string)) {
+      throw new Error(
+        `Invalid artifact from ${planFileName}: outputs[${i}] references unknown node "${obj.outputs[i]}"`
       );
     }
   }
