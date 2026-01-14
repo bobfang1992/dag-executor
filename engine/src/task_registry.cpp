@@ -6,8 +6,10 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <set>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace rankd {
@@ -32,6 +34,7 @@ TaskRegistry::TaskRegistry() {
       .reads = {},
       .writes = {},
       .default_budget = {.timeout_ms = 100},
+      .output_pattern = OutputPattern::SourceFanoutDense,
   };
 
   register_task(
@@ -51,14 +54,103 @@ TaskRegistry::TaskRegistry() {
               "viewer.follow: 'fanout' exceeds maximum limit (10000000)");
         }
 
+        size_t n = static_cast<size_t>(fanout);
+
         // Create ColumnBatch with ids 1..fanout
-        auto batch =
-            std::make_shared<ColumnBatch>(static_cast<size_t>(fanout));
-        for (int64_t i = 0; i < fanout; ++i) {
-          batch->setId(static_cast<size_t>(i), i + 1); // ids are 1-indexed
+        auto batch = std::make_shared<ColumnBatch>(n);
+        for (size_t i = 0; i < n; ++i) {
+          batch->setId(i, static_cast<int64_t>(i + 1)); // ids are 1-indexed
         }
 
-        return RowSet(batch);
+        // Add country column: dict ["US","CA"], pattern US,CA,US,CA...
+        auto country_dict = std::make_shared<std::vector<std::string>>(
+            std::vector<std::string>{"US", "CA"});
+        auto country_codes = std::make_shared<std::vector<int32_t>>(n);
+        auto country_valid = std::make_shared<std::vector<uint8_t>>(n, 1);
+        for (size_t i = 0; i < n; ++i) {
+          (*country_codes)[i] = static_cast<int32_t>(i % 2); // 0=US, 1=CA
+        }
+        auto country_col = std::make_shared<StringDictColumn>(
+            country_dict, country_codes, country_valid);
+        *batch = batch->withStringColumn(3001, country_col); // country key_id
+
+        // Add title column: dict ["L1","L2",...,"L{fanout}"], codes 0..fanout-1
+        auto title_dict = std::make_shared<std::vector<std::string>>();
+        title_dict->reserve(n);
+        for (size_t i = 0; i < n; ++i) {
+          title_dict->push_back("L" + std::to_string(i + 1));
+        }
+        auto title_codes = std::make_shared<std::vector<int32_t>>(n);
+        auto title_valid = std::make_shared<std::vector<uint8_t>>(n, 1);
+        for (size_t i = 0; i < n; ++i) {
+          (*title_codes)[i] = static_cast<int32_t>(i);
+        }
+        auto title_col = std::make_shared<StringDictColumn>(
+            title_dict, title_codes, title_valid);
+        *batch = batch->withStringColumn(3002, title_col); // title key_id
+
+        return RowSet(std::make_shared<ColumnBatch>(*batch));
+      });
+
+  // Register viewer.fetch_cached_recommendation
+  TaskSpec fetch_cached_spec{
+      .op = "viewer.fetch_cached_recommendation",
+      .params_schema =
+          {
+              {.name = "fanout", .type = TaskParamType::Int, .required = true},
+              {.name = "trace",
+               .type = TaskParamType::String,
+               .required = false,
+               .nullable = true},
+          },
+      .reads = {},
+      .writes = {},
+      .default_budget = {.timeout_ms = 100},
+      .output_pattern = OutputPattern::SourceFanoutDense,
+  };
+
+  register_task(
+      std::move(fetch_cached_spec),
+      [](const std::vector<RowSet> &inputs, const ValidatedParams &params,
+         [[maybe_unused]] const ExecCtx &ctx) -> RowSet {
+        if (!inputs.empty()) {
+          throw std::runtime_error(
+              "viewer.fetch_cached_recommendation: expected 0 inputs");
+        }
+        int64_t fanout = params.get_int("fanout");
+        if (fanout <= 0) {
+          throw std::runtime_error(
+              "viewer.fetch_cached_recommendation: 'fanout' must be > 0");
+        }
+        constexpr int64_t kMaxFanout = 10'000'000;
+        if (fanout > kMaxFanout) {
+          throw std::runtime_error("viewer.fetch_cached_recommendation: "
+                                   "'fanout' exceeds maximum limit (10000000)");
+        }
+
+        size_t n = static_cast<size_t>(fanout);
+
+        // Create ColumnBatch with ids 1001..1000+fanout
+        auto batch = std::make_shared<ColumnBatch>(n);
+        for (size_t i = 0; i < n; ++i) {
+          batch->setId(i, 1001 + static_cast<int64_t>(i));
+        }
+
+        // Add country column: dict ["CA","FR"], pattern CA,FR,CA,FR...
+        auto country_dict = std::make_shared<std::vector<std::string>>(
+            std::vector<std::string>{"CA", "FR"});
+        auto country_codes = std::make_shared<std::vector<int32_t>>(n);
+        auto country_valid = std::make_shared<std::vector<uint8_t>>(n, 1);
+        for (size_t i = 0; i < n; ++i) {
+          (*country_codes)[i] = static_cast<int32_t>(i % 2); // 0=CA, 1=FR
+        }
+        auto country_col = std::make_shared<StringDictColumn>(
+            country_dict, country_codes, country_valid);
+        *batch = batch->withStringColumn(3001, country_col);
+
+        // No title column for this source
+
+        return RowSet(std::make_shared<ColumnBatch>(*batch));
       });
 
   // Register take
@@ -75,6 +167,7 @@ TaskRegistry::TaskRegistry() {
       .reads = {},
       .writes = {},
       .default_budget = {.timeout_ms = 10},
+      .output_pattern = OutputPattern::PrefixOfInput,
   };
 
   register_task(
@@ -92,7 +185,7 @@ TaskRegistry::TaskRegistry() {
         const auto &input = inputs[0];
         size_t limit = static_cast<size_t>(count);
 
-        // Use truncateTo - shares batch pointer, creates new selection from active rows
+        // Use truncateTo - shares batch pointer, creates new selection
         return input.truncateTo(limit);
       });
 
@@ -111,8 +204,9 @@ TaskRegistry::TaskRegistry() {
                .nullable = true},
           },
       .reads = {},
-      .writes = {}, // Dynamic based on out_key, but left empty for manifest
+      .writes = {},
       .default_budget = {.timeout_ms = 50},
+      .output_pattern = OutputPattern::UnaryPreserveView,
   };
 
   register_task(
@@ -224,6 +318,7 @@ TaskRegistry::TaskRegistry() {
       .reads = {},
       .writes = {},
       .default_budget = {.timeout_ms = 50},
+      .output_pattern = OutputPattern::StableFilter,
   };
 
   register_task(
@@ -261,9 +356,198 @@ TaskRegistry::TaskRegistry() {
         });
 
         // Return new RowSet with same batch, updated selection
-        // Order is cleared since new_selection captures the iteration order
         return input.withSelectionClearOrder(std::move(new_selection));
       });
+
+  // Register concat
+  TaskSpec concat_spec{
+      .op = "concat",
+      .params_schema =
+          {
+              {.name = "trace",
+               .type = TaskParamType::String,
+               .required = false,
+               .nullable = true},
+          },
+      .reads = {},
+      .writes = {},
+      .default_budget = {.timeout_ms = 50},
+      .output_pattern = OutputPattern::ConcatDense,
+  };
+
+  register_task(std::move(concat_spec), [](const std::vector<RowSet> &inputs,
+                                           [[maybe_unused]] const ValidatedParams &params,
+                                           [[maybe_unused]] const ExecCtx &ctx) -> RowSet {
+    if (inputs.size() != 2) {
+      throw std::runtime_error(
+          "Error: op 'concat' expects exactly 2 inputs, got " +
+          std::to_string(inputs.size()));
+    }
+
+    const auto &lhs = inputs[0];
+    const auto &rhs = inputs[1];
+
+    // Materialize active indices
+    auto lhsIdx = lhs.activeRows().toVector(lhs.rowCount());
+    auto rhsIdx = rhs.activeRows().toVector(rhs.rowCount());
+
+    size_t lhsN = lhsIdx.size();
+    size_t rhsN = rhsIdx.size();
+    size_t outN = lhsN + rhsN;
+
+    // Create new batch
+    auto outBatch = std::make_shared<ColumnBatch>(outN);
+
+    // Copy ids: lhs active rows, then rhs active rows
+    for (size_t i = 0; i < lhsN; ++i) {
+      outBatch->setId(i, lhs.batch().getId(lhsIdx[i]));
+    }
+    for (size_t i = 0; i < rhsN; ++i) {
+      outBatch->setId(lhsN + i, rhs.batch().getId(rhsIdx[i]));
+    }
+
+    // Union float columns
+    std::set<uint32_t> float_keys;
+    for (uint32_t k : lhs.batch().getFloatKeyIds())
+      float_keys.insert(k);
+    for (uint32_t k : rhs.batch().getFloatKeyIds())
+      float_keys.insert(k);
+
+    for (uint32_t key_id : float_keys) {
+      auto col = std::make_shared<FloatColumn>(outN);
+      const FloatColumn *lhsCol = lhs.batch().getFloatCol(key_id);
+      const FloatColumn *rhsCol = rhs.batch().getFloatCol(key_id);
+
+      // Copy lhs values
+      for (size_t i = 0; i < lhsN; ++i) {
+        if (lhsCol && lhsCol->valid[lhsIdx[i]]) {
+          col->values[i] = lhsCol->values[lhsIdx[i]];
+          col->valid[i] = 1;
+        }
+        // else valid stays 0
+      }
+      // Copy rhs values
+      for (size_t i = 0; i < rhsN; ++i) {
+        if (rhsCol && rhsCol->valid[rhsIdx[i]]) {
+          col->values[lhsN + i] = rhsCol->values[rhsIdx[i]];
+          col->valid[lhsN + i] = 1;
+        }
+      }
+
+      *outBatch = outBatch->withFloatColumn(key_id, col);
+    }
+
+    // Union string columns with deterministic dict unification
+    std::set<uint32_t> string_keys;
+    for (uint32_t k : lhs.batch().getStringKeyIds())
+      string_keys.insert(k);
+    for (uint32_t k : rhs.batch().getStringKeyIds())
+      string_keys.insert(k);
+
+    for (uint32_t key_id : string_keys) {
+      const StringDictColumn *lhsCol = lhs.batch().getStringCol(key_id);
+      const StringDictColumn *rhsCol = rhs.batch().getStringCol(key_id);
+
+      std::shared_ptr<const std::vector<std::string>> outDict;
+      auto outCodes = std::make_shared<std::vector<int32_t>>(outN, 0);
+      auto outValid = std::make_shared<std::vector<uint8_t>>(outN, 0);
+
+      if (lhsCol && !rhsCol) {
+        // Only lhs has the column
+        outDict = lhsCol->dict;
+        for (size_t i = 0; i < lhsN; ++i) {
+          if ((*lhsCol->valid)[lhsIdx[i]]) {
+            (*outCodes)[i] = (*lhsCol->codes)[lhsIdx[i]];
+            (*outValid)[i] = 1;
+          }
+        }
+        // rhs rows remain invalid
+      } else if (!lhsCol && rhsCol) {
+        // Only rhs has the column
+        outDict = rhsCol->dict;
+        for (size_t i = 0; i < rhsN; ++i) {
+          if ((*rhsCol->valid)[rhsIdx[i]]) {
+            (*outCodes)[lhsN + i] = (*rhsCol->codes)[rhsIdx[i]];
+            (*outValid)[lhsN + i] = 1;
+          }
+        }
+        // lhs rows remain invalid
+      } else {
+        // Both have the column - need dict unification
+        // Fast path: same dict pointer or same content
+        bool same_dict = (lhsCol->dict.get() == rhsCol->dict.get());
+        if (!same_dict && lhsCol->dict->size() == rhsCol->dict->size()) {
+          same_dict = (*lhsCol->dict == *rhsCol->dict);
+        }
+
+        if (same_dict) {
+          // No remap needed
+          outDict = lhsCol->dict;
+          for (size_t i = 0; i < lhsN; ++i) {
+            if ((*lhsCol->valid)[lhsIdx[i]]) {
+              (*outCodes)[i] = (*lhsCol->codes)[lhsIdx[i]];
+              (*outValid)[i] = 1;
+            }
+          }
+          for (size_t i = 0; i < rhsN; ++i) {
+            if ((*rhsCol->valid)[rhsIdx[i]]) {
+              (*outCodes)[lhsN + i] = (*rhsCol->codes)[rhsIdx[i]];
+              (*outValid)[lhsN + i] = 1;
+            }
+          }
+        } else {
+          // Merge dicts: lhs values in order + rhs values not already present
+          auto mergedDict = std::make_shared<std::vector<std::string>>();
+          std::unordered_map<std::string, int32_t> strToCode;
+
+          // Add lhs dict entries
+          for (size_t i = 0; i < lhsCol->dict->size(); ++i) {
+            const std::string &s = (*lhsCol->dict)[i];
+            strToCode[s] = static_cast<int32_t>(mergedDict->size());
+            mergedDict->push_back(s);
+          }
+
+          // Build rhs remap: old code -> new code
+          std::vector<int32_t> rhsRemap(rhsCol->dict->size());
+          for (size_t i = 0; i < rhsCol->dict->size(); ++i) {
+            const std::string &s = (*rhsCol->dict)[i];
+            auto it = strToCode.find(s);
+            if (it != strToCode.end()) {
+              rhsRemap[i] = it->second;
+            } else {
+              rhsRemap[i] = static_cast<int32_t>(mergedDict->size());
+              strToCode[s] = rhsRemap[i];
+              mergedDict->push_back(s);
+            }
+          }
+
+          outDict = mergedDict;
+
+          // Copy lhs codes (no remap needed, same indices)
+          for (size_t i = 0; i < lhsN; ++i) {
+            if ((*lhsCol->valid)[lhsIdx[i]]) {
+              (*outCodes)[i] = (*lhsCol->codes)[lhsIdx[i]];
+              (*outValid)[i] = 1;
+            }
+          }
+          // Copy rhs codes with remap
+          for (size_t i = 0; i < rhsN; ++i) {
+            if ((*rhsCol->valid)[rhsIdx[i]]) {
+              int32_t oldCode = (*rhsCol->codes)[rhsIdx[i]];
+              (*outCodes)[lhsN + i] = rhsRemap[static_cast<size_t>(oldCode)];
+              (*outValid)[lhsN + i] = 1;
+            }
+          }
+        }
+      }
+
+      auto outCol =
+          std::make_shared<StringDictColumn>(outDict, outCodes, outValid);
+      *outBatch = outBatch->withStringColumn(key_id, outCol);
+    }
+
+    return RowSet(std::make_shared<ColumnBatch>(*outBatch));
+  });
 }
 
 void TaskRegistry::register_task(TaskSpec spec, TaskFn fn) {
@@ -290,8 +574,9 @@ const TaskSpec &TaskRegistry::get_spec(const std::string &op) const {
   return it->second.spec;
 }
 
-ValidatedParams TaskRegistry::validate_params(const std::string &op,
-                                              const nlohmann::json &params) const {
+ValidatedParams
+TaskRegistry::validate_params(const std::string &op,
+                              const nlohmann::json &params) const {
   const auto &spec = get_spec(op);
   ValidatedParams result;
 
@@ -384,8 +669,7 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
           result.int_params[field.name] = static_cast<int64_t>(d);
         } else {
           throw std::runtime_error("Invalid params for op '" + op +
-                                   "': field '" + field.name +
-                                   "' must be int");
+                                   "': field '" + field.name + "' must be int");
         }
       } else {
         result.int_params[field.name] = value.get<int64_t>();
@@ -395,8 +679,7 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
     case TaskParamType::Float: {
       if (!value.is_number()) {
         throw std::runtime_error("Invalid params for op '" + op +
-                                 "': field '" + field.name +
-                                 "' must be float");
+                                 "': field '" + field.name + "' must be float");
       }
       result.float_params[field.name] = value.get<double>();
       break;
@@ -404,8 +687,7 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
     case TaskParamType::Bool: {
       if (!value.is_boolean()) {
         throw std::runtime_error("Invalid params for op '" + op +
-                                 "': field '" + field.name +
-                                 "' must be bool");
+                                 "': field '" + field.name + "' must be bool");
       }
       result.bool_params[field.name] = value.get<bool>();
       break;
@@ -484,11 +766,8 @@ std::string TaskRegistry::compute_manifest_digest() const {
       nlohmann::ordered_json pj;
       // Use alphabetical order for deterministic JSON
       if (p.default_value) {
-        std::visit(
-            [&pj](const auto &v) {
-              pj["default"] = v;
-            },
-            *p.default_value);
+        std::visit([&pj](const auto &v) { pj["default"] = v; },
+                   *p.default_value);
       }
       pj["name"] = p.name;
       pj["nullable"] = p.nullable;
@@ -537,6 +816,9 @@ std::string TaskRegistry::compute_manifest_digest() const {
     nlohmann::ordered_json budget;
     budget["timeout_ms"] = spec.default_budget.timeout_ms;
     task_json["default_budget"] = budget;
+
+    // Add output_pattern for deterministic manifest
+    task_json["output_pattern"] = outputPatternToString(spec.output_pattern);
 
     tasks_json.push_back(task_json);
   }

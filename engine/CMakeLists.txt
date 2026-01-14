@@ -36,6 +36,7 @@ add_executable(rankd
   src/plan.cpp
   src/executor.cpp
   src/task_registry.cpp
+  src/output_contract.cpp
 )
 
 target_include_directories(rankd PRIVATE ${CMAKE_SOURCE_DIR}/include)
@@ -52,11 +53,28 @@ add_executable(rankd_tests
   tests/test_param_table.cpp
   tests/test_pred_eval.cpp
   src/task_registry.cpp
+  src/output_contract.cpp
 )
 
 target_include_directories(rankd_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(rankd_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain)
 
 set_target_properties(rankd_tests PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)
+
+# Concat tests executable (Catch2)
+add_executable(concat_tests
+  tests/test_concat.cpp
+  src/plan.cpp
+  src/executor.cpp
+  src/task_registry.cpp
+  src/output_contract.cpp
+)
+
+target_include_directories(concat_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(concat_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain)
+
+set_target_properties(concat_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )

@@ -145,6 +145,9 @@ int main(int argc, char *argv[]) {
         // Get float column key_ids in ascending order for deterministic output
         auto float_key_ids = rowset.batch().getFloatKeyIds();
 
+        // Get string column key_ids in ascending order for deterministic output
+        auto string_key_ids = rowset.batch().getStringKeyIds();
+
         for (uint32_t idx : indices) {
           json candidate;
           candidate["id"] = rowset.batch().getId(idx);
@@ -163,6 +166,22 @@ int main(int argc, char *argv[]) {
               }
             }
           }
+
+          // Build fields from string columns
+          for (uint32_t key_id : string_key_ids) {
+            const auto *col = rowset.batch().getStringCol(key_id);
+            if (col && (*col->valid)[idx]) {
+              // Look up key name
+              for (const auto &meta : rankd::kKeyRegistry) {
+                if (meta.id == key_id) {
+                  int32_t code = (*col->codes)[idx];
+                  fields[std::string(meta.name)] = (*col->dict)[code];
+                  break;
+                }
+              }
+            }
+          }
+
           candidate["fields"] = fields;
 
           candidates.push_back(candidate);

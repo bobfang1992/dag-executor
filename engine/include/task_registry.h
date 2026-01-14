@@ -1,6 +1,7 @@
 #pragma once
 
 #include "key_registry.h"
+#include "output_contract.h"
 #include "rowset.h"
 #include <functional>
 #include <nlohmann/json.hpp>
@@ -49,6 +50,7 @@ struct TaskSpec {
   std::vector<KeyId> reads;
   std::vector<KeyId> writes;
   DefaultBudget default_budget;
+  OutputPattern output_pattern; // Required output shape contract
 };
 
 // Validated parameters - stored after validation so run functions don't

@@ -130,6 +130,9 @@ public:
   // Get shared pointer to batch (for sharing between RowSets)
   std::shared_ptr<const ColumnBatch> batchPtr() const { return batch_; }
 
+  // Physical row count (batch size, not active row count)
+  size_t rowCount() const { return batch_->size(); }
+
   // Get a view for iterating over active rows
   ActiveRows activeRows() const { return ActiveRows(batch_.get(), &selection_, &order_); }
 
