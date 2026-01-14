@@ -7,8 +7,15 @@ A governed, type-safe DSL for building ranking pipelines.
 ### Build
 
 ```bash
-# Install DSL dependencies and build engine
-pnpm -C dsl install
+# Full build: install deps, codegen, build DSL + compiler, compile plans
+pnpm install
+pnpm run build
+
+# Or step by step:
+pnpm -C dsl install              # Install DSL dependencies
+pnpm run gen                     # Regenerate registry tokens
+pnpm run build:dsl               # Build TypeScript packages (including dslc)
+pnpm run plan:build:all          # Compile all plans with QuickJS sandbox
 cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
 cmake --build engine/build --parallel
 ```
@@ -42,7 +49,7 @@ pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 
 ## Authoring Plans
 
-Plans are TypeScript files that compile to JSON artifacts.
+Plans are TypeScript files that compile to JSON artifacts using the QuickJS-based `dslc` compiler. The compiler bundles your plan with the DSL runtime and executes it in a secure sandbox (no eval, no Node.js globals, no dynamic imports).
 
 ### Basic Structure
 
@@ -101,20 +108,11 @@ Pred.and(p1, p2)  Pred.or(p1, p2)  Pred.not(p)
 ### Compile & Run
 
 ```bash
-# Full build: gen + build DSL + compile all plans (force rebuild)
-pnpm run build
+# Compile a single plan (using dslc with QuickJS sandbox)
+pnpm run dslc build examples/plans/my_plan.plan.ts --out artifacts/plans
 
-# Or step by step:
-pnpm run gen              # Regenerate registry tokens
-pnpm run build:dsl        # Build TypeScript packages
-pnpm run plan:build:all   # Compile plans (incremental)
-pnpm run plan:build:all -- --force  # Force rebuild
-
-# Note: Incremental builds track registry, generated tokens, and runtime.
-# If your plan imports local helper modules, use --force when they change.
-
-# Compile a single plan
-pnpm run plan:build examples/plans/my_plan.plan.ts
+# Compile all plans
+pnpm run plan:build:all
 
 # Run with engine
 echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/my_plan.plan.json
@@ -123,6 +121,15 @@ echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/my_plan.
 echo '{"request_id": "t", "param_overrides": {"media_age_penalty_weight": 0.5}}' \
   | engine/bin/rankd --plan artifacts/plans/my_plan.plan.json
 ```
+
+### Security
+
+The `dslc` compiler executes plans in a QuickJS sandbox with strict security:
+- ❌ No `eval()` or `Function` constructor
+- ❌ No `process`, `require`, `module`, or Node.js globals
+- ❌ No file system, network, or dynamic imports
+- ✅ Deterministic builds (same input → same output)
+- ✅ Portable (WASM-based, no native addons)
 
 ## Project Structure
 
@@ -134,7 +141,8 @@ engine/                  # C++23 execution engine
 registry/                # Key/Param/Feature definitions (TOML)
 dsl/packages/
   runtime/               # Plan authoring API (E, Pred, definePlan)
-  compiler-node/         # Plan compiler CLI
+  compiler/              # dslc compiler (QuickJS-based, primary)
+  compiler-node/         # Legacy Node-based compiler (fallback)
   generated/             # Generated Key/Param/Feature tokens
 artifacts/plans/         # Compiled plan JSON files
 examples/plans/          # Example .plan.ts files
