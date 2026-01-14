@@ -71,11 +71,18 @@ export const Pred = {
     if (!Array.isArray(list)) {
       throw new Error("Pred.in requires array of literal values");
     }
+    if (list.length === 0) {
+      throw new Error("Pred.in requires non-empty list");
+    }
+    const firstType = typeof list[0];
+    if (firstType !== "number" && firstType !== "string") {
+      throw new Error(`Pred.in list[0] must be number or string, got ${firstType}`);
+    }
     for (let i = 0; i < list.length; i++) {
       const val = list[i];
       assertNotUndefined(val, `Pred.in(..., list[${i}])`);
-      if (typeof val !== "number" && typeof val !== "string") {
-        throw new Error(`Pred.in list[${i}] must be number or string, got ${typeof val}`);
+      if (typeof val !== firstType) {
+        throw new Error(`Pred.in list must be homogeneous: list[0] is ${firstType}, list[${i}] is ${typeof val}`);
       }
     }
     return { op: "in", lhs, list };
