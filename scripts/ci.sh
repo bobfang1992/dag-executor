@@ -29,6 +29,10 @@ echo "=== Unit tests (Catch2) ==="
 engine/bin/rankd_tests
 
 echo ""
+echo "=== Concat tests (Catch2) ==="
+engine/bin/concat_tests
+
+echo ""
 echo "=== Test 1: Step 00 fallback (no --plan) ==="
 REQUEST='{"request_id": "test-123"}'
 RESPONSE=$(echo "$REQUEST" | engine/bin/rankd)
@@ -109,7 +113,7 @@ assert 'task_manifest_digest' in r, 'missing task_manifest_digest'
 assert r['num_keys'] == 8, f'expected 8 keys, got {r[\"num_keys\"]}'
 assert r['num_params'] == 3, f'expected 3 params, got {r[\"num_params\"]}'
 assert r['num_features'] == 2, f'expected 2 features, got {r[\"num_features\"]}'
-assert r['num_tasks'] == 4, f'expected 4 tasks, got {r[\"num_tasks\"]}'
+assert r['num_tasks'] == 6, f'expected 6 tasks, got {r[\"num_tasks\"]}'
 print('PASS: Registry info correct')
 "
 
@@ -316,7 +320,49 @@ else
 fi
 
 echo ""
-echo "=== Test 22: Verify no direct access to RowSet internals ==="
+echo "=== Test 22: Execute concat_demo plan ==="
+REQUEST='{"request_id": "concat-demo-test"}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/concat_demo.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'concat-demo-test', 'request_id mismatch'
+assert 'engine_request_id' in r, 'missing engine_request_id'
+assert len(r['candidates']) == 8, f'expected 8 candidates, got {len(r[\"candidates\"])}'
+# viewer.follow produces ids [1,2,3,4], fetch_cached_recommendation produces [1001,1002,1003,1004]
+# concat gives [1,2,3,4,1001,1002,1003,1004], take(8) gives all 8
+expected_ids = [1, 2, 3, 4, 1001, 1002, 1003, 1004]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+# Verify string columns in output
+# viewer.follow: country=[US,CA,...], title=[L1,L2,L3,L4]
+# fetch_cached_recommendation: country=[CA,FR,...], no title
+# After concat+dict unification: country should be unified
+for i, c in enumerate(r['candidates']):
+    assert 'country' in c['fields'], f'candidate {expected_ids[i]} missing country'
+# First 4 have title, last 4 do not (title comes only from viewer.follow)
+for i in range(4):
+    assert 'title' in r['candidates'][i]['fields'], f'candidate {expected_ids[i]} should have title'
+for i in range(4, 8):
+    assert 'title' not in r['candidates'][i]['fields'] or r['candidates'][i]['fields'].get('title') is None, f'candidate {expected_ids[i]} should not have title'
+print('PASS: concat_demo plan executed with correct output')
+"
+
+echo ""
+echo "=== Test 23: Reject concat_bad_arity.plan.json (1 input to concat) ==="
+if echo '{}' | engine/bin/rankd --plan artifacts/plans/concat_bad_arity.plan.json 2>/dev/null; then
+    echo "FAIL: concat_bad_arity.plan.json should have been rejected"
+    exit 1
+else
+    echo "PASS: concat_bad_arity.plan.json rejected as expected"
+fi
+
+echo ""
+echo "=== Test 24: Verify no direct access to RowSet internals ==="
 # This check ensures task authors don't bypass the RowSet encapsulation.
 # The members selection_ and order_ are private, but this grep catches
 # any accidental future attempts to expose them or access them via friend.

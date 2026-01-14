@@ -31,11 +31,23 @@ set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(json cli11 Catch2)
 
+# Task source files (self-registering via static TaskRegistrar)
+set(TASK_SOURCES
+  src/tasks/viewer_follow.cpp
+  src/tasks/viewer_fetch_cached_recommendation.cpp
+  src/tasks/take.cpp
+  src/tasks/vm.cpp
+  src/tasks/filter.cpp
+  src/tasks/concat.cpp
+)
+
 add_executable(rankd
   src/main.cpp
   src/plan.cpp
   src/executor.cpp
   src/task_registry.cpp
+  src/output_contract.cpp
+  ${TASK_SOURCES}
 )
 
 target_include_directories(rankd PRIVATE ${CMAKE_SOURCE_DIR}/include)
@@ -52,11 +64,30 @@ add_executable(rankd_tests
   tests/test_param_table.cpp
   tests/test_pred_eval.cpp
   src/task_registry.cpp
+  src/output_contract.cpp
+  ${TASK_SOURCES}
 )
 
 target_include_directories(rankd_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(rankd_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain)
 
 set_target_properties(rankd_tests PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)
+
+# Concat tests executable (Catch2)
+add_executable(concat_tests
+  tests/test_concat.cpp
+  src/plan.cpp
+  src/executor.cpp
+  src/task_registry.cpp
+  src/output_contract.cpp
+  ${TASK_SOURCES}
+)
+
+target_include_directories(concat_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(concat_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain)
+
+set_target_properties(concat_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )

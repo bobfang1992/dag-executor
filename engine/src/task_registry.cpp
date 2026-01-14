@@ -1,7 +1,4 @@
 #include "task_registry.h"
-#include "expr_eval.h"
-#include "param_table.h"
-#include "pred_eval.h"
 #include "sha256.h"
 #include <algorithm>
 #include <cmath>
@@ -15,255 +12,6 @@ namespace rankd {
 TaskRegistry &TaskRegistry::instance() {
   static TaskRegistry reg;
   return reg;
-}
-
-TaskRegistry::TaskRegistry() {
-  // Register viewer.follow
-  TaskSpec viewer_follow_spec{
-      .op = "viewer.follow",
-      .params_schema =
-          {
-              {.name = "fanout", .type = TaskParamType::Int, .required = true},
-              {.name = "trace",
-               .type = TaskParamType::String,
-               .required = false,
-               .nullable = true},
-          },
-      .reads = {},
-      .writes = {},
-      .default_budget = {.timeout_ms = 100},
-  };
-
-  register_task(
-      std::move(viewer_follow_spec),
-      [](const std::vector<RowSet> &inputs, const ValidatedParams &params,
-         [[maybe_unused]] const ExecCtx &ctx) -> RowSet {
-        if (!inputs.empty()) {
-          throw std::runtime_error("viewer.follow: expected 0 inputs");
-        }
-        int64_t fanout = params.get_int("fanout");
-        if (fanout <= 0) {
-          throw std::runtime_error("viewer.follow: 'fanout' must be > 0");
-        }
-        constexpr int64_t kMaxFanout = 10'000'000; // 10M limit
-        if (fanout > kMaxFanout) {
-          throw std::runtime_error(
-              "viewer.follow: 'fanout' exceeds maximum limit (10000000)");
-        }
-
-        // Create ColumnBatch with ids 1..fanout
-        auto batch =
-            std::make_shared<ColumnBatch>(static_cast<size_t>(fanout));
-        for (int64_t i = 0; i < fanout; ++i) {
-          batch->setId(static_cast<size_t>(i), i + 1); // ids are 1-indexed
-        }
-
-        return RowSet(batch);
-      });
-
-  // Register take
-  TaskSpec take_spec{
-      .op = "take",
-      .params_schema =
-          {
-              {.name = "count", .type = TaskParamType::Int, .required = true},
-              {.name = "trace",
-               .type = TaskParamType::String,
-               .required = false,
-               .nullable = true},
-          },
-      .reads = {},
-      .writes = {},
-      .default_budget = {.timeout_ms = 10},
-  };
-
-  register_task(
-      std::move(take_spec),
-      [](const std::vector<RowSet> &inputs, const ValidatedParams &params,
-         [[maybe_unused]] const ExecCtx &ctx) -> RowSet {
-        if (inputs.size() != 1) {
-          throw std::runtime_error("take: expected exactly 1 input");
-        }
-        int64_t count = params.get_int("count");
-        if (count <= 0) {
-          throw std::runtime_error("take: 'count' must be > 0");
-        }
-
-        const auto &input = inputs[0];
-        size_t limit = static_cast<size_t>(count);
-
-        // Use truncateTo - shares batch pointer, creates new selection from active rows
-        return input.truncateTo(limit);
-      });
-
-  // Register vm
-  TaskSpec vm_spec{
-      .op = "vm",
-      .params_schema =
-          {
-              {.name = "out_key", .type = TaskParamType::Int, .required = true},
-              {.name = "expr_id",
-               .type = TaskParamType::ExprId,
-               .required = true},
-              {.name = "trace",
-               .type = TaskParamType::String,
-               .required = false,
-               .nullable = true},
-          },
-      .reads = {},
-      .writes = {}, // Dynamic based on out_key, but left empty for manifest
-      .default_budget = {.timeout_ms = 50},
-  };
-
-  register_task(
-      std::move(vm_spec),
-      [](const std::vector<RowSet> &inputs, const ValidatedParams &params,
-         const ExecCtx &ctx) -> RowSet {
-        if (inputs.size() != 1) {
-          throw std::runtime_error("vm: expected exactly 1 input");
-        }
-
-        int64_t out_key_raw = params.get_int("out_key");
-        if (out_key_raw <= 0) {
-          throw std::runtime_error("vm: 'out_key' must be > 0");
-        }
-        uint32_t out_key = static_cast<uint32_t>(out_key_raw);
-
-        const std::string &expr_id = params.get_string("expr_id");
-        if (expr_id.empty()) {
-          throw std::runtime_error("vm: 'expr_id' must be non-empty");
-        }
-
-        // Validate out_key exists in key registry
-        const KeyMeta *key_meta = findKeyById(out_key);
-        if (!key_meta) {
-          throw std::runtime_error("vm: out_key " + std::to_string(out_key) +
-                                   " not in key registry");
-        }
-
-        // out_key must NOT be Key.id (key_id=1)
-        if (out_key == 1) {
-          throw std::runtime_error("vm: cannot write to Key.id");
-        }
-
-        // out_key must have allow_write=true
-        if (!key_meta->allow_write) {
-          throw std::runtime_error("vm: key '" + std::string(key_meta->name) +
-                                   "' is not writable");
-        }
-
-        // out_key type must be float for this step
-        if (key_meta->type != KeyType::Float) {
-          throw std::runtime_error("vm: out_key must be Float type");
-        }
-
-        // expr_id must exist in expr_table
-        if (!ctx.expr_table) {
-          throw std::runtime_error("vm: no expr_table in context");
-        }
-        auto expr_it = ctx.expr_table->find(expr_id);
-        if (expr_it == ctx.expr_table->end()) {
-          throw std::runtime_error("vm: expr_id '" + expr_id +
-                                   "' not found in expr_table");
-        }
-        const ExprNode &expr = *expr_it->second;
-
-        const auto &input = inputs[0];
-        size_t n = input.batch().size();
-
-        // Create new float column
-        auto col = std::make_shared<FloatColumn>(n);
-
-        // Evaluate expression for each active row
-        bool has_null_active = false;
-        input.activeRows().forEachIndex([&](RowIndex row) {
-          ExprResult result = eval_expr(expr, row, input.batch(), ctx);
-
-          if (!result) {
-            has_null_active = true;
-            // valid stays 0
-          } else {
-            double val = *result;
-            // Check for non-finite
-            if (!std::isfinite(val)) {
-              throw std::runtime_error(
-                  "vm: expression produced non-finite value at row " +
-                  std::to_string(row));
-            }
-            col->values[row] = val;
-            col->valid[row] = 1;
-          }
-        });
-
-        // If out_key is not nullable and any active row is null => error
-        if (!key_meta->nullable && has_null_active) {
-          throw std::runtime_error("vm: null result for non-nullable key '" +
-                                   std::string(key_meta->name) + "'");
-        }
-
-        // Create new batch with the float column
-        auto new_batch = std::make_shared<ColumnBatch>(
-            input.batch().withFloatColumn(out_key, col));
-
-        return input.withBatch(new_batch);
-      });
-
-  // Register filter
-  TaskSpec filter_spec{
-      .op = "filter",
-      .params_schema =
-          {
-              {.name = "pred_id",
-               .type = TaskParamType::PredId,
-               .required = true},
-              {.name = "trace",
-               .type = TaskParamType::String,
-               .required = false,
-               .nullable = true},
-          },
-      .reads = {},
-      .writes = {},
-      .default_budget = {.timeout_ms = 50},
-  };
-
-  register_task(
-      std::move(filter_spec),
-      [](const std::vector<RowSet> &inputs, const ValidatedParams &params,
-         const ExecCtx &ctx) -> RowSet {
-        if (inputs.size() != 1) {
-          throw std::runtime_error("filter: expected exactly 1 input");
-        }
-
-        const std::string &pred_id = params.get_string("pred_id");
-        if (pred_id.empty()) {
-          throw std::runtime_error("filter: 'pred_id' must be non-empty");
-        }
-
-        // pred_id must exist in pred_table
-        if (!ctx.pred_table) {
-          throw std::runtime_error("filter: no pred_table in context");
-        }
-        auto pred_it = ctx.pred_table->find(pred_id);
-        if (pred_it == ctx.pred_table->end()) {
-          throw std::runtime_error("filter: pred_id '" + pred_id +
-                                   "' not found in pred_table");
-        }
-        const PredNode &pred = *pred_it->second;
-
-        const auto &input = inputs[0];
-
-        // Build new selection by filtering active rows
-        SelectionVector new_selection;
-        input.activeRows().forEachIndex([&](RowIndex idx) {
-          if (eval_pred(pred, idx, input.batch(), ctx)) {
-            new_selection.push_back(idx);
-          }
-        });
-
-        // Return new RowSet with same batch, updated selection
-        // Order is cleared since new_selection captures the iteration order
-        return input.withSelectionClearOrder(std::move(new_selection));
-      });
 }
 
 void TaskRegistry::register_task(TaskSpec spec, TaskFn fn) {
@@ -290,8 +38,9 @@ const TaskSpec &TaskRegistry::get_spec(const std::string &op) const {
   return it->second.spec;
 }
 
-ValidatedParams TaskRegistry::validate_params(const std::string &op,
-                                              const nlohmann::json &params) const {
+ValidatedParams
+TaskRegistry::validate_params(const std::string &op,
+                              const nlohmann::json &params) const {
   const auto &spec = get_spec(op);
   ValidatedParams result;
 
@@ -384,8 +133,7 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
           result.int_params[field.name] = static_cast<int64_t>(d);
         } else {
           throw std::runtime_error("Invalid params for op '" + op +
-                                   "': field '" + field.name +
-                                   "' must be int");
+                                   "': field '" + field.name + "' must be int");
         }
       } else {
         result.int_params[field.name] = value.get<int64_t>();
@@ -395,8 +143,7 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
     case TaskParamType::Float: {
       if (!value.is_number()) {
         throw std::runtime_error("Invalid params for op '" + op +
-                                 "': field '" + field.name +
-                                 "' must be float");
+                                 "': field '" + field.name + "' must be float");
       }
       result.float_params[field.name] = value.get<double>();
       break;
@@ -404,8 +151,7 @@ ValidatedParams TaskRegistry::validate_params(const std::string &op,
     case TaskParamType::Bool: {
       if (!value.is_boolean()) {
         throw std::runtime_error("Invalid params for op '" + op +
-                                 "': field '" + field.name +
-                                 "' must be bool");
+                                 "': field '" + field.name + "' must be bool");
       }
       result.bool_params[field.name] = value.get<bool>();
       break;
@@ -484,11 +230,8 @@ std::string TaskRegistry::compute_manifest_digest() const {
       nlohmann::ordered_json pj;
       // Use alphabetical order for deterministic JSON
       if (p.default_value) {
-        std::visit(
-            [&pj](const auto &v) {
-              pj["default"] = v;
-            },
-            *p.default_value);
+        std::visit([&pj](const auto &v) { pj["default"] = v; },
+                   *p.default_value);
       }
       pj["name"] = p.name;
       pj["nullable"] = p.nullable;
@@ -537,6 +280,9 @@ std::string TaskRegistry::compute_manifest_digest() const {
     nlohmann::ordered_json budget;
     budget["timeout_ms"] = spec.default_budget.timeout_ms;
     task_json["default_budget"] = budget;
+
+    // Add output_pattern for deterministic manifest
+    task_json["output_pattern"] = outputPatternToString(spec.output_pattern);
 
     tasks_json.push_back(task_json);
   }

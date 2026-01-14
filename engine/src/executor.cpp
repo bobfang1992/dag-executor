@@ -167,8 +167,14 @@ std::vector<RowSet> execute_plan(const Plan &plan, const ExecCtx &ctx) {
     }
 
     auto validated_params = registry.validate_params(node.op, node.params);
-    results.emplace(node_id,
-                    registry.execute(node.op, inputs, validated_params, ctx));
+    RowSet output = registry.execute(node.op, inputs, validated_params, ctx);
+
+    // Validate output against task's output contract
+    const auto &spec = registry.get_spec(node.op);
+    validateTaskOutput(node_id, node.op, spec.output_pattern, inputs,
+                       validated_params, output);
+
+    results.emplace(node_id, std::move(output));
   }
 
   // Collect outputs
