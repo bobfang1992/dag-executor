@@ -2,6 +2,10 @@
 
 /**
  * Plan compiler CLI - compiles TypeScript plans to JSON artifacts.
+ *
+ * NOTE: This CLI uses dynamic import() for .plan.ts files, which requires
+ * a TypeScript loader (tsx). Run via `pnpm run plan:build` or `tsx cli.ts`.
+ * Plain Node.js cannot import .ts files without a loader.
  */
 
 import { resolve } from "node:path";
