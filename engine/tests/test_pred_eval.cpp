@@ -542,11 +542,12 @@ TEST_CASE("key_ref in predicates", "[pred_eval]") {
   }
 }
 
-TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
+TEST_CASE("null comparison semantics (per spec)", "[pred_eval]") {
   auto batch = make_batch_with_id(1);
   auto ctx = make_empty_ctx();
 
-  // Helper to create a comparison predicate that yields unknown (null operand)
+  // Helper to create a comparison predicate with null operand
+  // Per spec: cmp with null returns false (not unknown)
   auto make_null_cmp = []() {
     auto pred = std::make_shared<PredNode>();
     pred->op = "cmp";
@@ -575,15 +576,15 @@ TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
     return pred;
   };
 
-  SECTION("NOT unknown = false (in filter context)") {
-    // not (null >= 5) should return false, not true
+  SECTION("not (null cmp) = true (since null cmp = false)") {
+    // Per spec: (null >= 5) = false, so not (null >= 5) = true
     PredNode node;
     node.op = "not";
     node.pred_a = make_null_cmp();
-    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == true);
   }
 
-  SECTION("true AND unknown = false (in filter context)") {
+  SECTION("true AND (null cmp) = false (since null cmp = false)") {
     PredNode node;
     node.op = "and";
     node.pred_a = make_true_pred();
@@ -591,7 +592,7 @@ TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
     REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
   }
 
-  SECTION("unknown AND true = false (in filter context)") {
+  SECTION("(null cmp) AND true = false") {
     PredNode node;
     node.op = "and";
     node.pred_a = make_null_cmp();
@@ -599,7 +600,7 @@ TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
     REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
   }
 
-  SECTION("false AND unknown = false") {
+  SECTION("false AND (null cmp) = false") {
     PredNode node;
     node.op = "and";
     node.pred_a = make_false_pred();
@@ -607,7 +608,7 @@ TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
     REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
   }
 
-  SECTION("unknown AND false = false") {
+  SECTION("(null cmp) AND false = false") {
     PredNode node;
     node.op = "and";
     node.pred_a = make_null_cmp();
@@ -615,7 +616,7 @@ TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
     REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
   }
 
-  SECTION("unknown AND unknown = false (in filter context)") {
+  SECTION("(null cmp) AND (null cmp) = false") {
     PredNode node;
     node.op = "and";
     node.pred_a = make_null_cmp();
@@ -623,7 +624,7 @@ TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
     REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
   }
 
-  SECTION("true OR unknown = true") {
+  SECTION("true OR (null cmp) = true") {
     PredNode node;
     node.op = "or";
     node.pred_a = make_true_pred();
@@ -631,7 +632,7 @@ TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
     REQUIRE(eval_pred(node, 0, *batch, ctx) == true);
   }
 
-  SECTION("unknown OR true = true") {
+  SECTION("(null cmp) OR true = true") {
     PredNode node;
     node.op = "or";
     node.pred_a = make_null_cmp();
@@ -639,7 +640,7 @@ TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
     REQUIRE(eval_pred(node, 0, *batch, ctx) == true);
   }
 
-  SECTION("false OR unknown = false (in filter context)") {
+  SECTION("false OR (null cmp) = false") {
     PredNode node;
     node.op = "or";
     node.pred_a = make_false_pred();
@@ -647,7 +648,7 @@ TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
     REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
   }
 
-  SECTION("unknown OR false = false (in filter context)") {
+  SECTION("(null cmp) OR false = false") {
     PredNode node;
     node.op = "or";
     node.pred_a = make_null_cmp();
@@ -655,7 +656,7 @@ TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
     REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
   }
 
-  SECTION("unknown OR unknown = false (in filter context)") {
+  SECTION("(null cmp) OR (null cmp) = false") {
     PredNode node;
     node.op = "or";
     node.pred_a = make_null_cmp();

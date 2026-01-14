@@ -8,13 +8,13 @@
 namespace rankd {
 
 // Three-valued predicate result: true, false, or unknown (nullopt)
-// Null semantics:
-// - cmp operations with null operands yield unknown (nullopt)
-// - is_null/not_null always yield true/false (never unknown)
-// - NOT unknown = unknown
-// - true AND unknown = unknown, false AND unknown = false
-// - true OR unknown = true, false OR unknown = unknown
+// Null semantics (per spec):
+// - cmp operations with null operands yield false (per spec, not unknown)
 // - in with null lhs yields false (null is not a member of any literal list)
+// - is_null/not_null always yield true/false (never unknown)
+// - NOT, AND, OR use three-valued logic if operands are unknown
+// Note: Since cmp/in return false (not unknown) for null, NOT/AND/OR will
+// see false, e.g., not (x > 5) with null x returns not false = true
 using PredResult = std::optional<bool>;
 
 // Internal evaluation returning three-valued result
@@ -87,9 +87,11 @@ inline PredResult eval_pred_impl(const PredNode &node, size_t row,
     ExprResult a = eval_expr(*node.value_a, row, batch, ctx);
     ExprResult b = eval_expr(*node.value_b, row, batch, ctx);
 
-    // Any comparison with null yields unknown
+    // Per spec: any comparison with null yields false (not unknown)
+    // This means not (x > 5) with null x returns true (row included)
+    // Use is_null/not_null to explicitly test for null values
     if (!a || !b) {
-      return std::nullopt;
+      return false;
     }
 
     double av = *a;
