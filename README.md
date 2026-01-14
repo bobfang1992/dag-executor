@@ -110,6 +110,9 @@ pnpm run build:dsl        # Build TypeScript packages
 pnpm run plan:build:all   # Compile plans (incremental)
 pnpm run plan:build:all -- --force  # Force rebuild
 
+# Note: Incremental builds track registry, generated tokens, and runtime.
+# If your plan imports local helper modules, use --force when they change.
+
 # Compile a single plan
 pnpm run plan:build examples/plans/my_plan.plan.ts
 

@@ -12,6 +12,8 @@ import { PlanCtx } from "@ranking-dsl/runtime";
 import { stableStringify } from "./stable-stringify.js";
 
 // Files that affect all plan outputs (registry + generated tokens + runtime)
+// NOTE: This does not track helper modules imported by plans. If a plan imports
+// local helpers (e.g., ./utils.ts) and those change, use --force to rebuild.
 const DEPENDENCY_PATTERNS = [
   "registry/keys.toml",
   "registry/params.toml",
