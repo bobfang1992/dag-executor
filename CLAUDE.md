@@ -20,15 +20,24 @@ This is a **Ranking DSL + Engine** project implementing a governed, type-safe do
 
 ### Compilation Pipeline
 ```
-TypeScript → AST extraction → ExprIR/PredIR → QuickJS graph builder → JSON IR → C++ Engine
+TypeScript (.plan.ts)
+    ↓ esbuild (bundle to single IIFE)
+Bundled JavaScript
+    ↓ QuickJS sandbox execution
+    ↓ definePlan() → __emitPlan()
+JSON Plan Artifact
+    ↓ Engine loads + validates
+C++ Execution
 ```
 
-The `dslc` compiler:
-1. Parses TS and extracts `vm` expressions → ExprIR table
-2. Extracts `filter` predicates → PredIR table
-3. Rewrites source to use `__expr(id)` / `__pred(id)`
-4. Executes in QuickJS to build DAG
-5. Outputs JSON artifacts
+The `dslc` compiler (Step 10):
+1. Bundles plan + DSL runtime + generated tokens with esbuild (single IIFE, no Node builtins)
+2. Executes bundle in QuickJS sandbox (no eval, no Function, no process, no imports)
+3. Plan calls `definePlan()` which detects sandbox and calls `__emitPlan(artifact)`
+4. Compiler captures artifact and validates (no undefined, no functions, no cycles)
+5. Outputs deterministic JSON artifact with stable key ordering
+
+Security: QuickJS sandbox disables eval, Function constructor, and all Node globals (process, require, module, fs, network).
 
 ### Repository Layout
 ```
@@ -61,6 +70,76 @@ Use `unknown` for untyped inputs and validate into typed structures. ESLint enfo
 - Each has stable, non-reusable numeric IDs
 - Lifecycle: `active` → `deprecated` → `blocked`
 - Renames require new ID + deprecate old
+
+## Plan Compilation (dslc)
+
+Two compilers are available. **QuickJS-based (dslc)** is the primary compiler used in CI.
+
+### QuickJS Compiler (Primary)
+
+Uses QuickJS for sandboxed, deterministic plan compilation:
+
+**Security Model:**
+- **No eval/Function**: Dynamic code generation is blocked
+- **No Node globals**: No access to process, require, module, fs, network
+- **No dynamic imports**: All code must be statically bundled
+- **Artifact validation**: Ensures no undefined, functions, symbols, or cycles
+
+**Usage:**
+```bash
+# Compile single plan
+pnpm run dslc build examples/plans/reels_plan_a.plan.ts --out artifacts/plans
+
+# Compile all plans (manifest-based, default for CI)
+pnpm run plan:build:all
+```
+
+**How It Works:**
+1. **Bundle**: esbuild combines plan + runtime + generated tokens → single IIFE
+2. **Execute**: QuickJS runs bundle in sandbox, plan calls `definePlan()`
+3. **Emit**: `definePlan()` detects sandbox via `global.__emitPlan` and emits artifact
+4. **Validate**: Compiler validates artifact structure and JSON-serializability
+5. **Write**: Deterministic JSON with stable key ordering + built_by metadata
+
+**Error Handling:**
+Plans that attempt forbidden operations fail with clear errors:
+```bash
+$ pnpm run dslc build examples/plans/evil.plan.ts --out artifacts/plans
+Error: QuickJS execution failed for evil.plan.ts: not a function
+```
+
+### Node Compiler (Legacy/Fallback)
+
+Uses Node.js for fast iteration during development:
+
+**Usage:**
+```bash
+# Single plan
+pnpm run plan:build:node examples/plans/my_plan.plan.ts --out artifacts/plans
+
+# All plans (Node backend)
+pnpm run plan:build:all:node
+```
+
+**Use for:** Debugging, development iteration. **Not for CI.**
+
+### Manifest-based Build System
+
+Plans to compile are listed in `examples/plans/manifest.json`:
+```json
+{
+  "schema_version": 1,
+  "plans": [
+    "examples/plans/reels_plan_a.plan.ts",
+    "examples/plans/concat_plan.plan.ts",
+    "examples/plans/regex_plan.plan.ts"
+  ]
+}
+```
+
+**To add a plan:** Add its path to the `plans` array. The manifest controls `plan:build:all`.
+
+See [docs/PLAN_COMPILER_GUIDE.md](docs/PLAN_COMPILER_GUIDE.md) for detailed usage.
 
 ## Core Concepts
 
@@ -220,15 +299,29 @@ pnpm -C dsl run lint   # Lint TypeScript
 pnpm -C dsl run gen    # Run codegen (regenerate all outputs)
 pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 
-# Full build (gen + build DSL + compile all plans)
+# Full build (gen + build DSL + compile all plans with dslc)
 pnpm run build
 
 # Or step by step:
 pnpm run gen                      # Regenerate registry tokens
-pnpm run build:dsl                # Build DSL packages
-pnpm run plan:build:all           # Compile all plans (incremental)
-pnpm run plan:build:all -- --force  # Force rebuild all plans
-pnpm run plan:build examples/plans/foo.plan.ts  # Compile single plan
+pnpm run build:dsl                # Build DSL packages (including dslc compiler)
+pnpm run plan:build:all           # Compile all plans using QuickJS-based dslc
+
+# Compile single plan with dslc (QuickJS sandbox)
+pnpm run dslc build examples/plans/reels_plan_a.plan.ts --out artifacts/plans
+
+# Compile all plans with Node backend (debugging/fallback)
+pnpm run plan:build:all:node
+
+# Fallback: Node-based compiler (legacy, for development)
+pnpm run plan:build:node examples/plans/foo.plan.ts --out artifacts/plans
+
+# Advanced: Direct invocation
+node dsl/packages/compiler/dist/cli.js build examples/plans/foo.plan.ts --out artifacts/plans
+tsx dsl/packages/compiler-node/src/cli.ts examples/plans/foo.plan.ts --out artifacts/plans
+
+# Custom manifest and output directory
+tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir --backend quickjs
 ```
 
 ---
@@ -352,12 +445,30 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
   - `expr.ts` - E builder: const, constNull, key, param, add, sub, mul, neg, coalesce
   - `pred.ts` - Pred builder: constBool, and, or, not, cmp, in, isNull, notNull, regex
   - `guards.ts` - assertNotUndefined, checkNoUndefined helpers
-- `dsl/packages/compiler-node/` - Simple CLI compiler
+- `dsl/packages/compiler-node/` - Simple CLI compiler (legacy, Node-based)
   - `cli.ts` - Compiles `*.plan.ts` → `artifacts/plans/*.plan.json`
   - `stable-stringify.ts` - Deterministic JSON serialization
 - `dsl/packages/generated/` - Generated Key/Param/Feature tokens re-exported
 - Example plans: `reels_plan_a.plan.ts`, `concat_plan.plan.ts`, `regex_plan.plan.ts`
 - Build: `pnpm run build:dsl` then `pnpm run plan:build examples/plans/*.plan.ts`
+
+**Step 10: QuickJS-based Plan Execution**
+- `dsl/packages/compiler/` - QuickJS-based dslc compiler (replaces Node-based compiler)
+  - `bundler.ts` - esbuild integration: bundles plan + runtime → single IIFE script
+  - `executor.ts` - QuickJS sandbox: executes bundle, captures __emitPlan(), validates artifact
+  - `cli.ts` - Main dslc CLI: `dslc build <plan.ts> --out <dir>`
+  - `stable-stringify.ts` - Deterministic JSON serialization
+- Runtime refactoring:
+  - `plan.ts`: `definePlan()` detects QuickJS mode via `global.__emitPlan` and emits artifact
+  - Maintains backward compatibility with Node-based compiler-node
+- Security:
+  - Sandbox disables: eval, Function, process, require, module, dynamic imports
+  - Validates artifacts: no undefined, no functions, no symbols, no cycles
+- Testing:
+  - `examples/plans/evil.plan.ts` - Attempts eval() → dslc fails with exit code 1 ✅
+  - CI Test 32: Verifies evil plan rejection
+- Build: `pnpm run dslc build <plan.ts> --out artifacts/plans` (default for `pnpm run build`)
+- Benefits: Deterministic builds, sandboxed execution, portable (WASM, no native addons)
 
 ### 🔲 Not Yet Implemented
 
@@ -369,13 +480,16 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
 
 **DSL Layer (§4-7)**
 - [x] TypeScript runtime package (`dsl/packages/runtime`)
-- [x] Compiler (`dsl/packages/compiler-node`, plan-build CLI)
+- [x] Compiler (`dsl/packages/compiler`, dslc CLI with QuickJS sandbox)
+- [x] Legacy Node-based compiler (`dsl/packages/compiler-node`)
 - [x] Generated bindings (`dsl/packages/generated`)
 - [x] Plan authoring surface (definePlan, CandidateSet)
 - [x] ExprIR builder (E.const, E.key, E.param, E.add, E.sub, E.mul, E.neg, E.coalesce)
 - [x] PredIR builder (Pred.cmp, Pred.in, Pred.isNull, Pred.notNull, Pred.and, Pred.or, Pred.not, Pred.regex)
+- [x] QuickJS-based plan execution with esbuild bundling
+- [x] Sandbox security (no eval, no Function, no Node globals)
 - [ ] Fragment authoring surface
-- [ ] QuickJS graph builder (for complex AST extraction)
+- [ ] AST extraction for complex expressions (future enhancement)
 
 **Engine Core (§9)**
 - [x] ColumnBatch (SoA storage) - id + float columns with validity
@@ -408,6 +522,7 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
 - [ ] Critical path tracing
 
 **Tooling (§14)**
-- [x] plan-build CLI (simple TS→JSON compiler)
-- [ ] dslc compiler CLI (full AST extraction)
+- [x] dslc compiler CLI (QuickJS-based, sandboxed execution)
+- [x] plan-build CLI (legacy Node-based compiler, available as fallback)
 - [ ] SourceRef generation
+- [ ] AST extraction for complex expressions (future enhancement)

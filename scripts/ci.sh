@@ -539,3 +539,21 @@ fi
 
 echo ""
 echo "=== All CI tests passed ==="
+
+echo ""
+echo "=== Test 32: Reject evil.plan.ts (QuickJS sandbox security) ==="
+if node dsl/packages/compiler/dist/cli.js build examples/plans/evil.plan.ts --out artifacts/plans 2>/dev/null; then
+    echo "FAIL: evil.plan.ts should have been rejected (sandbox violation)"
+    exit 1
+else
+    echo "PASS: evil.plan.ts rejected as expected (sandbox prevents eval/Function/process)"
+fi
+
+echo ""
+echo "=== Test 33: Reject evil_proto.plan.ts (Function constructor via prototype) ==="
+if node dsl/packages/compiler/dist/cli.js build examples/plans/evil_proto.plan.ts --out artifacts/plans 2>/dev/null; then
+    echo "FAIL: evil_proto.plan.ts should have been rejected (prototype bypass)"
+    exit 1
+else
+    echo "PASS: evil_proto.plan.ts rejected as expected (Function.prototype.constructor disabled)"
+fi

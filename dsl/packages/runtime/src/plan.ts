@@ -81,14 +81,22 @@ export class PlanCtx {
   }
 
   finalize(outputNodeId: string, planName: string): PlanArtifact {
-    return {
+    const artifact: PlanArtifact = {
       schema_version: 1,
       plan_name: planName,
       nodes: this.nodes,
       outputs: [outputNodeId],
-      expr_table: this.exprTable.size > 0 ? Object.fromEntries(this.exprTable) : undefined,
-      pred_table: this.predTable.size > 0 ? Object.fromEntries(this.predTable) : undefined,
     };
+
+    // Only include expr_table and pred_table if they contain entries
+    if (this.exprTable.size > 0) {
+      artifact.expr_table = Object.fromEntries(this.exprTable);
+    }
+    if (this.predTable.size > 0) {
+      artifact.pred_table = Object.fromEntries(this.predTable);
+    }
+
+    return artifact;
   }
 }
 
@@ -197,6 +205,13 @@ export interface PlanDef {
 
 /**
  * definePlan - main entry point for plan authoring.
+ *
+ * When running in QuickJS sandbox (via dslc), this function will:
+ * 1. Build the plan
+ * 2. Finalize to artifact
+ * 3. Call globalThis.__emitPlan() to emit the artifact
+ *
+ * When running in Node (via compiler-node), it returns a PlanDef for direct use.
  */
 export function definePlan(spec: {
   name: string;
@@ -207,8 +222,23 @@ export function definePlan(spec: {
   assertNotUndefined(spec.build, "definePlan({ build })");
   checkNoUndefined(spec as Record<string, unknown>, "definePlan(spec)");
 
-  return {
+  const planDef: PlanDef = {
     name: spec.name,
     build: spec.build,
   };
+
+  // QuickJS mode: immediately build and emit
+  // Check for __emitPlan in globalThis (QuickJS sandbox)
+  if (typeof globalThis !== "undefined" && "__emitPlan" in globalThis) {
+    const emitFn = (globalThis as Record<string, unknown>).__emitPlan;
+    if (typeof emitFn === "function") {
+      const ctx = new PlanCtx();
+      const result = spec.build(ctx);
+      const artifact = ctx.finalize(result.getNodeId(), spec.name);
+      emitFn(artifact);
+    }
+  }
+
+  // Node mode: return PlanDef for direct use
+  return planDef;
 }

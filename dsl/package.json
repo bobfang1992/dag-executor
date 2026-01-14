@@ -9,7 +9,8 @@
     "build": "pnpm --filter './packages/*' run build",
     "typecheck": "pnpm -r run typecheck",
     "lint": "eslint src/**/*.ts *.js",
-    "plan:build": "tsx packages/compiler-node/src/cli.ts"
+    "plan:build": "tsx packages/compiler-node/src/cli.ts",
+    "dslc": "node packages/compiler/dist/cli.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

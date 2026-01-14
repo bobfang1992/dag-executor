@@ -1,4 +1,10 @@
 {
+  "built_by": {
+    "backend": "quickjs",
+    "bundle_digest": "325d8c130a058a31",
+    "tool": "dslc",
+    "tool_version": "0.1.0"
+  },
   "nodes": [
     {
       "inputs": [],

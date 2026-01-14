@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "plans": [
+    "examples/plans/reels_plan_a.plan.ts",
+    "examples/plans/concat_plan.plan.ts",
+    "examples/plans/regex_plan.plan.ts"
+  ]
+}
