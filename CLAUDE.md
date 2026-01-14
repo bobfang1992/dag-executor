@@ -239,9 +239,11 @@ pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 **Step 06: filter Task and Predicate Evaluation**
 - `engine/include/plan.h` - PredNode struct for recursive predicate trees
 - `engine/src/plan.cpp` - parse_pred_node() for pred_table parsing
-- `engine/include/pred_eval.h` - Predicate evaluation with null semantics
+- `engine/include/pred_eval.h` - Predicate evaluation with null semantics (per spec)
+- `engine/tests/test_pred_eval.cpp` - Comprehensive unit tests (22 test cases, 124 assertions)
 - `filter` task: evaluates predicates, updates selection without copying columns
 - PredNode ops: const_bool, and, or, not, cmp (==,!=,<,<=,>,>=), in, is_null, not_null
+- Null semantics: cmp/in with null operands return false (per spec), is_null/not_null for explicit null testing
 - Demo plan filters: `final_score >= 0.6`
 - Negative test plans: missing_pred_id, unknown_pred_id, bad_pred_table_shape, bad_in_list
 
