@@ -12,8 +12,8 @@ echo "=== DSL codegen check ==="
 pnpm -C dsl run gen:check
 
 echo ""
-echo "=== Building TypeScript packages ==="
-pnpm run build:dsl
+echo "=== Building DSL + compiling plans ==="
+pnpm run build
 
 echo ""
 echo "=== DSL typecheck ==="
@@ -22,12 +22,6 @@ pnpm -C dsl run typecheck
 echo ""
 echo "=== DSL lint ==="
 pnpm -C dsl run lint
-
-echo ""
-echo "=== Generating plan artifacts from TypeScript ==="
-pnpm plan:build examples/plans/reels_plan_a.plan.ts
-pnpm plan:build examples/plans/concat_plan.plan.ts
-pnpm plan:build examples/plans/regex_plan.plan.ts
 
 echo ""
 echo "=== Building engine ==="

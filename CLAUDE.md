@@ -168,8 +168,12 @@ pnpm -C dsl run lint   # Lint TypeScript
 pnpm -C dsl run gen    # Run codegen (regenerate all outputs)
 pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 
-# Plan compilation
-pnpm run build:dsl                # Build DSL packages (required first)
+# Full build (gen + build DSL + compile all plans)
+pnpm run build
+
+# Or step by step:
+pnpm run gen                      # Regenerate registry tokens
+pnpm run build:dsl                # Build DSL packages
 pnpm run plan:build:all           # Compile all plans (incremental)
 pnpm run plan:build:all -- --force  # Force rebuild all plans
 pnpm run plan:build examples/plans/foo.plan.ts  # Compile single plan

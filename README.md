@@ -101,14 +101,14 @@ Pred.and(p1, p2)  Pred.or(p1, p2)  Pred.not(p)
 ### Compile & Run
 
 ```bash
-# Build DSL packages first
-pnpm run build:dsl
+# Full build: gen + build DSL + compile all plans (force rebuild)
+pnpm run build
 
-# Compile all plans (incremental - skips up-to-date)
-pnpm run plan:build:all
-
-# Force rebuild all
-pnpm run plan:build:all -- --force
+# Or step by step:
+pnpm run gen              # Regenerate registry tokens
+pnpm run build:dsl        # Build TypeScript packages
+pnpm run plan:build:all   # Compile plans (incremental)
+pnpm run plan:build:all -- --force  # Force rebuild
 
 # Compile a single plan
 pnpm run plan:build examples/plans/my_plan.plan.ts
