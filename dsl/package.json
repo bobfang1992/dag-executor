@@ -1,13 +1,15 @@
 {
-  "name": "ranking-dsl",
+  "name": "ranking-dsl-workspace",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "gen": "tsx src/codegen.ts",
     "gen:check": "tsx src/codegen.ts --check",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src/**/*.ts *.js"
+    "build": "pnpm --filter './packages/*' run build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "eslint src/**/*.ts *.js",
+    "plan:build": "tsx packages/compiler-node/src/cli.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

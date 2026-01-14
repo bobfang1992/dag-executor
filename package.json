@@ -1,0 +1,20 @@
+{
+  "name": "dag-executor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm run gen && pnpm run build:dsl && pnpm run plan:build:all -- --force",
+    "gen": "pnpm -C dsl run gen",
+    "build:dsl": "pnpm -r run build",
+    "plan:build": "tsx dsl/packages/compiler-node/src/cli.ts",
+    "plan:build:all": "tsx dsl/packages/compiler-node/src/cli.ts examples/plans/*.plan.ts"
+  },
+  "dependencies": {
+    "@ranking-dsl/runtime": "workspace:*",
+    "@ranking-dsl/generated": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.6.0"
+  }
+}

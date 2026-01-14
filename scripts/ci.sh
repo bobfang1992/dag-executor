@@ -4,8 +4,16 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-echo "=== Installing DSL dependencies ==="
-pnpm -C dsl install --frozen-lockfile
+echo "=== Installing dependencies ==="
+pnpm install --frozen-lockfile
+
+echo ""
+echo "=== DSL codegen check ==="
+pnpm -C dsl run gen:check
+
+echo ""
+echo "=== Building DSL + compiling plans ==="
+pnpm run build
 
 echo ""
 echo "=== DSL typecheck ==="
@@ -14,10 +22,6 @@ pnpm -C dsl run typecheck
 echo ""
 echo "=== DSL lint ==="
 pnpm -C dsl run lint
-
-echo ""
-echo "=== DSL codegen check ==="
-pnpm -C dsl run gen:check
 
 echo ""
 echo "=== Building engine ==="
@@ -309,15 +313,24 @@ else
 fi
 
 echo ""
-echo "=== Test 21: String in-list parses but fails at execution (not yet supported) ==="
-RESPONSE=$(echo '{"request_id": "string-test"}' | engine/bin/rankd --plan artifacts/plans/string_in_list.plan.json 2>&1 || true)
-if echo "$RESPONSE" | grep -q 'String membership.*not yet supported'; then
-    echo "PASS: String list parsed but execution correctly fails with clear error"
-else
-    echo "Response: $RESPONSE"
-    echo "FAIL: Expected clear error about string membership not supported"
-    exit 1
-fi
+echo "=== Test 21: String in-list membership ==="
+REQUEST='{"request_id": "string-in-test"}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/string_in_list.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'string-in-test', 'request_id mismatch'
+# viewer.follow produces country alternating US,CA. Filter in(['US','CA','UK']) keeps all.
+assert len(r['candidates']) == 10, f'expected 10 candidates, got {len(r[\"candidates\"])}'
+expected_ids = list(range(1, 11))
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+print('PASS: String in-list membership works')
+"
 
 echo ""
 echo "=== Test 22: Execute concat_demo plan ==="
@@ -362,7 +375,105 @@ else
 fi
 
 echo ""
-echo "=== Test 24: Verify no direct access to RowSet internals ==="
+echo "=== Test 24: Execute reels_plan_a (TypeScript-generated) ==="
+REQUEST='{"request_id": "reels-a-test"}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/reels_plan_a.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'reels-a-test', 'request_id mismatch'
+assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+# With default weight 0.2: final_score = id * 0.2, filter >= 0.6 gives ids 3-10, take 5 gives [3,4,5,6,7]
+expected_ids = [3, 4, 5, 6, 7]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+expected_scores = [0.6, 0.8, 1.0, 1.2, 1.4]
+for i, c in enumerate(r['candidates']):
+    assert 'final_score' in c['fields'], f'candidate {expected_ids[i]} missing final_score'
+    actual = c['fields']['final_score']
+    expected = expected_scores[i]
+    assert abs(actual - expected) < 0.0001, f'candidate {expected_ids[i]} final_score: expected {expected}, got {actual}'
+print('PASS: reels_plan_a executed correctly')
+"
+
+echo ""
+echo "=== Test 25: Execute reels_plan_a with param_overrides ==="
+REQUEST='{"request_id": "reels-a-override", "param_overrides": {"media_age_penalty_weight": 0.5}}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/reels_plan_a.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'reels-a-override', 'request_id mismatch'
+assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+# With override 0.5: final_score = id * 0.5, filter >= 0.6 gives ids 2-10, take 5 gives [2,3,4,5,6]
+expected_ids = [2, 3, 4, 5, 6]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+expected_scores = [1.0, 1.5, 2.0, 2.5, 3.0]
+for i, c in enumerate(r['candidates']):
+    assert 'final_score' in c['fields'], f'candidate {expected_ids[i]} missing final_score'
+    actual = c['fields']['final_score']
+    expected = expected_scores[i]
+    assert abs(actual - expected) < 0.0001, f'candidate {expected_ids[i]} final_score: expected {expected}, got {actual}'
+print('PASS: reels_plan_a with param_overrides executed correctly')
+"
+
+echo ""
+echo "=== Test 26: Execute concat_plan (TypeScript-generated) ==="
+REQUEST='{"request_id": "concat-plan-test"}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/concat_plan.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'concat-plan-test', 'request_id mismatch'
+assert len(r['candidates']) == 8, f'expected 8 candidates, got {len(r[\"candidates\"])}'
+# viewer.follow produces ids [1,2,3,4], fetch_cached_recommendation produces [1001,1002,1003,1004]
+# concat gives [1,2,3,4,1001,1002,1003,1004], take(8) gives all 8
+expected_ids = [1, 2, 3, 4, 1001, 1002, 1003, 1004]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+# First 4 have title, last 4 do not
+for i in range(4):
+    assert 'title' in r['candidates'][i]['fields'], f'candidate {expected_ids[i]} should have title'
+for i in range(4, 8):
+    assert 'title' not in r['candidates'][i]['fields'] or r['candidates'][i]['fields'].get('title') is None, f'candidate {expected_ids[i]} should not have title'
+print('PASS: concat_plan executed correctly')
+"
+
+echo ""
+echo "=== Test 27: Execute regex_plan (TypeScript-generated) ==="
+REQUEST='{"request_id": "regex-plan-test"}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/regex_plan.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'regex-plan-test', 'request_id mismatch'
+assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+# viewer.follow: country alternates US,CA. Regex 'US' keeps odd indices (id 1,3,5,7,9)
+expected_ids = [1, 3, 5, 7, 9]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+print('PASS: regex_plan executed correctly')
+"
+
+echo ""
+echo "=== Test 28: Verify no direct access to RowSet internals ==="
 # This check ensures task authors don't bypass the RowSet encapsulation.
 # The members selection_ and order_ are private, but this grep catches
 # any accidental future attempts to expose them or access them via friend.
@@ -378,7 +489,7 @@ echo "=== Regex tests (simple main) ==="
 engine/bin/regex_tests
 
 echo ""
-echo "=== Test 25: Execute regex_demo plan (literal pattern) ==="
+echo "=== Test 29: Execute regex_demo plan (literal pattern) ==="
 REQUEST='{"request_id": "regex-demo-test"}'
 RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/regex_demo.plan.json)
 
@@ -398,7 +509,7 @@ print('PASS: regex_demo plan with literal pattern')
 "
 
 echo ""
-echo "=== Test 26: Execute regex_param_demo plan (param pattern) ==="
+echo "=== Test 30: Execute regex_param_demo plan (param pattern) ==="
 REQUEST='{"request_id": "regex-param-test", "param_overrides": {"blocklist_regex": "CA"}}'
 RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/regex_param_demo.plan.json)
 
@@ -418,7 +529,7 @@ print('PASS: regex_param_demo plan with param pattern')
 "
 
 echo ""
-echo "=== Test 27: Reject bad_regex_flags.plan.json (invalid flags) ==="
+echo "=== Test 31: Reject bad_regex_flags.plan.json (invalid flags) ==="
 if echo '{}' | engine/bin/rankd --plan artifacts/plans/bad_regex_flags.plan.json 2>/dev/null; then
     echo "FAIL: bad_regex_flags.plan.json should have been rejected"
     exit 1

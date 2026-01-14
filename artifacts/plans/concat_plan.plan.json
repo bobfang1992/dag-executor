@@ -1,0 +1,49 @@
+{
+  "nodes": [
+    {
+      "inputs": [],
+      "node_id": "n0",
+      "op": "viewer.follow",
+      "params": {
+        "fanout": 4,
+        "trace": "L"
+      }
+    },
+    {
+      "inputs": [],
+      "node_id": "n1",
+      "op": "viewer.fetch_cached_recommendation",
+      "params": {
+        "fanout": 4,
+        "trace": "R"
+      }
+    },
+    {
+      "inputs": [
+        "n0",
+        "n1"
+      ],
+      "node_id": "n2",
+      "op": "concat",
+      "params": {
+        "trace": "C"
+      }
+    },
+    {
+      "inputs": [
+        "n2"
+      ],
+      "node_id": "n3",
+      "op": "take",
+      "params": {
+        "count": 8,
+        "trace": "T"
+      }
+    }
+  ],
+  "outputs": [
+    "n3"
+  ],
+  "plan_name": "concat_plan",
+  "schema_version": 1
+}

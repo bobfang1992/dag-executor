@@ -140,6 +140,58 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 
 ---
 
+## Feature Parity (Engine vs DSL)
+
+### Expression Ops (ExprIR)
+| Op | Engine | DSL | Notes |
+|----|--------|-----|-------|
+| const_number | ✅ | ✅ `E.const()` | |
+| const_null | ✅ | ✅ `E.constNull()` | |
+| key_ref | ✅ | ✅ `E.key()` | Float columns only |
+| param_ref | ✅ | ✅ `E.param()` | |
+| add | ✅ | ✅ `E.add()` | |
+| sub | ✅ | ✅ `E.sub()` | |
+| mul | ✅ | ✅ `E.mul()` | |
+| neg | ✅ | ✅ `E.neg()` | |
+| coalesce | ✅ | ✅ `E.coalesce()` | Null fallback |
+| div | ❌ | ❌ | Not implemented |
+
+### Predicate Ops (PredIR)
+| Op | Engine | DSL | Notes |
+|----|--------|-----|-------|
+| const_bool | ✅ | ✅ `Pred.constBool()` | |
+| and | ✅ | ✅ `Pred.and()` | |
+| or | ✅ | ✅ `Pred.or()` | |
+| not | ✅ | ✅ `Pred.not()` | |
+| cmp | ✅ | ✅ `Pred.cmp()` | ==, !=, <, <=, >, >= |
+| in (numeric) | ✅ | ✅ `Pred.in()` | Homogeneous list |
+| in (string) | ✅ | ✅ `Pred.in()` | Dictionary lookup |
+| is_null | ✅ | ✅ `Pred.isNull()` | |
+| not_null | ✅ | ✅ `Pred.notNull()` | |
+| regex | ✅ | ✅ `Pred.regex()` | RE2, dict optimization |
+
+### Tasks
+| Task | Engine | DSL | Notes |
+|------|--------|-----|-------|
+| viewer.follow | ✅ | ✅ `ctx.viewer.follow()` | |
+| viewer.fetch_cached_recommendation | ✅ | ✅ `ctx.viewer.fetch_cached_recommendation()` | |
+| vm | ✅ | ✅ `.vm()` | Expression evaluation |
+| filter | ✅ | ✅ `.filter()` | Predicate evaluation |
+| take | ✅ | ✅ `.take()` | |
+| concat | ✅ | ✅ `.concat()` | |
+| sort | ❌ | ❌ | Not implemented |
+| dedupe | ❌ | ❌ | Not implemented |
+| join | ❌ | ❌ | Not implemented |
+
+### Column Types
+| Type | Engine | DSL | Notes |
+|------|--------|-----|-------|
+| id (int64) | ✅ | ✅ | Read-only |
+| float | ✅ | ✅ | Via vm task |
+| string | ✅ | ✅ | Dictionary-encoded |
+
+---
+
 ## Build Commands
 
 ```bash
@@ -167,6 +219,38 @@ pnpm -C dsl install    # Install DSL dependencies
 pnpm -C dsl run lint   # Lint TypeScript
 pnpm -C dsl run gen    # Run codegen (regenerate all outputs)
 pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
+
+# Full build (gen + build DSL + compile all plans)
+pnpm run build
+
+# Or step by step:
+pnpm run gen                      # Regenerate registry tokens
+pnpm run build:dsl                # Build DSL packages
+pnpm run plan:build:all           # Compile all plans (incremental)
+pnpm run plan:build:all -- --force  # Force rebuild all plans
+pnpm run plan:build examples/plans/foo.plan.ts  # Compile single plan
+```
+
+---
+
+## PR Creation
+
+Use `--body-file` instead of inline heredocs to avoid polluting `.claude/settings.local.json` with complex command patterns:
+
+```bash
+# Write PR body to temp file
+cat > /tmp/pr-body.md <<'EOF'
+## Summary
+- ...
+
+## Test plan
+- [x] ...
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+EOF
+
+# Create PR using --body-file
+gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
 ```
 
 ---
@@ -247,6 +331,34 @@ pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 - Demo plan filters: `final_score >= 0.6`
 - Negative test plans: missing_pred_id, unknown_pred_id, bad_pred_table_shape, bad_in_list
 
+**Step 07: StringDictColumn, concat task, and output contracts**
+- `engine/include/column_batch.h` - StringDictColumn with dictionary-encoded strings
+- `concat` task: concatenates two RowSets with schema validation
+- Output contracts: validates output_keys against available columns
+- Plan artifacts: `concat_demo.plan.json`
+
+**Step 08: Regex PredIR with Dictionary Optimization**
+- `engine/CMakeLists.txt` - RE2 dependency (2022-04-01)
+- `engine/include/param_table.h` - ExecStats struct for regex_re2_calls tracking
+- `engine/include/plan.h` - PredNode regex fields (regex_key_id, regex_pattern, regex_param_id, regex_flags)
+- `engine/include/pred_eval.h` - Regex evaluation with thread_local cache, dict-scan optimization
+- `engine/tests/test_regex.cpp` - Simple main test binary (not Catch2)
+- Dict-scan optimization: regex runs once per dict entry (O(dict_size)), lookup via codes (O(1))
+- Plan artifacts: `regex_demo.plan.json`, `regex_param_demo.plan.json`, `bad_regex_flags.plan.json`
+
+**Step 09: Node-based Plan Authoring (TypeScript DSL)**
+- `dsl/packages/runtime/` - TypeScript runtime package
+  - `plan.ts` - PlanCtx, CandidateSet, definePlan() for node-based plan authoring
+  - `expr.ts` - E builder: const, constNull, key, param, add, sub, mul, neg, coalesce
+  - `pred.ts` - Pred builder: constBool, and, or, not, cmp, in, isNull, notNull, regex
+  - `guards.ts` - assertNotUndefined, checkNoUndefined helpers
+- `dsl/packages/compiler-node/` - Simple CLI compiler
+  - `cli.ts` - Compiles `*.plan.ts` → `artifacts/plans/*.plan.json`
+  - `stable-stringify.ts` - Deterministic JSON serialization
+- `dsl/packages/generated/` - Generated Key/Param/Feature tokens re-exported
+- Example plans: `reels_plan_a.plan.ts`, `concat_plan.plan.ts`, `regex_plan.plan.ts`
+- Build: `pnpm run build:dsl` then `pnpm run plan:build examples/plans/*.plan.ts`
+
 ### 🔲 Not Yet Implemented
 
 **Registries (§3)**
@@ -256,30 +368,31 @@ pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 - [ ] Lifecycle/deprecation enforcement
 
 **DSL Layer (§4-7)**
-- [ ] TypeScript runtime package (`dsl/packages/runtime`)
-- [ ] Compiler (`dsl/packages/compiler`, dslc CLI)
-- [ ] Generated bindings (`dsl/packages/generated`)
-- [ ] Plan/Fragment authoring surface
-- [ ] ExprIR extraction (vm expressions)
-- [ ] PredIR extraction (filter predicates)
-- [ ] QuickJS graph builder
+- [x] TypeScript runtime package (`dsl/packages/runtime`)
+- [x] Compiler (`dsl/packages/compiler-node`, plan-build CLI)
+- [x] Generated bindings (`dsl/packages/generated`)
+- [x] Plan authoring surface (definePlan, CandidateSet)
+- [x] ExprIR builder (E.const, E.key, E.param, E.add, E.sub, E.mul, E.neg, E.coalesce)
+- [x] PredIR builder (Pred.cmp, Pred.in, Pred.isNull, Pred.notNull, Pred.and, Pred.or, Pred.not, Pred.regex)
+- [ ] Fragment authoring surface
+- [ ] QuickJS graph builder (for complex AST extraction)
 
 **Engine Core (§9)**
 - [x] ColumnBatch (SoA storage) - id + float columns with validity
 - [x] SelectionVector / PermutationVector (order)
-- [ ] Dictionary-encoded strings
+- [x] Dictionary-encoded strings (StringDictColumn)
 - [x] Task interface + registry with TaskSpec validation
 - [x] DAG validation and linking with param validation
 - [x] ExprIR evaluation (expr_table)
-- [x] PredIR evaluation (pred_table)
+- [x] PredIR evaluation (pred_table) including regex with dict optimization
 - [ ] Budget enforcement
 
 **Tasks (§8)**
 - [x] Source tasks: `viewer.follow` (columnar)
-- [ ] concat
+- [x] concat (with schema validation)
 - [ ] fetch_features / call_models
 - [x] vm (expression evaluation, float column output)
-- [x] filter (predicate evaluation, selection update)
+- [x] filter (predicate evaluation, selection update, regex support)
 - [ ] dedupe / sort
 - [x] take (columnar, no-copy)
 - [ ] join (left/inner/semi/anti)
@@ -295,5 +408,6 @@ pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 - [ ] Critical path tracing
 
 **Tooling (§14)**
-- [ ] dslc compiler CLI
+- [x] plan-build CLI (simple TS→JSON compiler)
+- [ ] dslc compiler CLI (full AST extraction)
 - [ ] SourceRef generation
