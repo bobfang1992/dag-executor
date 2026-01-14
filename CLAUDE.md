@@ -167,6 +167,12 @@ pnpm -C dsl install    # Install DSL dependencies
 pnpm -C dsl run lint   # Lint TypeScript
 pnpm -C dsl run gen    # Run codegen (regenerate all outputs)
 pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
+
+# Plan compilation
+pnpm run build:dsl                # Build DSL packages (required first)
+pnpm run plan:build:all           # Compile all plans (incremental)
+pnpm run plan:build:all -- --force  # Force rebuild all plans
+pnpm run plan:build examples/plans/foo.plan.ts  # Compile single plan
 ```
 
 ---
