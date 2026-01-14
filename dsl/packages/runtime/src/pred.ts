@@ -71,18 +71,18 @@ export const Pred = {
     if (!Array.isArray(list)) {
       throw new Error("Pred.in requires array of literal values");
     }
-    if (list.length === 0) {
-      throw new Error("Pred.in requires non-empty list");
-    }
-    const firstType = typeof list[0];
-    if (firstType !== "number" && firstType !== "string") {
-      throw new Error(`Pred.in list[0] must be number or string, got ${firstType}`);
-    }
-    for (let i = 0; i < list.length; i++) {
-      const val = list[i];
-      assertNotUndefined(val, `Pred.in(..., list[${i}])`);
-      if (typeof val !== firstType) {
-        throw new Error(`Pred.in list must be homogeneous: list[0] is ${firstType}, list[${i}] is ${typeof val}`);
+    // Empty list is allowed - engine treats it as "always false"
+    if (list.length > 0) {
+      const firstType = typeof list[0];
+      if (firstType !== "number" && firstType !== "string") {
+        throw new Error(`Pred.in list[0] must be number or string, got ${firstType}`);
+      }
+      for (let i = 0; i < list.length; i++) {
+        const val = list[i];
+        assertNotUndefined(val, `Pred.in(..., list[${i}])`);
+        if (typeof val !== firstType) {
+          throw new Error(`Pred.in list must be homogeneous: list[0] is ${firstType}, list[${i}] is ${typeof val}`);
+        }
       }
     }
     return { op: "in", lhs, list };
@@ -100,18 +100,21 @@ export const Pred = {
 
   /**
    * Regex predicate.
-   * @param key - Key token to match against
+   * @param key - Key token to match against (must be string column)
    * @param pattern - Literal string or param token
-   * @param flags - Regex flags (e.g., "i" for case-insensitive)
+   * @param flags - Regex flags: "" (default) or "i" (case-insensitive)
    */
   regex(
     key: KeyToken,
     pattern: string | ParamToken,
-    flags: string = ""
+    flags: "" | "i" = ""
   ): PredNode {
     assertNotUndefined(key, "Pred.regex(key, ...)");
     assertNotUndefined(pattern, "Pred.regex(..., pattern, ...)");
     assertNotUndefined(flags, "Pred.regex(..., flags)");
+    if (flags !== "" && flags !== "i") {
+      throw new Error(`Pred.regex flags must be "" or "i", got "${flags}"`);
+    }
 
     let regexPattern: RegexPattern;
     if (typeof pattern === "string") {
