@@ -1,0 +1,51 @@
+{
+  "nodes": [
+    {
+      "inputs": [],
+      "node_id": "n0",
+      "op": "viewer.follow",
+      "params": {
+        "fanout": 10,
+        "trace": "src"
+      }
+    },
+    {
+      "inputs": [
+        "n0"
+      ],
+      "node_id": "n1",
+      "op": "filter",
+      "params": {
+        "pred_id": "p0",
+        "trace": "regex_filter"
+      }
+    },
+    {
+      "inputs": [
+        "n1"
+      ],
+      "node_id": "n2",
+      "op": "take",
+      "params": {
+        "count": 5,
+        "trace": "take"
+      }
+    }
+  ],
+  "outputs": [
+    "n2"
+  ],
+  "plan_name": "regex_plan",
+  "pred_table": {
+    "p0": {
+      "flags": "",
+      "key_id": 3001,
+      "op": "regex",
+      "pattern": {
+        "kind": "literal",
+        "value": "US"
+      }
+    }
+  },
+  "schema_version": 1
+}

@@ -20,6 +20,17 @@ echo "=== DSL codegen check ==="
 pnpm -C dsl run gen:check
 
 echo ""
+echo "=== Building TypeScript packages ==="
+pnpm -C dsl run build
+
+echo ""
+echo "=== Generating plan artifacts from TypeScript ==="
+pnpm -C dsl plan:build ../examples/plans/reels_plan_a.plan.ts
+pnpm -C dsl plan:build ../examples/plans/concat_plan.plan.ts
+# Move generated plans from dsl/artifacts to root artifacts
+mv dsl/artifacts/plans/*.plan.json artifacts/plans/ || true
+
+echo ""
 echo "=== Building engine ==="
 cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
 cmake --build engine/build --parallel
@@ -362,7 +373,85 @@ else
 fi
 
 echo ""
-echo "=== Test 24: Verify no direct access to RowSet internals ==="
+echo "=== Test 24: Execute reels_plan_a (TypeScript-generated) ==="
+REQUEST='{"request_id": "reels-a-test"}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/reels_plan_a.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'reels-a-test', 'request_id mismatch'
+assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+# With default weight 0.2: final_score = id * 0.2, filter >= 0.6 gives ids 3-10, take 5 gives [3,4,5,6,7]
+expected_ids = [3, 4, 5, 6, 7]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+expected_scores = [0.6, 0.8, 1.0, 1.2, 1.4]
+for i, c in enumerate(r['candidates']):
+    assert 'final_score' in c['fields'], f'candidate {expected_ids[i]} missing final_score'
+    actual = c['fields']['final_score']
+    expected = expected_scores[i]
+    assert abs(actual - expected) < 0.0001, f'candidate {expected_ids[i]} final_score: expected {expected}, got {actual}'
+print('PASS: reels_plan_a executed correctly')
+"
+
+echo ""
+echo "=== Test 25: Execute reels_plan_a with param_overrides ==="
+REQUEST='{"request_id": "reels-a-override", "param_overrides": {"media_age_penalty_weight": 0.5}}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/reels_plan_a.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'reels-a-override', 'request_id mismatch'
+assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+# With override 0.5: final_score = id * 0.5, filter >= 0.6 gives ids 2-10, take 5 gives [2,3,4,5,6]
+expected_ids = [2, 3, 4, 5, 6]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+expected_scores = [1.0, 1.5, 2.0, 2.5, 3.0]
+for i, c in enumerate(r['candidates']):
+    assert 'final_score' in c['fields'], f'candidate {expected_ids[i]} missing final_score'
+    actual = c['fields']['final_score']
+    expected = expected_scores[i]
+    assert abs(actual - expected) < 0.0001, f'candidate {expected_ids[i]} final_score: expected {expected}, got {actual}'
+print('PASS: reels_plan_a with param_overrides executed correctly')
+"
+
+echo ""
+echo "=== Test 26: Execute concat_plan (TypeScript-generated) ==="
+REQUEST='{"request_id": "concat-plan-test"}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/concat_plan.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'concat-plan-test', 'request_id mismatch'
+assert len(r['candidates']) == 8, f'expected 8 candidates, got {len(r[\"candidates\"])}'
+# viewer.follow produces ids [1,2,3,4], fetch_cached_recommendation produces [1001,1002,1003,1004]
+# concat gives [1,2,3,4,1001,1002,1003,1004], take(8) gives all 8
+expected_ids = [1, 2, 3, 4, 1001, 1002, 1003, 1004]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+# First 4 have title, last 4 do not
+for i in range(4):
+    assert 'title' in r['candidates'][i]['fields'], f'candidate {expected_ids[i]} should have title'
+for i in range(4, 8):
+    assert 'title' not in r['candidates'][i]['fields'] or r['candidates'][i]['fields'].get('title') is None, f'candidate {expected_ids[i]} should not have title'
+print('PASS: concat_plan executed correctly')
+"
+
+echo ""
+echo "=== Test 27: Verify no direct access to RowSet internals ==="
 # This check ensures task authors don't bypass the RowSet encapsulation.
 # The members selection_ and order_ are private, but this grep catches
 # any accidental future attempts to expose them or access them via friend.

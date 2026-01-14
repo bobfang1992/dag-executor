@@ -12,6 +12,7 @@ out/
 
 # Artifacts (compiled plans/fragments may be checked in selectively)
 # artifacts/
+dsl/artifacts/
 
 # IDE
 .idea/
