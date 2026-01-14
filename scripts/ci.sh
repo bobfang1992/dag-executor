@@ -316,4 +316,16 @@ else
 fi
 
 echo ""
+echo "=== Test 22: Verify no direct access to RowSet internals ==="
+# This check ensures task authors don't bypass the RowSet encapsulation.
+# The members selection_ and order_ are private, but this grep catches
+# any accidental future attempts to expose them or access them via friend.
+if grep -r --include='*.cpp' --include='*.h' -E '\.(selection_|order_)\b' engine/src engine/tests 2>/dev/null | grep -v 'rowset.h'; then
+    echo "FAIL: Found direct access to RowSet selection_/order_ internals outside rowset.h"
+    exit 1
+else
+    echo "PASS: No direct access to RowSet internals detected"
+fi
+
+echo ""
 echo "=== All CI tests passed ==="
