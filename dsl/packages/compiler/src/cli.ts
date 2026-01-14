@@ -223,12 +223,14 @@ async function compilePlan(
     // Step 3: Validate artifact structure (full PlanArtifact schema)
     validatePlanArtifact(artifact, planFileName);
 
-    const planName = (artifact as { plan_name: string }).plan_name;
+    // After validation, we know artifact is a valid object
+    const validatedArtifact = artifact as Record<string, unknown>;
+    const planName = (validatedArtifact as { plan_name: string }).plan_name;
 
     // Step 4: Add built_by metadata
     const bundleDigest = createHash("sha256").update(code).digest("hex").substring(0, 16);
     const artifactWithMetadata = {
-      ...artifact,
+      ...validatedArtifact,
       built_by: {
         backend: "quickjs",
         tool: "dslc",
