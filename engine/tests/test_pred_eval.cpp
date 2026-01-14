@@ -434,6 +434,83 @@ TEST_CASE("cmp predicates with null operands (per spec §7.2)", "[pred_eval]") {
   }
 }
 
+TEST_CASE("runtime null vs literal null distinction", "[pred_eval]") {
+  auto ctx = make_empty_ctx();
+
+  // Create a batch with an invalid (null) float column at key_id 2001
+  auto batch = make_batch_with_float(1, 2001, 0.0, false); // valid=false → null
+
+  auto make_key_ref = [](uint32_t key_id) {
+    auto node = std::make_shared<ExprNode>();
+    node->op = "key_ref";
+    node->key_id = key_id;
+    return node;
+  };
+
+  auto make_const_expr = [](double val) {
+    auto node = std::make_shared<ExprNode>();
+    node->op = "const_number";
+    node->const_value = val;
+    return node;
+  };
+
+  auto make_null_expr = []() {
+    auto node = std::make_shared<ExprNode>();
+    node->op = "const_null";
+    return node;
+  };
+
+  // Key insight: "x != 0" where x is runtime null should return FALSE
+  // This is different from "x != null" (literal const_null) which returns FALSE when x is null
+  SECTION("Key.score != 0 with null score returns false (NOT true!)") {
+    // This is the bug case: Key.score is null at runtime, comparing to 0
+    // Per spec: "other comparisons with null evaluate to false"
+    PredNode node;
+    node.op = "cmp";
+    node.cmp_op = "!=";
+    node.value_a = make_key_ref(2001); // null at runtime
+    node.value_b = make_const_expr(0.0);
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  SECTION("Key.score == 0 with null score returns false") {
+    PredNode node;
+    node.op = "cmp";
+    node.cmp_op = "==";
+    node.value_a = make_key_ref(2001); // null at runtime
+    node.value_b = make_const_expr(0.0);
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  SECTION("Key.score > 0 with null score returns false") {
+    PredNode node;
+    node.op = "cmp";
+    node.cmp_op = ">";
+    node.value_a = make_key_ref(2001); // null at runtime
+    node.value_b = make_const_expr(0.0);
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  // Compare with explicit null literal - these have special semantics
+  SECTION("Key.score == null (literal) returns true when score is null") {
+    PredNode node;
+    node.op = "cmp";
+    node.cmp_op = "==";
+    node.value_a = make_key_ref(2001); // null at runtime
+    node.value_b = make_null_expr();   // literal const_null
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == true);
+  }
+
+  SECTION("Key.score != null (literal) returns false when score is null") {
+    PredNode node;
+    node.op = "cmp";
+    node.cmp_op = "!=";
+    node.value_a = make_key_ref(2001); // null at runtime
+    node.value_b = make_null_expr();   // literal const_null
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+}
+
 TEST_CASE("in predicate", "[pred_eval]") {
   auto batch = make_batch_with_id(1);
   auto ctx = make_empty_ctx();
