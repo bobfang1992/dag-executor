@@ -130,16 +130,40 @@ int main(int argc, char *argv[]) {
     try {
       rankd::Plan plan = rankd::parse_plan(plan_path);
       rankd::validate_plan(plan);
+
+      // Set expr_table in context
+      ctx.expr_table = &plan.expr_table;
+
       auto outputs = rankd::execute_plan(plan, ctx);
 
       // Merge all outputs into candidates
       for (const auto &rowset : outputs) {
         auto indices =
             rowset.materializeIndexViewForOutput(rowset.batch->size());
+
+        // Get float column key_ids in ascending order for deterministic output
+        auto float_key_ids = rowset.batch->getFloatKeyIds();
+
         for (uint32_t idx : indices) {
           json candidate;
           candidate["id"] = rowset.batch->getId(idx);
-          candidate["fields"] = json::object();
+
+          // Build fields from float columns
+          json fields = json::object();
+          for (uint32_t key_id : float_key_ids) {
+            const auto *col = rowset.batch->getFloatCol(key_id);
+            if (col && col->valid[idx]) {
+              // Look up key name
+              for (const auto &meta : rankd::kKeyRegistry) {
+                if (meta.id == key_id) {
+                  fields[std::string(meta.name)] = col->values[idx];
+                  break;
+                }
+              }
+            }
+          }
+          candidate["fields"] = fields;
+
           candidates.push_back(candidate);
         }
       }

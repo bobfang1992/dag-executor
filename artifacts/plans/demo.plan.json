@@ -3,7 +3,19 @@
   "plan_name": "demo",
   "nodes": [
     { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": { "fanout": 10, "trace": "src" } },
-    { "node_id": "n1", "op": "take", "inputs": ["n0"], "params": { "count": 5, "trace": "take" } }
+    { "node_id": "n1", "op": "vm", "inputs": ["n0"], "params": { "out_key": 2001, "expr_id": "e0", "trace": "vm_final" } },
+    { "node_id": "n2", "op": "take", "inputs": ["n1"], "params": { "count": 5, "trace": "take" } }
   ],
-  "outputs": ["n1"]
+  "outputs": ["n2"],
+  "expr_table": {
+    "e0": {
+      "op": "mul",
+      "a": { "op": "key_ref", "key_id": 1 },
+      "b": {
+        "op": "coalesce",
+        "a": { "op": "param_ref", "param_id": 1 },
+        "b": { "op": "const_number", "value": 0.2 }
+      }
+    }
+  }
 }

@@ -65,7 +65,14 @@ assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidat
 expected_ids = [1, 2, 3, 4, 5]
 actual_ids = [c['id'] for c in r['candidates']]
 assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
-print('PASS: Demo plan executed correctly')
+# Verify final_score values (id * 0.2 default)
+expected_scores = [0.2, 0.4, 0.6, 0.8, 1.0]
+for i, c in enumerate(r['candidates']):
+    assert 'final_score' in c['fields'], f'candidate {i+1} missing final_score'
+    actual = c['fields']['final_score']
+    expected = expected_scores[i]
+    assert abs(actual - expected) < 0.0001, f'candidate {i+1} final_score: expected {expected}, got {actual}'
+print('PASS: Demo plan executed correctly with final_score')
 "
 
 echo ""
@@ -101,7 +108,7 @@ assert 'task_manifest_digest' in r, 'missing task_manifest_digest'
 assert r['num_keys'] == 8, f'expected 8 keys, got {r[\"num_keys\"]}'
 assert r['num_params'] == 3, f'expected 3 params, got {r[\"num_params\"]}'
 assert r['num_features'] == 2, f'expected 2 features, got {r[\"num_features\"]}'
-assert r['num_tasks'] == 2, f'expected 2 tasks, got {r[\"num_tasks\"]}'
+assert r['num_tasks'] == 3, f'expected 3 tasks, got {r[\"num_tasks\"]}'
 print('PASS: Registry info correct')
 "
 
@@ -173,7 +180,14 @@ import sys, json
 r = json.load(sys.stdin)
 assert r['request_id'] == 'param-test', 'request_id mismatch'
 assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
-print('PASS: Valid param_overrides accepted')
+# Verify final_score values (id * 0.5 from override)
+expected_scores = [0.5, 1.0, 1.5, 2.0, 2.5]
+for i, c in enumerate(r['candidates']):
+    assert 'final_score' in c['fields'], f'candidate {i+1} missing final_score'
+    actual = c['fields']['final_score']
+    expected = expected_scores[i]
+    assert abs(actual - expected) < 0.0001, f'candidate {i+1} final_score: expected {expected}, got {actual}'
+print('PASS: Valid param_overrides with correct final_score')
 "
 
 echo ""

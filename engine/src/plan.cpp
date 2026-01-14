@@ -1,8 +1,66 @@
 #include "plan.h"
 #include <fstream>
 #include <stdexcept>
+#include <unordered_set>
 
 namespace rankd {
+
+ExprNodePtr parse_expr_node(const nlohmann::json &j) {
+  if (!j.is_object()) {
+    throw std::runtime_error("ExprNode must be an object");
+  }
+  if (!j.contains("op") || !j["op"].is_string()) {
+    throw std::runtime_error("ExprNode missing or invalid 'op'");
+  }
+
+  auto node = std::make_shared<ExprNode>();
+  node->op = j["op"].get<std::string>();
+
+  static const std::unordered_set<std::string> valid_ops = {
+      "const_number", "const_null", "key_ref", "param_ref",
+      "add",          "sub",        "mul",     "neg",
+      "coalesce"};
+
+  if (valid_ops.find(node->op) == valid_ops.end()) {
+    throw std::runtime_error("Unknown ExprNode op: " + node->op);
+  }
+
+  if (node->op == "const_number") {
+    if (!j.contains("value") || !j["value"].is_number()) {
+      throw std::runtime_error("const_number missing or invalid 'value'");
+    }
+    node->const_value = j["value"].get<double>();
+  } else if (node->op == "const_null") {
+    // No additional fields
+  } else if (node->op == "key_ref") {
+    if (!j.contains("key_id") || !j["key_id"].is_number_unsigned()) {
+      throw std::runtime_error("key_ref missing or invalid 'key_id'");
+    }
+    node->key_id = j["key_id"].get<uint32_t>();
+  } else if (node->op == "param_ref") {
+    if (!j.contains("param_id") || !j["param_id"].is_number_unsigned()) {
+      throw std::runtime_error("param_ref missing or invalid 'param_id'");
+    }
+    node->param_id = j["param_id"].get<uint32_t>();
+  } else if (node->op == "add" || node->op == "sub" || node->op == "mul" ||
+             node->op == "coalesce") {
+    if (!j.contains("a")) {
+      throw std::runtime_error(node->op + " missing 'a'");
+    }
+    if (!j.contains("b")) {
+      throw std::runtime_error(node->op + " missing 'b'");
+    }
+    node->a = parse_expr_node(j["a"]);
+    node->b = parse_expr_node(j["b"]);
+  } else if (node->op == "neg") {
+    if (!j.contains("x")) {
+      throw std::runtime_error("neg missing 'x'");
+    }
+    node->a = parse_expr_node(j["x"]);
+  }
+
+  return node;
+}
 
 Plan parse_plan(const std::string &path) {
   std::ifstream file(path);
@@ -80,6 +138,22 @@ Plan parse_plan(const std::string &path) {
       throw std::runtime_error("Plan has non-string output");
     }
     plan.outputs.push_back(out.get<std::string>());
+  }
+
+  // expr_table (optional)
+  if (j.contains("expr_table")) {
+    if (!j["expr_table"].is_object()) {
+      throw std::runtime_error("Plan 'expr_table' must be an object");
+    }
+    for (auto it = j["expr_table"].begin(); it != j["expr_table"].end(); ++it) {
+      const std::string &expr_id = it.key();
+      try {
+        plan.expr_table[expr_id] = parse_expr_node(it.value());
+      } catch (const std::runtime_error &e) {
+        throw std::runtime_error("Error parsing expr '" + expr_id +
+                                 "': " + e.what());
+      }
+    }
   }
 
   return plan;

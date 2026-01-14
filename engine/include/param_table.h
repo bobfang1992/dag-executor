@@ -225,9 +225,14 @@ private:
   std::unordered_map<uint32_t, ParamValue> values_;
 };
 
+// Forward declaration for expr_table
+struct ExprNode;
+using ExprNodePtr = std::shared_ptr<ExprNode>;
+
 // Execution context passed to task run functions
 struct ExecCtx {
   const ParamTable *params = nullptr;
+  const std::unordered_map<std::string, ExprNodePtr> *expr_table = nullptr;
   // Future: request_id, engine_request_id, mode, logger, budgets...
 };
 
