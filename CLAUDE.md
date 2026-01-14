@@ -220,6 +220,31 @@ pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 - Negative test plan artifacts: `bad_type_fanout.plan.json`, `missing_fanout.plan.json`, `extra_param.plan.json`, `bad_trace_type.plan.json`
 - CI tests for all negative param validation cases
 
+**Step 05a: ParamTable and param_overrides Validation**
+- `engine/include/param_table.h` - ParamTable class with typed getters, validation helpers, ExecCtx
+- Request-level `param_overrides` validation against registry metadata
+- Fail-closed semantics: unknown params, non-writable, deprecated/blocked, wrong types, non-finite floats
+- Nullable param handling per registry metadata
+- Catch2 testing framework integration (14 test cases, 63 assertions)
+
+**Step 05b: vm Task and Expression Evaluation**
+- `engine/include/plan.h` - ExprNode struct for recursive expression trees
+- `engine/src/plan.cpp` - parse_expr_node() for expr_table parsing
+- `engine/include/expr_eval.h` - Expression evaluation with null propagation
+- `engine/include/column_batch.h` - FloatColumn support, shared id storage via shared_ptr
+- `vm` task: evaluates expressions per row, writes float columns
+- ExprNode ops: const_number, const_null, key_ref, param_ref, add, sub, mul, neg, coalesce
+- Demo plan computes: `final_score = id * coalesce(P.media_age_penalty_weight, 0.2)`
+
+**Step 06: filter Task and Predicate Evaluation**
+- `engine/include/plan.h` - PredNode struct for recursive predicate trees
+- `engine/src/plan.cpp` - parse_pred_node() for pred_table parsing
+- `engine/include/pred_eval.h` - Predicate evaluation with null semantics
+- `filter` task: evaluates predicates, updates selection without copying columns
+- PredNode ops: const_bool, and, or, not, cmp (==,!=,<,<=,>,>=), in, is_null, not_null
+- Demo plan filters: `final_score >= 0.6`
+- Negative test plans: missing_pred_id, unknown_pred_id, bad_pred_table_shape, bad_in_list
+
 ### 🔲 Not Yet Implemented
 
 **Registries (§3)**
@@ -238,18 +263,22 @@ pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 - [ ] QuickJS graph builder
 
 **Engine Core (§9)**
-- [x] ColumnBatch (SoA storage) - id column only for now
+- [x] ColumnBatch (SoA storage) - id + float columns with validity
 - [x] SelectionVector / PermutationVector (order)
 - [ ] Dictionary-encoded strings
 - [x] Task interface + registry with TaskSpec validation
 - [x] DAG validation and linking with param validation
+- [x] ExprIR evaluation (expr_table)
+- [x] PredIR evaluation (pred_table)
 - [ ] Budget enforcement
 
 **Tasks (§8)**
 - [x] Source tasks: `viewer.follow` (columnar)
 - [ ] concat
 - [ ] fetch_features / call_models
-- [ ] vm / filter / dedupe / sort
+- [x] vm (expression evaluation, float column output)
+- [x] filter (predicate evaluation, selection update)
+- [ ] dedupe / sort
 - [x] take (columnar, no-copy)
 - [ ] join (left/inner/semi/anti)
 - [ ] extract_features
