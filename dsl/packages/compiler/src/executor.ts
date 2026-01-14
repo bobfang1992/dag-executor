@@ -175,7 +175,10 @@ function validateArtifact(artifact: unknown, planPath: string): void {
       value.forEach((item, i) => visit(item, `${path}[${i}]`));
     } else if (value !== null && typeof value === "object") {
       for (const [key, val] of Object.entries(value)) {
-        visit(val, `${path}.${key}`);
+        // Skip undefined values - they're omitted in JSON serialization
+        if (val !== undefined) {
+          visit(val, `${path}.${key}`);
+        }
       }
     }
   }
