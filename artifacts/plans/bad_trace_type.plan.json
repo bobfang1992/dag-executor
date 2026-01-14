@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "plan_name": "bad_trace_type",
+  "nodes": [
+    { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": { "fanout": 10, "trace": 123 } }
+  ],
+  "outputs": ["n0"]
+}

@@ -205,10 +205,20 @@ pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 - `dsl/src/codegen.ts` - Generates TS tokens, C++ headers, and JSON artifacts with SHA-256 digests
 - Generated outputs:
   - `dsl/src/generated/keys.ts`, `params.ts`, `features.ts` - TS tokens (Key, P, Feat)
-  - `engine/include/keys.h`, `params.h`, `features.h` - C++ enums + metadata
+  - `engine/include/key_registry.h`, `param_registry.h`, `feature_registry.h` - C++ enums + metadata
   - `artifacts/keys.json`, `params.json`, `features.json` - JSON artifacts with digests
 - `--print-registry` flag for rankd to output registry digests
 - CI runs `pnpm -C dsl run gen:check` to verify generated outputs are up-to-date
+
+**Step 04: TaskSpec Validation**
+- `engine/include/task_registry.h` - TaskSpec, ParamField, ValidatedParams types
+- `engine/include/sha256.h` - Header-only SHA256 for digest computation
+- TaskSpec as single source of truth for task validation
+- Strict fail-closed validation: missing required params, wrong types, unexpected fields
+- `task_manifest_digest` computed via SHA256 of canonical TaskSpec JSON
+- `--print-registry` extended with `task_manifest_digest` and `num_tasks`
+- Negative test plan artifacts: `bad_type_fanout.plan.json`, `missing_fanout.plan.json`, `extra_param.plan.json`, `bad_trace_type.plan.json`
+- CI tests for all negative param validation cases
 
 ### 🔲 Not Yet Implemented
 
@@ -231,8 +241,8 @@ pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 - [x] ColumnBatch (SoA storage) - id column only for now
 - [x] SelectionVector / PermutationVector (order)
 - [ ] Dictionary-encoded strings
-- [x] Task interface + registry (basic)
-- [x] DAG validation and linking (basic)
+- [x] Task interface + registry with TaskSpec validation
+- [x] DAG validation and linking with param validation
 - [ ] Budget enforcement
 
 **Tasks (§8)**

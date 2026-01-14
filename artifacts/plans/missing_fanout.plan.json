@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "plan_name": "missing_fanout",
+  "nodes": [
+    { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": {} }
+  ],
+  "outputs": ["n0"]
+}
