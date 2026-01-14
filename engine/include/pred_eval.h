@@ -7,7 +7,11 @@
 namespace rankd {
 
 // Predicate evaluation result: true, false, or evaluation error (throws)
-// Note: predicates never return null - null comparisons yield false
+// Null semantics:
+// - == and != handle null meaningfully (null == null is true, x != null is true if x is non-null)
+// - Ordering comparisons (<, <=, >, >=) yield false if either operand is null
+// - is_null/not_null explicitly test for null
+// - in yields false if lhs is null
 inline bool eval_pred(const PredNode &node, size_t row, const ColumnBatch &batch,
                       const ExecCtx &ctx) {
   if (node.op == "const_bool") {
@@ -48,7 +52,29 @@ inline bool eval_pred(const PredNode &node, size_t row, const ColumnBatch &batch
     ExprResult a = eval_expr(*node.value_a, row, batch, ctx);
     ExprResult b = eval_expr(*node.value_b, row, batch, ctx);
 
-    // If either side is null, comparison yields false
+    // Special handling for == and != with null operands
+    // x == null returns true iff x is null (like is_null)
+    // x != null returns true iff x is not null (like not_null)
+    if (node.cmp_op == "==") {
+      if (!a && !b) {
+        return true; // null == null is true
+      }
+      if (!a || !b) {
+        return false; // null == value or value == null is false
+      }
+      return *a == *b;
+    }
+    if (node.cmp_op == "!=") {
+      if (!a && !b) {
+        return false; // null != null is false
+      }
+      if (!a || !b) {
+        return true; // null != value or value != null is true
+      }
+      return *a != *b;
+    }
+
+    // For ordering comparisons (<, <=, >, >=), null yields false
     if (!a || !b) {
       return false;
     }
@@ -56,12 +82,6 @@ inline bool eval_pred(const PredNode &node, size_t row, const ColumnBatch &batch
     double av = *a;
     double bv = *b;
 
-    if (node.cmp_op == "==") {
-      return av == bv;
-    }
-    if (node.cmp_op == "!=") {
-      return av != bv;
-    }
     if (node.cmp_op == "<") {
       return av < bv;
     }
