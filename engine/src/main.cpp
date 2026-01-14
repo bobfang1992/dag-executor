@@ -140,19 +140,19 @@ int main(int argc, char *argv[]) {
       // Merge all outputs into candidates
       for (const auto &rowset : outputs) {
         auto indices =
-            rowset.materializeIndexViewForOutput(rowset.batch->size());
+            rowset.materializeIndexViewForOutput(rowset.batch().size());
 
         // Get float column key_ids in ascending order for deterministic output
-        auto float_key_ids = rowset.batch->getFloatKeyIds();
+        auto float_key_ids = rowset.batch().getFloatKeyIds();
 
         for (uint32_t idx : indices) {
           json candidate;
-          candidate["id"] = rowset.batch->getId(idx);
+          candidate["id"] = rowset.batch().getId(idx);
 
           // Build fields from float columns
           json fields = json::object();
           for (uint32_t key_id : float_key_ids) {
-            const auto *col = rowset.batch->getFloatCol(key_id);
+            const auto *col = rowset.batch().getFloatCol(key_id);
             if (col && col->valid[idx]) {
               // Look up key name
               for (const auto &meta : rankd::kKeyRegistry) {

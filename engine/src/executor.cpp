@@ -163,17 +163,18 @@ std::vector<RowSet> execute_plan(const Plan &plan, const ExecCtx &ctx) {
 
     std::vector<RowSet> inputs;
     for (const auto &inp : node.inputs) {
-      inputs.push_back(results[inp]);
+      inputs.push_back(results.at(inp));
     }
 
     auto validated_params = registry.validate_params(node.op, node.params);
-    results[node_id] = registry.execute(node.op, inputs, validated_params, ctx);
+    results.emplace(node_id,
+                    registry.execute(node.op, inputs, validated_params, ctx));
   }
 
   // Collect outputs
   std::vector<RowSet> outputs;
   for (const auto &out : plan.outputs) {
-    outputs.push_back(results[out]);
+    outputs.push_back(results.at(out));
   }
 
   return outputs;

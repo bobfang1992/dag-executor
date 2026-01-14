@@ -58,8 +58,7 @@ TaskRegistry::TaskRegistry() {
           batch->setId(static_cast<size_t>(i), i + 1); // ids are 1-indexed
         }
 
-        return RowSet{
-            .batch = batch, .selection = std::nullopt, .order = std::nullopt};
+        return RowSet(batch);
       });
 
   // Register take
@@ -93,55 +92,8 @@ TaskRegistry::TaskRegistry() {
         const auto &input = inputs[0];
         size_t limit = static_cast<size_t>(count);
 
-        // Share the same batch - no column copy!
-        RowSet result;
-        result.batch = input.batch;
-
-        if (input.order && input.selection) {
-          // Both exist: filter order by selection, then truncate
-          std::vector<uint8_t> in_selection(input.batch->size(), 0);
-          for (uint32_t idx : *input.selection) {
-            in_selection[idx] = 1;
-          }
-          std::vector<uint32_t> filtered;
-          for (uint32_t idx : *input.order) {
-            if (in_selection[idx]) {
-              filtered.push_back(idx);
-              if (filtered.size() >= limit)
-                break;
-            }
-          }
-          result.selection = std::move(filtered);
-          result.order = std::nullopt;
-        } else if (input.order) {
-          // Only order: truncate order
-          auto new_order = *input.order;
-          if (new_order.size() > limit) {
-            new_order.resize(limit);
-          }
-          result.order = std::move(new_order);
-          result.selection = std::nullopt;
-        } else if (input.selection) {
-          // Truncate selection
-          auto new_selection = *input.selection;
-          if (new_selection.size() > limit) {
-            new_selection.resize(limit);
-          }
-          result.selection = std::move(new_selection);
-          result.order = std::nullopt;
-        } else {
-          // Create selection [0..min(count, N)-1]
-          size_t n = std::min(limit, input.batch->size());
-          std::vector<uint32_t> new_selection;
-          new_selection.reserve(n);
-          for (size_t i = 0; i < n; ++i) {
-            new_selection.push_back(static_cast<uint32_t>(i));
-          }
-          result.selection = std::move(new_selection);
-          result.order = std::nullopt;
-        }
-
-        return result;
+        // Use truncateTo - shares batch pointer, creates new selection from active rows
+        return input.truncateTo(limit);
       });
 
   // Register vm
@@ -217,37 +169,15 @@ TaskRegistry::TaskRegistry() {
         const ExprNode &expr = *expr_it->second;
 
         const auto &input = inputs[0];
-        size_t n = input.batch->size();
-
-        // Build active set: honor selection if present, else order, else full batch
-        std::vector<uint8_t> active(n, 0);
-        if (input.selection) {
-          for (uint32_t idx : *input.selection) {
-            active[idx] = 1;
-          }
-        } else if (input.order) {
-          // Order-only RowSet: only rows in order are active
-          for (uint32_t idx : *input.order) {
-            active[idx] = 1;
-          }
-        } else {
-          // No selection or order: all rows active
-          for (size_t i = 0; i < n; ++i) {
-            active[i] = 1;
-          }
-        }
+        size_t n = input.batch().size();
 
         // Create new float column
         auto col = std::make_shared<FloatColumn>(n);
 
         // Evaluate expression for each active row
         bool has_null_active = false;
-        for (size_t row = 0; row < n; ++row) {
-          if (!active[row]) {
-            continue;
-          }
-
-          ExprResult result = eval_expr(expr, row, *input.batch, ctx);
+        input.activeRows().forEachIndex([&](RowIndex row) {
+          ExprResult result = eval_expr(expr, row, input.batch(), ctx);
 
           if (!result) {
             has_null_active = true;
@@ -263,7 +193,7 @@ TaskRegistry::TaskRegistry() {
             col->values[row] = val;
             col->valid[row] = 1;
           }
-        }
+        });
 
         // If out_key is not nullable and any active row is null => error
         if (!key_meta->nullable && has_null_active) {
@@ -273,11 +203,9 @@ TaskRegistry::TaskRegistry() {
 
         // Create new batch with the float column
         auto new_batch = std::make_shared<ColumnBatch>(
-            input.batch->withFloatColumn(out_key, col));
+            input.batch().withFloatColumn(out_key, col));
 
-        return RowSet{.batch = new_batch,
-                      .selection = input.selection,
-                      .order = input.order};
+        return input.withBatch(new_batch);
       });
 
   // Register filter
@@ -323,53 +251,18 @@ TaskRegistry::TaskRegistry() {
         const PredNode &pred = *pred_it->second;
 
         const auto &input = inputs[0];
-        size_t n = input.batch->size();
 
         // Build new selection by filtering active rows
-        // Active rows are determined by: selection > order > [0..n)
-        std::vector<uint32_t> new_selection;
-
-        if (input.order && input.selection) {
-          // Both exist: iterate order, filter by selection membership, then
-          // predicate
-          std::vector<uint8_t> in_selection(n, 0);
-          for (uint32_t idx : *input.selection) {
-            in_selection[idx] = 1;
+        SelectionVector new_selection;
+        input.activeRows().forEachIndex([&](RowIndex idx) {
+          if (eval_pred(pred, idx, input.batch(), ctx)) {
+            new_selection.push_back(idx);
           }
-          for (uint32_t idx : *input.order) {
-            if (in_selection[idx] &&
-                eval_pred(pred, idx, *input.batch, ctx)) {
-              new_selection.push_back(idx);
-            }
-          }
-        } else if (input.selection) {
-          // Only selection: iterate over selection
-          for (uint32_t idx : *input.selection) {
-            if (eval_pred(pred, idx, *input.batch, ctx)) {
-              new_selection.push_back(idx);
-            }
-          }
-        } else if (input.order) {
-          // Only order: iterate over order (these are the active rows)
-          for (uint32_t idx : *input.order) {
-            if (eval_pred(pred, idx, *input.batch, ctx)) {
-              new_selection.push_back(idx);
-            }
-          }
-        } else {
-          // Neither: iterate over all rows
-          for (size_t i = 0; i < n; ++i) {
-            if (eval_pred(pred, i, *input.batch, ctx)) {
-              new_selection.push_back(static_cast<uint32_t>(i));
-            }
-          }
-        }
+        });
 
         // Return new RowSet with same batch, updated selection
         // Order is cleared since new_selection captures the iteration order
-        return RowSet{.batch = input.batch,
-                      .selection = std::move(new_selection),
-                      .order = std::nullopt};
+        return input.withSelectionClearOrder(std::move(new_selection));
       });
 }
 
