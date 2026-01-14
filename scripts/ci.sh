@@ -539,3 +539,12 @@ fi
 
 echo ""
 echo "=== All CI tests passed ==="
+
+echo ""
+echo "=== Test 32: Reject evil.plan.ts (QuickJS sandbox security) ==="
+if node dsl/packages/compiler/dist/cli.js build examples/plans/evil.plan.ts --out artifacts/plans 2>/dev/null; then
+    echo "FAIL: evil.plan.ts should have been rejected (sandbox violation)"
+    exit 1
+else
+    echo "PASS: evil.plan.ts rejected as expected (sandbox prevents eval/Function/process)"
+fi
