@@ -10,6 +10,7 @@
 #include "feature_registry.h"
 #include "key_registry.h"
 #include "param_registry.h"
+#include "param_table.h"
 #include "plan.h"
 #include "task_registry.h"
 
@@ -92,6 +93,27 @@ int main(int argc, char *argv[]) {
   // engine_request_id: always generated
   response["engine_request_id"] = generate_uuid();
 
+  // Parse and validate param_overrides
+  rankd::ParamTable param_table;
+  if (request.contains("param_overrides")) {
+    const auto &overrides = request["param_overrides"];
+    if (!overrides.is_null()) {
+      try {
+        param_table = rankd::ParamTable::fromParamOverrides(overrides);
+      } catch (const std::runtime_error &e) {
+        json error_response;
+        error_response["error"] = "Invalid param_overrides";
+        error_response["detail"] = e.what();
+        std::cout << error_response.dump() << std::endl;
+        return 1;
+      }
+    }
+  }
+
+  // Build execution context
+  rankd::ExecCtx ctx;
+  ctx.params = &param_table;
+
   // Generate candidates
   json candidates = json::array();
 
@@ -108,7 +130,7 @@ int main(int argc, char *argv[]) {
     try {
       rankd::Plan plan = rankd::parse_plan(plan_path);
       rankd::validate_plan(plan);
-      auto outputs = rankd::execute_plan(plan);
+      auto outputs = rankd::execute_plan(plan, ctx);
 
       // Merge all outputs into candidates
       for (const auto &rowset : outputs) {

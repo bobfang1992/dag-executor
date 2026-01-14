@@ -1,5 +1,6 @@
 #pragma once
 
+#include "param_table.h"
 #include "plan.h"
 #include "task_registry.h"
 #include <vector>
@@ -10,6 +11,6 @@ namespace rankd {
 void validate_plan(const Plan &plan);
 
 // Execute plan and return output RowSets (one per outputs entry).
-std::vector<RowSet> execute_plan(const Plan &plan);
+std::vector<RowSet> execute_plan(const Plan &plan, const ExecCtx &ctx);
 
 } // namespace rankd

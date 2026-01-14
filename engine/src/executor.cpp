@@ -90,7 +90,7 @@ void validate_plan(const Plan &plan) {
   }
 }
 
-std::vector<RowSet> execute_plan(const Plan &plan) {
+std::vector<RowSet> execute_plan(const Plan &plan, const ExecCtx &ctx) {
   // Build node_id -> index map
   std::unordered_map<std::string, size_t> node_index;
   for (size_t i = 0; i < plan.nodes.size(); ++i) {
@@ -144,7 +144,7 @@ std::vector<RowSet> execute_plan(const Plan &plan) {
     }
 
     auto validated_params = registry.validate_params(node.op, node.params);
-    results[node_id] = registry.execute(node.op, inputs, validated_params);
+    results[node_id] = registry.execute(node.op, inputs, validated_params, ctx);
   }
 
   // Collect outputs

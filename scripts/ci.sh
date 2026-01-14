@@ -25,8 +25,8 @@ cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
 cmake --build engine/build --parallel
 
 echo ""
-echo "=== Test 0: RowSet unit tests ==="
-engine/bin/rowset_tests
+echo "=== Unit tests (Catch2) ==="
+engine/bin/rankd_tests
 
 echo ""
 echo "=== Test 1: Step 00 fallback (no --plan) ==="
@@ -160,6 +160,90 @@ if echo '{}' | engine/bin/rankd --plan artifacts/plans/large_fanout.plan.json 2>
 else
     echo "PASS: large_fanout.plan.json rejected as expected"
 fi
+
+echo ""
+echo "=== Test 12: Valid param_overrides ==="
+REQUEST='{"request_id": "param-test", "param_overrides": {"media_age_penalty_weight": 0.5, "esr_cutoff": 2.0}}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/demo.plan.json)
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'param-test', 'request_id mismatch'
+assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+print('PASS: Valid param_overrides accepted')
+"
+
+echo ""
+echo "=== Test 13: Reject unknown param in param_overrides ==="
+REQUEST='{"request_id": "unknown-param", "param_overrides": {"unknown_param": 42}}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/demo.plan.json 2>&1 || true)
+if echo "$RESPONSE" | grep -q '"error"'; then
+    if echo "$RESPONSE" | grep -q 'unknown param'; then
+        echo "PASS: Unknown param rejected with correct message"
+    else
+        echo "Response: $RESPONSE"
+        echo "FAIL: Expected 'unknown param' in error message"
+        exit 1
+    fi
+else
+    echo "Response: $RESPONSE"
+    echo "FAIL: Unknown param should have been rejected"
+    exit 1
+fi
+
+echo ""
+echo "=== Test 14: Reject wrong type in param_overrides ==="
+REQUEST='{"request_id": "wrong-type", "param_overrides": {"media_age_penalty_weight": "not a number"}}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/demo.plan.json 2>&1 || true)
+if echo "$RESPONSE" | grep -q '"error"'; then
+    if echo "$RESPONSE" | grep -q 'must be float'; then
+        echo "PASS: Wrong type rejected with correct message"
+    else
+        echo "Response: $RESPONSE"
+        echo "FAIL: Expected 'must be float' in error message"
+        exit 1
+    fi
+else
+    echo "Response: $RESPONSE"
+    echo "FAIL: Wrong type should have been rejected"
+    exit 1
+fi
+
+echo ""
+echo "=== Test 15: Reject null for non-nullable param_overrides ==="
+REQUEST='{"request_id": "null-non-nullable", "param_overrides": {"media_age_penalty_weight": null}}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/demo.plan.json 2>&1 || true)
+if echo "$RESPONSE" | grep -q '"error"'; then
+    if echo "$RESPONSE" | grep -q 'cannot be null'; then
+        echo "PASS: Null for non-nullable param rejected with correct message"
+    else
+        echo "Response: $RESPONSE"
+        echo "FAIL: Expected 'cannot be null' in error message"
+        exit 1
+    fi
+else
+    echo "Response: $RESPONSE"
+    echo "FAIL: Null for non-nullable param should have been rejected"
+    exit 1
+fi
+
+echo ""
+echo "=== Test 16: Accept null for nullable param_overrides ==="
+REQUEST='{"request_id": "null-nullable", "param_overrides": {"blocklist_regex": null}}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/demo.plan.json)
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'null-nullable', 'request_id mismatch'
+assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+print('PASS: Null for nullable param accepted')
+"
 
 echo ""
 echo "=== All CI tests passed ==="
