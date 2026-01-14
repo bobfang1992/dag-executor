@@ -53,7 +53,10 @@ export async function executePlan(
       // Disable eval
       globalThis.eval = undefined;
 
-      // Disable Function constructor
+      // Disable Function constructor (both global and via prototype)
+      // Without this, code can bypass via: (() => {}).constructor('return 1')()
+      const FunctionProto = (function(){}).constructor.prototype;
+      FunctionProto.constructor = undefined;
       globalThis.Function = undefined;
 
       // Prevent access to common Node globals (should not exist, but be explicit)

@@ -20,6 +20,88 @@ import { bundlePlan } from "./bundler.js";
 import { executePlan } from "./executor.js";
 import { stableStringify } from "./stable-stringify.js";
 
+/**
+ * Validate that artifact conforms to PlanArtifact schema.
+ * Since __emitPlan is exposed to untrusted plan code, we must validate
+ * the full schema before writing to disk.
+ */
+function validatePlanArtifact(artifact: unknown, planFileName: string): void {
+  if (artifact === null || typeof artifact !== "object") {
+    throw new Error(`Invalid artifact from ${planFileName}: not an object`);
+  }
+
+  const obj = artifact as Record<string, unknown>;
+
+  // Required fields
+  if (typeof obj.schema_version !== "number") {
+    throw new Error(
+      `Invalid artifact from ${planFileName}: missing or invalid schema_version (expected number)`
+    );
+  }
+  if (typeof obj.plan_name !== "string" || obj.plan_name.length === 0) {
+    throw new Error(
+      `Invalid artifact from ${planFileName}: missing or invalid plan_name (expected non-empty string)`
+    );
+  }
+  if (!Array.isArray(obj.nodes)) {
+    throw new Error(
+      `Invalid artifact from ${planFileName}: missing or invalid nodes (expected array)`
+    );
+  }
+  if (!Array.isArray(obj.outputs)) {
+    throw new Error(
+      `Invalid artifact from ${planFileName}: missing or invalid outputs (expected array)`
+    );
+  }
+
+  // Validate nodes structure
+  for (let i = 0; i < obj.nodes.length; i++) {
+    const node = obj.nodes[i];
+    if (node === null || typeof node !== "object") {
+      throw new Error(
+        `Invalid artifact from ${planFileName}: nodes[${i}] is not an object`
+      );
+    }
+    const n = node as Record<string, unknown>;
+    if (typeof n.node_id !== "string") {
+      throw new Error(
+        `Invalid artifact from ${planFileName}: nodes[${i}].node_id missing or invalid`
+      );
+    }
+    if (typeof n.op !== "string") {
+      throw new Error(
+        `Invalid artifact from ${planFileName}: nodes[${i}].op missing or invalid`
+      );
+    }
+    if (!Array.isArray(n.inputs)) {
+      throw new Error(
+        `Invalid artifact from ${planFileName}: nodes[${i}].inputs missing or invalid`
+      );
+    }
+  }
+
+  // Validate outputs are strings
+  for (let i = 0; i < obj.outputs.length; i++) {
+    if (typeof obj.outputs[i] !== "string") {
+      throw new Error(
+        `Invalid artifact from ${planFileName}: outputs[${i}] is not a string`
+      );
+    }
+  }
+
+  // Optional fields: expr_table, pred_table (if present, must be objects)
+  if (obj.expr_table !== undefined && (obj.expr_table === null || typeof obj.expr_table !== "object")) {
+    throw new Error(
+      `Invalid artifact from ${planFileName}: expr_table must be an object if present`
+    );
+  }
+  if (obj.pred_table !== undefined && (obj.pred_table === null || typeof obj.pred_table !== "object")) {
+    throw new Error(
+      `Invalid artifact from ${planFileName}: pred_table must be an object if present`
+    );
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
 
@@ -124,19 +206,10 @@ async function compilePlan(
       planPath: planFileName,
     });
 
-    // Step 3: Validate artifact structure
-    if (
-      artifact === null ||
-      typeof artifact !== "object" ||
-      !("plan_name" in artifact) ||
-      typeof artifact.plan_name !== "string"
-    ) {
-      throw new Error(
-        `Invalid artifact from ${planFileName}: missing or invalid plan_name`
-      );
-    }
+    // Step 3: Validate artifact structure (full PlanArtifact schema)
+    validatePlanArtifact(artifact, planFileName);
 
-    const planName = artifact.plan_name;
+    const planName = (artifact as { plan_name: string }).plan_name;
 
     // Step 4: Write to output directory
     const absOutputDir = resolve(process.cwd(), outputDir);
