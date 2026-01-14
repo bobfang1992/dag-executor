@@ -313,9 +313,22 @@ std::string TaskRegistry::compute_manifest_digest() const {
     }
     task_json["params"] = params_json;
 
-    // reads/writes as arrays of key IDs (empty for now)
-    task_json["reads"] = nlohmann::json::array();
-    task_json["writes"] = nlohmann::json::array();
+    // reads/writes as sorted arrays of key IDs
+    auto sorted_reads = spec.reads;
+    std::sort(sorted_reads.begin(), sorted_reads.end());
+    nlohmann::ordered_json reads_json = nlohmann::json::array();
+    for (const auto &key : sorted_reads) {
+      reads_json.push_back(static_cast<uint32_t>(key));
+    }
+    task_json["reads"] = reads_json;
+
+    auto sorted_writes = spec.writes;
+    std::sort(sorted_writes.begin(), sorted_writes.end());
+    nlohmann::ordered_json writes_json = nlohmann::json::array();
+    for (const auto &key : sorted_writes) {
+      writes_json.push_back(static_cast<uint32_t>(key));
+    }
+    task_json["writes"] = writes_json;
 
     nlohmann::ordered_json budget;
     budget["timeout_ms"] = spec.default_budget.timeout_ms;
