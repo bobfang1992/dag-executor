@@ -12,6 +12,7 @@
 #include "param_registry.h"
 #include "param_table.h"
 #include "plan.h"
+#include "pred_eval.h"
 #include "task_registry.h"
 
 using json = nlohmann::ordered_json; // ordered for deterministic output
@@ -128,6 +129,9 @@ int main(int argc, char *argv[]) {
   } else {
     // Load and execute plan
     try {
+      // Clear regex cache to avoid stale pointer-based lookups across requests
+      rankd::clearRegexCache();
+
       rankd::Plan plan = rankd::parse_plan(plan_path);
       rankd::validate_plan(plan);
 
