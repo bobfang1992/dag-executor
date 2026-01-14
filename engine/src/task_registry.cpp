@@ -321,17 +321,38 @@ TaskRegistry::TaskRegistry() {
         size_t n = input.batch->size();
 
         // Build new selection by filtering active rows
+        // Active rows are determined by: selection > order > [0..n)
         std::vector<uint32_t> new_selection;
 
-        if (input.selection) {
-          // Iterate over existing selection
+        if (input.order && input.selection) {
+          // Both exist: iterate order, filter by selection membership, then
+          // predicate
+          std::vector<uint8_t> in_selection(n, 0);
+          for (uint32_t idx : *input.selection) {
+            in_selection[idx] = 1;
+          }
+          for (uint32_t idx : *input.order) {
+            if (in_selection[idx] &&
+                eval_pred(pred, idx, *input.batch, ctx)) {
+              new_selection.push_back(idx);
+            }
+          }
+        } else if (input.selection) {
+          // Only selection: iterate over selection
           for (uint32_t idx : *input.selection) {
             if (eval_pred(pred, idx, *input.batch, ctx)) {
               new_selection.push_back(idx);
             }
           }
+        } else if (input.order) {
+          // Only order: iterate over order (these are the active rows)
+          for (uint32_t idx : *input.order) {
+            if (eval_pred(pred, idx, *input.batch, ctx)) {
+              new_selection.push_back(idx);
+            }
+          }
         } else {
-          // Iterate over all rows
+          // Neither: iterate over all rows
           for (size_t i = 0; i < n; ++i) {
             if (eval_pred(pred, i, *input.batch, ctx)) {
               new_selection.push_back(static_cast<uint32_t>(i));
@@ -339,10 +360,11 @@ TaskRegistry::TaskRegistry() {
           }
         }
 
-        // Return new RowSet with same batch, updated selection, preserved order
+        // Return new RowSet with same batch, updated selection
+        // Order is cleared since new_selection captures the iteration order
         return RowSet{.batch = input.batch,
                       .selection = std::move(new_selection),
-                      .order = input.order};
+                      .order = std::nullopt};
       });
 }
 
