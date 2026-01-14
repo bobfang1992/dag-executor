@@ -8,14 +8,6 @@ echo "=== Installing dependencies ==="
 pnpm install --frozen-lockfile
 
 echo ""
-echo "=== DSL typecheck ==="
-pnpm -C dsl run typecheck
-
-echo ""
-echo "=== DSL lint ==="
-pnpm -C dsl run lint
-
-echo ""
 echo "=== DSL codegen check ==="
 pnpm -C dsl run gen:check
 
@@ -24,9 +16,18 @@ echo "=== Building TypeScript packages ==="
 pnpm run build:dsl
 
 echo ""
+echo "=== DSL typecheck ==="
+pnpm -C dsl run typecheck
+
+echo ""
+echo "=== DSL lint ==="
+pnpm -C dsl run lint
+
+echo ""
 echo "=== Generating plan artifacts from TypeScript ==="
 pnpm plan:build examples/plans/reels_plan_a.plan.ts
 pnpm plan:build examples/plans/concat_plan.plan.ts
+pnpm plan:build examples/plans/regex_plan.plan.ts
 
 echo ""
 echo "=== Building engine ==="
@@ -449,7 +450,27 @@ print('PASS: concat_plan executed correctly')
 "
 
 echo ""
-echo "=== Test 27: Verify no direct access to RowSet internals ==="
+echo "=== Test 27: Execute regex_plan (TypeScript-generated) ==="
+REQUEST='{"request_id": "regex-plan-test"}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/regex_plan.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'regex-plan-test', 'request_id mismatch'
+assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+# viewer.follow: country alternates US,CA. Regex 'US' keeps odd indices (id 1,3,5,7,9)
+expected_ids = [1, 3, 5, 7, 9]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+print('PASS: regex_plan executed correctly')
+"
+
+echo ""
+echo "=== Test 28: Verify no direct access to RowSet internals ==="
 # This check ensures task authors don't bypass the RowSet encapsulation.
 # The members selection_ and order_ are private, but this grep catches
 # any accidental future attempts to expose them or access them via friend.
@@ -465,7 +486,7 @@ echo "=== Regex tests (simple main) ==="
 engine/bin/regex_tests
 
 echo ""
-echo "=== Test 25: Execute regex_demo plan (literal pattern) ==="
+echo "=== Test 29: Execute regex_demo plan (literal pattern) ==="
 REQUEST='{"request_id": "regex-demo-test"}'
 RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/regex_demo.plan.json)
 
@@ -485,7 +506,7 @@ print('PASS: regex_demo plan with literal pattern')
 "
 
 echo ""
-echo "=== Test 26: Execute regex_param_demo plan (param pattern) ==="
+echo "=== Test 30: Execute regex_param_demo plan (param pattern) ==="
 REQUEST='{"request_id": "regex-param-test", "param_overrides": {"blocklist_regex": "CA"}}'
 RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/regex_param_demo.plan.json)
 
@@ -505,7 +526,7 @@ print('PASS: regex_param_demo plan with param pattern')
 "
 
 echo ""
-echo "=== Test 27: Reject bad_regex_flags.plan.json (invalid flags) ==="
+echo "=== Test 31: Reject bad_regex_flags.plan.json (invalid flags) ==="
 if echo '{}' | engine/bin/rankd --plan artifacts/plans/bad_regex_flags.plan.json 2>/dev/null; then
     echo "FAIL: bad_regex_flags.plan.json should have been rejected"
     exit 1

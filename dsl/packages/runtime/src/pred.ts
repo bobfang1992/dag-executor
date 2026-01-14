@@ -14,11 +14,11 @@ export type PredNode =
   | { op: "const_bool"; value: boolean }
   | { op: "and"; a: PredNode; b: PredNode }
   | { op: "or"; a: PredNode; b: PredNode }
-  | { op: "not"; a: PredNode }
+  | { op: "not"; x: PredNode }
   | { op: "cmp"; cmp: "==" | "!=" | "<" | "<=" | ">" | ">="; a: ExprNode; b: ExprNode }
-  | { op: "in"; key: ExprNode; values: ExprNode[] }
-  | { op: "is_null"; a: ExprNode }
-  | { op: "not_null"; a: ExprNode }
+  | { op: "in"; lhs: ExprNode; list: (number | string)[] }
+  | { op: "is_null"; x: ExprNode }
+  | { op: "not_null"; x: ExprNode }
   | { op: "regex"; key_id: number; pattern: RegexPattern; flags: string };
 
 /**
@@ -51,7 +51,7 @@ export const Pred = {
 
   not(a: PredNode): PredNode {
     assertNotUndefined(a, "Pred.not(a)");
-    return { op: "not", a };
+    return { op: "not", x: a };
   },
 
   cmp(
@@ -65,26 +65,30 @@ export const Pred = {
     return { op: "cmp", cmp, a, b };
   },
 
-  in(key: ExprNode, values: ExprNode[]): PredNode {
-    assertNotUndefined(key, "Pred.in(key, ...)");
-    assertNotUndefined(values, "Pred.in(..., values)");
-    if (!Array.isArray(values)) {
-      throw new Error("Pred.in requires array of values");
+  in(lhs: ExprNode, list: (number | string)[]): PredNode {
+    assertNotUndefined(lhs, "Pred.in(lhs, ...)");
+    assertNotUndefined(list, "Pred.in(..., list)");
+    if (!Array.isArray(list)) {
+      throw new Error("Pred.in requires array of literal values");
     }
-    for (let i = 0; i < values.length; i++) {
-      assertNotUndefined(values[i], `Pred.in(..., values[${i}])`);
+    for (let i = 0; i < list.length; i++) {
+      const val = list[i];
+      assertNotUndefined(val, `Pred.in(..., list[${i}])`);
+      if (typeof val !== "number" && typeof val !== "string") {
+        throw new Error(`Pred.in list[${i}] must be number or string, got ${typeof val}`);
+      }
     }
-    return { op: "in", key, values };
+    return { op: "in", lhs, list };
   },
 
   isNull(a: ExprNode): PredNode {
     assertNotUndefined(a, "Pred.isNull(a)");
-    return { op: "is_null", a };
+    return { op: "is_null", x: a };
   },
 
   notNull(a: ExprNode): PredNode {
     assertNotUndefined(a, "Pred.notNull(a)");
-    return { op: "not_null", a };
+    return { op: "not_null", x: a };
   },
 
   /**

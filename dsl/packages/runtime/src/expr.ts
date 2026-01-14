@@ -17,7 +17,7 @@ export type ExprNode =
   | { op: "add"; a: ExprNode; b: ExprNode }
   | { op: "sub"; a: ExprNode; b: ExprNode }
   | { op: "mul"; a: ExprNode; b: ExprNode }
-  | { op: "neg"; a: ExprNode }
+  | { op: "neg"; x: ExprNode }
   | { op: "coalesce"; a: ExprNode; b: ExprNode };
 
 /**
@@ -66,7 +66,7 @@ export const E = {
 
   neg(a: ExprNode): ExprNode {
     assertNotUndefined(a, "E.neg(a)");
-    return { op: "neg", a };
+    return { op: "neg", x: a };
   },
 
   coalesce(a: ExprNode, b: ExprNode): ExprNode {
