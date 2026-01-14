@@ -50,6 +50,7 @@ set_target_properties(rankd PROPERTIES
 add_executable(rankd_tests
   tests/test_rowset.cpp
   tests/test_param_table.cpp
+  tests/test_pred_eval.cpp
   src/task_registry.cpp
 )
 
