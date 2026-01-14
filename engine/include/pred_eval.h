@@ -3,48 +3,83 @@
 #include "column_batch.h"
 #include "expr_eval.h"
 #include "plan.h"
+#include <optional>
 
 namespace rankd {
 
-// Predicate evaluation result: true, false, or evaluation error (throws)
-// Null semantics (SQL-like):
-// - All cmp operations (==, !=, <, <=, >, >=) yield false if either operand is null
-// - Use is_null/not_null explicitly to test for null values
-// - in yields false if lhs is null
-// Note: The compiler should rewrite `x == null` to `is_null(x)` and `x != null` to `not_null(x)`
-inline bool eval_pred(const PredNode &node, size_t row, const ColumnBatch &batch,
-                      const ExecCtx &ctx) {
+// Three-valued predicate result: true, false, or unknown (nullopt)
+// SQL-like null semantics:
+// - cmp operations with null operands yield unknown (nullopt)
+// - is_null/not_null always yield true/false (never unknown)
+// - NOT unknown = unknown
+// - true AND unknown = unknown, false AND unknown = false
+// - true OR unknown = true, false OR unknown = unknown
+// - in with null lhs yields unknown
+using PredResult = std::optional<bool>;
+
+// Internal evaluation returning three-valued result
+inline PredResult eval_pred_impl(const PredNode &node, size_t row,
+                                 const ColumnBatch &batch, const ExecCtx &ctx) {
   if (node.op == "const_bool") {
     return node.const_value;
   }
 
   if (node.op == "and") {
-    // Short-circuit: if a is false, don't evaluate b
-    if (!eval_pred(*node.pred_a, row, batch, ctx)) {
+    PredResult a = eval_pred_impl(*node.pred_a, row, batch, ctx);
+    // Short-circuit: if a is false, result is false regardless of b
+    if (a.has_value() && !*a) {
       return false;
     }
-    return eval_pred(*node.pred_b, row, batch, ctx);
+    PredResult b = eval_pred_impl(*node.pred_b, row, batch, ctx);
+    // Short-circuit: if b is false, result is false regardless of a
+    if (b.has_value() && !*b) {
+      return false;
+    }
+    // If either is unknown, result is unknown
+    if (!a.has_value() || !b.has_value()) {
+      return std::nullopt;
+    }
+    // Both are true
+    return true;
   }
 
   if (node.op == "or") {
-    // Short-circuit: if a is true, don't evaluate b
-    if (eval_pred(*node.pred_a, row, batch, ctx)) {
+    PredResult a = eval_pred_impl(*node.pred_a, row, batch, ctx);
+    // Short-circuit: if a is true, result is true regardless of b
+    if (a.has_value() && *a) {
       return true;
     }
-    return eval_pred(*node.pred_b, row, batch, ctx);
+    PredResult b = eval_pred_impl(*node.pred_b, row, batch, ctx);
+    // Short-circuit: if b is true, result is true regardless of a
+    if (b.has_value() && *b) {
+      return true;
+    }
+    // If either is unknown, result is unknown
+    if (!a.has_value() || !b.has_value()) {
+      return std::nullopt;
+    }
+    // Both are false
+    return false;
   }
 
   if (node.op == "not") {
-    return !eval_pred(*node.pred_a, row, batch, ctx);
+    PredResult inner = eval_pred_impl(*node.pred_a, row, batch, ctx);
+    // NOT unknown = unknown
+    if (!inner.has_value()) {
+      return std::nullopt;
+    }
+    return !*inner;
   }
 
   if (node.op == "is_null") {
     ExprResult val = eval_expr(*node.value_a, row, batch, ctx);
+    // is_null always returns definite true/false, never unknown
     return !val.has_value();
   }
 
   if (node.op == "not_null") {
     ExprResult val = eval_expr(*node.value_a, row, batch, ctx);
+    // not_null always returns definite true/false, never unknown
     return val.has_value();
   }
 
@@ -52,10 +87,9 @@ inline bool eval_pred(const PredNode &node, size_t row, const ColumnBatch &batch
     ExprResult a = eval_expr(*node.value_a, row, batch, ctx);
     ExprResult b = eval_expr(*node.value_b, row, batch, ctx);
 
-    // SQL-like null semantics: any comparison with null yields false
-    // Use is_null/not_null for explicit null checks
+    // Any comparison with null yields unknown
     if (!a || !b) {
-      return false;
+      return std::nullopt;
     }
 
     double av = *a;
@@ -86,9 +120,9 @@ inline bool eval_pred(const PredNode &node, size_t row, const ColumnBatch &batch
   if (node.op == "in") {
     ExprResult lhs = eval_expr(*node.value_a, row, batch, ctx);
 
-    // If lhs is null, in yields false
+    // If lhs is null, in yields unknown
     if (!lhs) {
-      return false;
+      return std::nullopt;
     }
 
     double val = *lhs;
@@ -103,6 +137,15 @@ inline bool eval_pred(const PredNode &node, size_t row, const ColumnBatch &batch
   }
 
   throw std::runtime_error("Unknown pred op: " + node.op);
+}
+
+// Public evaluation: converts unknown to false for filter purposes
+// In filter context, unknown/null means "don't include this row"
+inline bool eval_pred(const PredNode &node, size_t row, const ColumnBatch &batch,
+                      const ExecCtx &ctx) {
+  PredResult result = eval_pred_impl(node, row, batch, ctx);
+  // Unknown (nullopt) is treated as false in filter context
+  return result.value_or(false);
 }
 
 } // namespace rankd

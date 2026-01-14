@@ -527,3 +527,137 @@ TEST_CASE("key_ref in predicates", "[pred_eval]") {
     REQUIRE(eval_pred(node, 0, *batch, ctx) == true);
   }
 }
+
+TEST_CASE("three-valued logic with null (SQL semantics)", "[pred_eval]") {
+  auto batch = make_batch_with_id(1);
+  auto ctx = make_empty_ctx();
+
+  // Helper to create a comparison predicate that yields unknown (null operand)
+  auto make_null_cmp = []() {
+    auto pred = std::make_shared<PredNode>();
+    pred->op = "cmp";
+    pred->cmp_op = ">=";
+    auto null_expr = std::make_shared<ExprNode>();
+    null_expr->op = "const_null";
+    auto const_expr = std::make_shared<ExprNode>();
+    const_expr->op = "const_number";
+    const_expr->const_value = 5.0;
+    pred->value_a = null_expr;
+    pred->value_b = const_expr;
+    return pred;
+  };
+
+  auto make_true_pred = []() {
+    auto pred = std::make_shared<PredNode>();
+    pred->op = "const_bool";
+    pred->const_value = true;
+    return pred;
+  };
+
+  auto make_false_pred = []() {
+    auto pred = std::make_shared<PredNode>();
+    pred->op = "const_bool";
+    pred->const_value = false;
+    return pred;
+  };
+
+  SECTION("NOT unknown = false (in filter context)") {
+    // not (null >= 5) should return false, not true
+    PredNode node;
+    node.op = "not";
+    node.pred_a = make_null_cmp();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  SECTION("true AND unknown = false (in filter context)") {
+    PredNode node;
+    node.op = "and";
+    node.pred_a = make_true_pred();
+    node.pred_b = make_null_cmp();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  SECTION("unknown AND true = false (in filter context)") {
+    PredNode node;
+    node.op = "and";
+    node.pred_a = make_null_cmp();
+    node.pred_b = make_true_pred();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  SECTION("false AND unknown = false") {
+    PredNode node;
+    node.op = "and";
+    node.pred_a = make_false_pred();
+    node.pred_b = make_null_cmp();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  SECTION("unknown AND false = false") {
+    PredNode node;
+    node.op = "and";
+    node.pred_a = make_null_cmp();
+    node.pred_b = make_false_pred();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  SECTION("unknown AND unknown = false (in filter context)") {
+    PredNode node;
+    node.op = "and";
+    node.pred_a = make_null_cmp();
+    node.pred_b = make_null_cmp();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  SECTION("true OR unknown = true") {
+    PredNode node;
+    node.op = "or";
+    node.pred_a = make_true_pred();
+    node.pred_b = make_null_cmp();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == true);
+  }
+
+  SECTION("unknown OR true = true") {
+    PredNode node;
+    node.op = "or";
+    node.pred_a = make_null_cmp();
+    node.pred_b = make_true_pred();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == true);
+  }
+
+  SECTION("false OR unknown = false (in filter context)") {
+    PredNode node;
+    node.op = "or";
+    node.pred_a = make_false_pred();
+    node.pred_b = make_null_cmp();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  SECTION("unknown OR false = false (in filter context)") {
+    PredNode node;
+    node.op = "or";
+    node.pred_a = make_null_cmp();
+    node.pred_b = make_false_pred();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  SECTION("unknown OR unknown = false (in filter context)") {
+    PredNode node;
+    node.op = "or";
+    node.pred_a = make_null_cmp();
+    node.pred_b = make_null_cmp();
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+
+  SECTION("NOT NOT unknown = false (in filter context)") {
+    // Double negation of unknown is still unknown -> false
+    auto not_inner = std::make_shared<PredNode>();
+    not_inner->op = "not";
+    not_inner->pred_a = make_null_cmp();
+
+    PredNode node;
+    node.op = "not";
+    node.pred_a = not_inner;
+    REQUIRE(eval_pred(node, 0, *batch, ctx) == false);
+  }
+}
