@@ -1,0 +1,17 @@
+{
+  "name": "dag-executor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:dsl": "pnpm -r run build",
+    "plan:build": "tsx dsl/packages/compiler-node/src/cli.ts"
+  },
+  "dependencies": {
+    "@ranking-dsl/runtime": "workspace:*",
+    "@ranking-dsl/generated": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.6.0"
+  }
+}

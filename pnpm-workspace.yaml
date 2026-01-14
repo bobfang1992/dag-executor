@@ -1,0 +1,3 @@
+packages:
+  - 'dsl'
+  - 'dsl/packages/*'

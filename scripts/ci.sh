@@ -4,8 +4,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-echo "=== Installing DSL dependencies ==="
-pnpm -C dsl install --frozen-lockfile
+echo "=== Installing dependencies ==="
+pnpm install --frozen-lockfile
 
 echo ""
 echo "=== DSL typecheck ==="
@@ -21,14 +21,12 @@ pnpm -C dsl run gen:check
 
 echo ""
 echo "=== Building TypeScript packages ==="
-pnpm -C dsl run build
+pnpm run build:dsl
 
 echo ""
 echo "=== Generating plan artifacts from TypeScript ==="
-pnpm -C dsl plan:build ../examples/plans/reels_plan_a.plan.ts
-pnpm -C dsl plan:build ../examples/plans/concat_plan.plan.ts
-# Move generated plans from dsl/artifacts to root artifacts
-mv dsl/artifacts/plans/*.plan.json artifacts/plans/ || true
+pnpm plan:build examples/plans/reels_plan_a.plan.ts
+pnpm plan:build examples/plans/concat_plan.plan.ts
 
 echo ""
 echo "=== Building engine ==="
