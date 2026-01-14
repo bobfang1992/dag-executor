@@ -171,6 +171,28 @@ pnpm -C dsl run gen:check  # Verify generated outputs are up-to-date
 
 ---
 
+## PR Creation
+
+Use `--body-file` instead of inline heredocs to avoid polluting `.claude/settings.local.json` with complex command patterns:
+
+```bash
+# Write PR body to temp file
+cat > /tmp/pr-body.md <<'EOF'
+## Summary
+- ...
+
+## Test plan
+- [x] ...
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+EOF
+
+# Create PR using --body-file
+gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
+```
+
+---
+
 ## Implementation Progress
 
 ### ✅ Completed
