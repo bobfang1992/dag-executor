@@ -81,14 +81,22 @@ export class PlanCtx {
   }
 
   finalize(outputNodeId: string, planName: string): PlanArtifact {
-    return {
+    const artifact: PlanArtifact = {
       schema_version: 1,
       plan_name: planName,
       nodes: this.nodes,
       outputs: [outputNodeId],
-      expr_table: this.exprTable.size > 0 ? Object.fromEntries(this.exprTable) : undefined,
-      pred_table: this.predTable.size > 0 ? Object.fromEntries(this.predTable) : undefined,
     };
+
+    // Only include expr_table and pred_table if they contain entries
+    if (this.exprTable.size > 0) {
+      artifact.expr_table = Object.fromEntries(this.exprTable);
+    }
+    if (this.predTable.size > 0) {
+      artifact.pred_table = Object.fromEntries(this.predTable);
+    }
+
+    return artifact;
   }
 }
 
