@@ -225,13 +225,40 @@ inline PredResult eval_pred_impl(const PredNode &node, size_t row,
   }
 
   if (node.op == "in") {
-    // String list membership requires string columns (not yet implemented)
+    // String list membership - lhs must be key_ref to string column
     if (!node.in_list_str.empty()) {
-      throw std::runtime_error(
-          "String membership (in list with strings) not yet supported - "
-          "requires dictionary-encoded string columns");
+      // lhs must be a key_ref for string membership
+      if (node.value_a->op != "key_ref") {
+        throw std::runtime_error(
+            "String in-list requires key_ref as lhs, got: " + node.value_a->op);
+      }
+
+      uint32_t key_id = node.value_a->key_id;
+      const StringDictColumn *col = batch.getStringCol(key_id);
+      if (!col) {
+        // Column missing = all null = all false
+        return false;
+      }
+
+      // Check row validity - null string is not in any list
+      if ((*col->valid)[row] == 0) {
+        return false;
+      }
+
+      // Get the actual string value via dictionary lookup
+      int32_t code = (*col->codes)[row];
+      const std::string &val = (*col->dict)[code];
+
+      // Check if value is in the string list
+      for (const std::string &item : node.in_list_str) {
+        if (val == item) {
+          return true;
+        }
+      }
+      return false;
     }
 
+    // Numeric list membership
     ExprResult lhs = eval_expr(*node.value_a, row, batch, ctx);
 
     // If lhs is null, in yields false (per spec: null is not a member of any list)

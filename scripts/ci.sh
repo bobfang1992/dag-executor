@@ -313,15 +313,24 @@ else
 fi
 
 echo ""
-echo "=== Test 21: String in-list parses but fails at execution (not yet supported) ==="
-RESPONSE=$(echo '{"request_id": "string-test"}' | engine/bin/rankd --plan artifacts/plans/string_in_list.plan.json 2>&1 || true)
-if echo "$RESPONSE" | grep -q 'String membership.*not yet supported'; then
-    echo "PASS: String list parsed but execution correctly fails with clear error"
-else
-    echo "Response: $RESPONSE"
-    echo "FAIL: Expected clear error about string membership not supported"
-    exit 1
-fi
+echo "=== Test 21: String in-list membership ==="
+REQUEST='{"request_id": "string-in-test"}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan artifacts/plans/string_in_list.plan.json)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'string-in-test', 'request_id mismatch'
+# viewer.follow produces country alternating US,CA. Filter in(['US','CA','UK']) keeps all.
+assert len(r['candidates']) == 10, f'expected 10 candidates, got {len(r[\"candidates\"])}'
+expected_ids = list(range(1, 11))
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+print('PASS: String in-list membership works')
+"
 
 echo ""
 echo "=== Test 22: Execute concat_demo plan ==="

@@ -9,7 +9,7 @@
   "pred_table": {
     "p0": {
       "op": "in",
-      "lhs": { "op": "key_ref", "key_id": 1005 },
+      "lhs": { "op": "key_ref", "key_id": 3001 },
       "list": ["US", "CA", "UK"]
     }
   }
