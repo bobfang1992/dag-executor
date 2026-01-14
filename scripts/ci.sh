@@ -296,12 +296,23 @@ else
 fi
 
 echo ""
-echo "=== Test 20: Reject bad_in_list.plan.json (non-numeric in list) ==="
+echo "=== Test 20: Reject bad_in_list.plan.json (mixed types in list) ==="
 if echo '{}' | engine/bin/rankd --plan artifacts/plans/bad_in_list.plan.json 2>/dev/null; then
     echo "FAIL: bad_in_list.plan.json should have been rejected"
     exit 1
 else
     echo "PASS: bad_in_list.plan.json rejected as expected"
+fi
+
+echo ""
+echo "=== Test 21: String in-list parses but fails at execution (not yet supported) ==="
+RESPONSE=$(echo '{"request_id": "string-test"}' | engine/bin/rankd --plan artifacts/plans/string_in_list.plan.json 2>&1 || true)
+if echo "$RESPONSE" | grep -q 'String membership.*not yet supported'; then
+    echo "PASS: String list parsed but execution correctly fails with clear error"
+else
+    echo "Response: $RESPONSE"
+    echo "FAIL: Expected clear error about string membership not supported"
+    exit 1
 fi
 
 echo ""

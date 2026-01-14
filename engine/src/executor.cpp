@@ -42,6 +42,30 @@ void validate_plan(const Plan &plan) {
     } catch (const std::runtime_error &e) {
       throw std::runtime_error("Node '" + node.node_id + "': " + e.what());
     }
+
+    // Validate expr_id references for vm nodes
+    if (node.op == "vm") {
+      if (node.params.contains("expr_id") && node.params["expr_id"].is_string()) {
+        std::string expr_id = node.params["expr_id"].get<std::string>();
+        if (plan.expr_table.find(expr_id) == plan.expr_table.end()) {
+          throw std::runtime_error("Node '" + node.node_id +
+                                   "': expr_id '" + expr_id +
+                                   "' not found in expr_table");
+        }
+      }
+    }
+
+    // Validate pred_id references for filter nodes
+    if (node.op == "filter") {
+      if (node.params.contains("pred_id") && node.params["pred_id"].is_string()) {
+        std::string pred_id = node.params["pred_id"].get<std::string>();
+        if (plan.pred_table.find(pred_id) == plan.pred_table.end()) {
+          throw std::runtime_error("Node '" + node.node_id +
+                                   "': pred_id '" + pred_id +
+                                   "' not found in pred_table");
+        }
+      }
+    }
   }
 
   // Check outputs exist

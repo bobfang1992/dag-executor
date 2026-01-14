@@ -64,8 +64,9 @@ struct PredNode {
   PredNodePtr pred_a;
   PredNodePtr pred_b;
 
-  // For in: list of numeric literals
-  std::vector<double> in_list;
+  // For in: list of literals (either all numbers or all strings)
+  std::vector<double> in_list;        // numeric literals
+  std::vector<std::string> in_list_str; // string literals (for Key.country.in(["US","CA"]))
 };
 
 // Parse PredNode from JSON. Throws on invalid structure.

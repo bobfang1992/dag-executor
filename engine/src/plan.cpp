@@ -128,13 +128,31 @@ PredNodePtr parse_pred_node(const nlohmann::json &j) {
     }
     node->value_a = parse_expr_node(j["lhs"]);
 
-    // Parse list - Step 06 only supports numeric literals
-    for (const auto &item : j["list"]) {
-      if (!item.is_number()) {
-        throw std::runtime_error(
-            "in list contains non-numeric literal (only numbers supported)");
+    // Parse list - determine type from first element (all elements must match)
+    const auto &list = j["list"];
+    if (list.empty()) {
+      // Empty list is fine (always evaluates to false)
+    } else if (list[0].is_number()) {
+      // Numeric list
+      for (const auto &item : list) {
+        if (!item.is_number()) {
+          throw std::runtime_error(
+              "in list contains mixed types (expected all numbers)");
+        }
+        node->in_list.push_back(item.get<double>());
       }
-      node->in_list.push_back(item.get<double>());
+    } else if (list[0].is_string()) {
+      // String list (e.g., Key.country.in(["US","CA"]))
+      for (const auto &item : list) {
+        if (!item.is_string()) {
+          throw std::runtime_error(
+              "in list contains mixed types (expected all strings)");
+        }
+        node->in_list_str.push_back(item.get<std::string>());
+      }
+    } else {
+      throw std::runtime_error(
+          "in list contains unsupported type (expected numbers or strings)");
     }
   } else if (node->op == "is_null" || node->op == "not_null") {
     if (!j.contains("x")) {

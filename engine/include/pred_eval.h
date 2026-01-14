@@ -140,6 +140,13 @@ inline PredResult eval_pred_impl(const PredNode &node, size_t row,
   }
 
   if (node.op == "in") {
+    // String list membership requires string columns (not yet implemented)
+    if (!node.in_list_str.empty()) {
+      throw std::runtime_error(
+          "String membership (in list with strings) not yet supported - "
+          "requires dictionary-encoded string columns");
+    }
+
     ExprResult lhs = eval_expr(*node.value_a, row, batch, ctx);
 
     // If lhs is null, in yields false (per spec: null is not a member of any list)
@@ -151,7 +158,7 @@ inline PredResult eval_pred_impl(const PredNode &node, size_t row,
 
     double val = *lhs;
 
-    // Check if value is in the list
+    // Check if value is in the numeric list
     for (double item : node.in_list) {
       if (val == item) {
         return true;

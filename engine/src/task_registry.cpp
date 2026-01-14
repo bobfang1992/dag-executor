@@ -219,14 +219,19 @@ TaskRegistry::TaskRegistry() {
         const auto &input = inputs[0];
         size_t n = input.batch->size();
 
-        // Build active set from selection
+        // Build active set: honor selection if present, else order, else full batch
         std::vector<uint8_t> active(n, 0);
         if (input.selection) {
           for (uint32_t idx : *input.selection) {
             active[idx] = 1;
           }
+        } else if (input.order) {
+          // Order-only RowSet: only rows in order are active
+          for (uint32_t idx : *input.order) {
+            active[idx] = 1;
+          }
         } else {
-          // All rows active
+          // No selection or order: all rows active
           for (size_t i = 0; i < n; ++i) {
             active[i] = 1;
           }
