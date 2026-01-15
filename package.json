@@ -14,7 +14,10 @@
     "plan:build:examples:node": "tsx dsl/tools/build_all_plans.ts --manifest examples/plans/manifest.json --out artifacts/plans-examples --backend node",
     "plan:build:node": "tsx dsl/packages/compiler-node/src/cli.ts",
     "plan:manifest:sync": "tsx dsl/tools/sync_manifest.ts --dir plans",
-    "plan:manifest:sync:examples": "tsx dsl/tools/sync_manifest.ts --dir examples/plans"
+    "plan:manifest:sync:examples": "tsx dsl/tools/sync_manifest.ts --dir examples/plans",
+    "visualizer:dev": "pnpm -C tools/visualizer dev",
+    "visualizer:build": "pnpm -C tools/visualizer build",
+    "visualizer:preview": "pnpm -C tools/visualizer preview"
   },
   "dependencies": {
     "@ranking-dsl/runtime": "workspace:*",

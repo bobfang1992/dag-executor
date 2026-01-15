@@ -1,3 +1,4 @@
 packages:
   - 'dsl'
   - 'dsl/packages/*'
+  - 'tools/visualizer'

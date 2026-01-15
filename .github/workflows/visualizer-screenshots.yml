@@ -1,0 +1,134 @@
+name: Visualizer Screenshots
+
+on:
+  pull_request:
+    paths:
+      - 'tools/visualizer/**'
+      - '.github/workflows/visualizer-screenshots.yml'
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Playwright browsers
+        run: pnpm -C tools/visualizer exec playwright install chromium
+
+      - name: Build DSL (for plan artifacts)
+        run: pnpm run build:dsl
+
+      - name: Compile example plans
+        run: pnpm run plan:build:examples || true
+
+      - name: Build visualizer
+        run: pnpm run visualizer:build
+
+      - name: Capture screenshots
+        run: pnpm -C tools/visualizer run screenshots
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: visualizer-screenshots
+          path: tools/visualizer/screenshots/
+          retention-days: 7
+
+      - name: Post screenshots to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const screenshotsDir = 'tools/visualizer/screenshots';
+            if (!fs.existsSync(screenshotsDir)) {
+              console.log('No screenshots directory found');
+              return;
+            }
+
+            const files = fs.readdirSync(screenshotsDir).filter(f => f.endsWith('.png'));
+            if (files.length === 0) {
+              console.log('No screenshots found');
+              return;
+            }
+
+            // Get the artifact URL
+            const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+            });
+
+            const screenshotArtifact = artifacts.artifacts.find(a => a.name === 'visualizer-screenshots');
+
+            let body = '## 📸 Visualizer Screenshots\n\n';
+            body += `Screenshots captured automatically from this PR.\n\n`;
+
+            if (screenshotArtifact) {
+              body += `**[Download all screenshots](${screenshotArtifact.archive_download_url})**\n\n`;
+            }
+
+            body += '| Screenshot | Description |\n';
+            body += '|------------|-------------|\n';
+
+            const descriptions = {
+              '01-plan-selector.png': 'Plan selector / landing page',
+              '02-graph-view.png': 'DAG graph view',
+              '03-node-selected.png': 'Node selected with details panel',
+              '04-source-panel.png': 'Source panel open',
+            };
+
+            for (const file of files.sort()) {
+              const desc = descriptions[file] || file;
+              body += `| \`${file}\` | ${desc} |\n`;
+            }
+
+            body += '\n\n*Download the artifact to view the actual images.*';
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' &&
+              c.body.includes('Visualizer Screenshots')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
