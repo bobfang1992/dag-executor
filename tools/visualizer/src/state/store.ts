@@ -265,9 +265,15 @@ function initHistory() {
     isHandlingPopState = true;
     try {
       const state = useStore.getState();
-      if (event.state?.plan) {
+      // Check event.state first, then fall back to URL params
+      // (initial page load from ?plan=foo has no state object)
+      const planFromState = event.state?.plan;
+      const planFromUrl = new URLSearchParams(window.location.search).get('plan');
+      const planName = planFromState || planFromUrl;
+
+      if (planName) {
         // Navigate to a plan - await to keep flag set during async load
-        await state.loadPlanByName(event.state.plan);
+        await state.loadPlanByName(planName);
       } else {
         // Navigate back to selector
         state.clearPlan();
