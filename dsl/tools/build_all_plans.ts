@@ -206,50 +206,49 @@ function stableStringifyForDigest(obj: unknown): string {
 
 /**
  * Generate index.json for the plan store.
+ * Only includes plans that were successfully compiled (from compiledPlanNames),
+ * not all .plan.json files in the output directory. This ensures manifest is SSOT.
  */
 async function generateIndex(
   outputDir: string,
-  backend: "quickjs" | "node"
+  backend: "quickjs" | "node",
+  compiledPlanNames: string[]
 ): Promise<void> {
   const absOutputDir = resolve(REPO_ROOT, outputDir);
 
-  // Find all .plan.json files in the output directory
-  let files: string[];
-  try {
-    const entries = await readdir(absOutputDir);
-    files = entries.filter((f) => f.endsWith(".plan.json")).sort();
-  } catch {
-    // Directory doesn't exist or is empty
-    files = [];
-  }
-
-  if (files.length === 0) {
-    console.log("No plan artifacts found, skipping index generation");
+  if (compiledPlanNames.length === 0) {
+    console.log("No plans compiled, skipping index generation");
     return;
   }
 
   const entries: IndexEntry[] = [];
 
-  for (const file of files) {
+  for (const planName of compiledPlanNames) {
+    const file = `${planName}.plan.json`;
     const filePath = resolve(absOutputDir, file);
-    const content = await readFile(filePath, "utf-8");
-    const plan = JSON.parse(content) as { plan_name: string; built_by?: { tool_version?: string } };
 
-    // Compute digest of the canonical JSON (no whitespace, stable key order)
-    const digest = createHash("sha256")
-      .update(stableStringifyForDigest(JSON.parse(content)))
-      .digest("hex");
+    try {
+      const content = await readFile(filePath, "utf-8");
+      const plan = JSON.parse(content) as { plan_name: string; built_by?: { tool_version?: string } };
 
-    entries.push({
-      name: plan.plan_name,
-      path: file,
-      digest: `sha256:${digest}`,
-      built_by: {
-        backend,
-        tool: backend === "quickjs" ? "dslc" : "compiler-node",
-        tool_version: plan.built_by?.tool_version ?? "0.1.0",
-      },
-    });
+      // Compute digest of the canonical JSON (no whitespace, stable key order)
+      const digest = createHash("sha256")
+        .update(stableStringifyForDigest(JSON.parse(content)))
+        .digest("hex");
+
+      entries.push({
+        name: plan.plan_name,
+        path: file,
+        digest: `sha256:${digest}`,
+        built_by: {
+          backend,
+          tool: backend === "quickjs" ? "dslc" : "compiler-node",
+          tool_version: plan.built_by?.tool_version ?? "0.1.0",
+        },
+      });
+    } catch (err) {
+      console.warn(`Warning: Could not read ${file} for index: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   // Sort by name for determinism
@@ -285,11 +284,18 @@ async function main() {
 
     let successCount = 0;
     let failureCount = 0;
+    const compiledPlanNames: string[] = [];
 
     for (const planPath of manifest.plans) {
       try {
         await compilePlan(planPath, options.out, options.backend);
         successCount++;
+
+        // Extract plan name from path: "plans/reels_plan_a.plan.ts" -> "reels_plan_a"
+        const planBasename = planPath.split("/").pop()?.replace(".plan.ts", "") ?? "";
+        if (planBasename) {
+          compiledPlanNames.push(planBasename);
+        }
       } catch (err) {
         console.error(`\nError compiling ${planPath}:`);
         if (err instanceof Error) {
@@ -303,9 +309,9 @@ async function main() {
 
     console.log();
 
-    // Generate index.json
-    if (successCount > 0) {
-      await generateIndex(options.out, options.backend);
+    // Generate index.json only for plans in the manifest (not stale artifacts)
+    if (compiledPlanNames.length > 0) {
+      await generateIndex(options.out, options.backend, compiledPlanNames);
     }
 
     console.log();
