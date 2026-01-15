@@ -308,9 +308,10 @@ function formatCpp(code: string): string {
       maxBuffer: 10 * 1024 * 1024,
     });
   } catch {
-    // If clang-format is not available, return unformatted
-    console.warn("Warning: clang-format not available, C++ output will be unformatted");
-    return code;
+    throw new Error(
+      "clang-format is required but not found.\n" +
+      "Install it via: brew install clang-format (macOS) or apt install clang-format (Linux)"
+    );
   }
 }
 
