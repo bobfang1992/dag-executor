@@ -573,5 +573,7 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
 - [x] Plan store with index.json generation
 - [x] Manifest sync tools (plan:manifest:sync)
 - [x] Engine plan loading by name (--plan_name, --list-plans)
+- [ ] Plan skeleton generator (`plan:new` - interactive wizard to scaffold new plans)
+- [ ] Task skeleton generator (scaffold new C++ task with header, source, registry entry)
 - [ ] SourceRef generation
 - [ ] AST extraction for complex expressions (future enhancement)
