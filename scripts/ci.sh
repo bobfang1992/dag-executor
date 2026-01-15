@@ -625,3 +625,48 @@ else
     echo "FAIL: name_mismatch.plan.ts should have been rejected"
     exit 1
 fi
+
+echo ""
+echo "=== Test 39: Reject bad_caps_unsorted.plan.ts (capabilities not sorted) ==="
+if pnpm run dslc build test/fixtures/plans/bad_caps_unsorted.plan.ts --out /tmp/test-caps 2>&1 | grep -q "must be sorted and unique"; then
+    echo "PASS: bad_caps_unsorted.plan.ts rejected as expected (capabilities_required must be sorted)"
+else
+    echo "FAIL: bad_caps_unsorted.plan.ts should have been rejected"
+    exit 1
+fi
+
+echo ""
+echo "=== Test 40: Reject bad_ext_key_not_required.plan.ts (extension key not in capabilities) ==="
+if pnpm run dslc build test/fixtures/plans/bad_ext_key_not_required.plan.ts --out /tmp/test-ext 2>&1 | grep -q "must appear in capabilities_required"; then
+    echo "PASS: bad_ext_key_not_required.plan.ts rejected as expected (extensions keys must be subset of capabilities_required)"
+else
+    echo "FAIL: bad_ext_key_not_required.plan.ts should have been rejected"
+    exit 1
+fi
+
+echo ""
+echo "=== Test 41: Reject bad_node_ext_not_declared.plan.ts (node extension without capability) ==="
+if pnpm run dslc build test/fixtures/plans/bad_node_ext_not_declared.plan.ts --out /tmp/test-node 2>&1 | grep -q "requires plan capability"; then
+    echo "PASS: bad_node_ext_not_declared.plan.ts rejected as expected (node extension requires plan capability)"
+else
+    echo "FAIL: bad_node_ext_not_declared.plan.ts should have been rejected"
+    exit 1
+fi
+
+echo ""
+echo "=== Test 42: Compile valid_capabilities.plan.ts (RFC0001 positive test) ==="
+if pnpm run dslc build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/test-valid-caps 2>&1 | grep -q "Generated:"; then
+    # Verify the artifact structure
+    python3 -c "
+import json
+with open('/tmp/test-valid-caps/valid_capabilities.plan.json') as f:
+    plan = json.load(f)
+assert plan['capabilities_required'] == ['cap.audit', 'cap.debug'], 'capabilities not sorted'
+assert 'cap.debug' in plan['extensions'], 'missing plan extension'
+assert plan['nodes'][0]['extensions']['cap.debug']['node_debug'] == True, 'missing node extension'
+print('PASS: valid_capabilities.plan.ts compiled with correct capabilities structure')
+"
+else
+    echo "FAIL: valid_capabilities.plan.ts should have compiled"
+    exit 1
+fi

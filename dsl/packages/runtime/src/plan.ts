@@ -15,6 +15,7 @@ interface PlanNode {
   op: string;
   inputs: string[];
   params: Record<string, unknown>;
+  extensions?: Record<string, unknown>;
 }
 
 /**
@@ -25,35 +26,60 @@ export class PlanCtx {
   private nodes: PlanNode[] = [];
   private exprTable: Map<string, ExprNode> = new Map();
   private predTable: Map<string, PredNode> = new Map();
+  private capabilitiesRequired: Set<string> = new Set();
+  private planExtensions: Map<string, unknown> = new Map();
 
   readonly viewer = {
-    follow: (opts: { fanout: number; trace?: string }): CandidateSet => {
+    follow: (opts: {
+      fanout: number;
+      trace?: string;
+      extensions?: Record<string, unknown>;
+    }): CandidateSet => {
       assertNotUndefined(opts, "viewer.follow(opts)");
       assertNotUndefined(opts.fanout, "viewer.follow({ fanout })");
-      checkNoUndefined(opts as Record<string, unknown>, "viewer.follow(opts)");
+      const { extensions, ...rest } = opts;
+      checkNoUndefined(rest as Record<string, unknown>, "viewer.follow(opts)");
 
       const nodeId = this.allocateNodeId();
-      this.nodes.push({
+      const node: PlanNode = {
         node_id: nodeId,
         op: "viewer.follow",
         inputs: [],
         params: { fanout: opts.fanout, trace: opts.trace ?? null },
-      });
+      };
+      if (extensions !== undefined && Object.keys(extensions).length > 0) {
+        checkNoUndefined(extensions, `node[${nodeId}].extensions`);
+        node.extensions = extensions;
+      }
+      this.nodes.push(node);
       return new CandidateSet(this, nodeId);
     },
 
-    fetch_cached_recommendation: (opts: { fanout: number; trace?: string }): CandidateSet => {
+    fetch_cached_recommendation: (opts: {
+      fanout: number;
+      trace?: string;
+      extensions?: Record<string, unknown>;
+    }): CandidateSet => {
       assertNotUndefined(opts, "viewer.fetch_cached_recommendation(opts)");
       assertNotUndefined(opts.fanout, "viewer.fetch_cached_recommendation({ fanout })");
-      checkNoUndefined(opts as Record<string, unknown>, "viewer.fetch_cached_recommendation(opts)");
+      const { extensions, ...rest } = opts;
+      checkNoUndefined(
+        rest as Record<string, unknown>,
+        "viewer.fetch_cached_recommendation(opts)"
+      );
 
       const nodeId = this.allocateNodeId();
-      this.nodes.push({
+      const node: PlanNode = {
         node_id: nodeId,
         op: "viewer.fetch_cached_recommendation",
         inputs: [],
         params: { fanout: opts.fanout, trace: opts.trace ?? null },
-      });
+      };
+      if (extensions !== undefined && Object.keys(extensions).length > 0) {
+        checkNoUndefined(extensions, `node[${nodeId}].extensions`);
+        node.extensions = extensions;
+      }
+      this.nodes.push(node);
       return new CandidateSet(this, nodeId);
     },
   };
@@ -62,9 +88,19 @@ export class PlanCtx {
     return `n${this.nodeCounter++}`;
   }
 
-  addNode(op: string, inputs: string[], params: Record<string, unknown>): string {
+  addNode(
+    op: string,
+    inputs: string[],
+    params: Record<string, unknown>,
+    extensions?: Record<string, unknown>
+  ): string {
     const nodeId = this.allocateNodeId();
-    this.nodes.push({ node_id: nodeId, op, inputs, params });
+    const node: PlanNode = { node_id: nodeId, op, inputs, params };
+    if (extensions !== undefined && Object.keys(extensions).length > 0) {
+      checkNoUndefined(extensions, `node[${nodeId}].extensions`);
+      node.extensions = extensions;
+    }
+    this.nodes.push(node);
     return nodeId;
   }
 
@@ -78,6 +114,25 @@ export class PlanCtx {
     const predId = `p${this.predTable.size}`;
     this.predTable.set(predId, pred);
     return predId;
+  }
+
+  /**
+   * Declare a required capability for this plan.
+   * If payload is provided, it is stored in plan-level extensions under the capability ID.
+   */
+  requireCapability(capId: string, payload?: unknown): void {
+    assertNotUndefined(capId, "requireCapability(capId)");
+    if (capId.length === 0) {
+      throw new Error("Capability ID cannot be empty");
+    }
+    this.capabilitiesRequired.add(capId);
+    if (payload !== undefined) {
+      assertNotUndefined(payload, `requireCapability("${capId}", payload)`);
+      if (typeof payload === "object" && payload !== null && !Array.isArray(payload)) {
+        checkNoUndefined(payload as Record<string, unknown>, `extensions["${capId}"]`);
+      }
+      this.planExtensions.set(capId, payload);
+    }
   }
 
   finalize(outputNodeId: string, planName: string): PlanArtifact {
@@ -96,6 +151,16 @@ export class PlanCtx {
       artifact.pred_table = Object.fromEntries(this.predTable);
     }
 
+    // Only include capabilities_required if any are declared (sorted + unique)
+    if (this.capabilitiesRequired.size > 0) {
+      artifact.capabilities_required = [...this.capabilitiesRequired].sort();
+    }
+
+    // Only include extensions if any are provided
+    if (this.planExtensions.size > 0) {
+      artifact.extensions = Object.fromEntries(this.planExtensions);
+    }
+
     return artifact;
   }
 }
@@ -112,69 +177,112 @@ export class CandidateSet {
   /**
    * vm: evaluate expression and write to out_key.
    */
-  vm(opts: { outKey: KeyToken; expr: ExprNode; trace?: string }): CandidateSet {
+  vm(opts: {
+    outKey: KeyToken;
+    expr: ExprNode;
+    trace?: string;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
     assertNotUndefined(opts, "vm(opts)");
     assertNotUndefined(opts.outKey, "vm({ outKey })");
     assertNotUndefined(opts.expr, "vm({ expr })");
-    checkNoUndefined(opts as Record<string, unknown>, "vm(opts)");
+    // Don't checkNoUndefined on extensions - it's handled separately in addNode
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest as Record<string, unknown>, "vm(opts)");
 
     const exprId = this.ctx.addExpr(opts.expr);
-    const newNodeId = this.ctx.addNode("vm", [this.nodeId], {
-      out_key: opts.outKey.id,
-      expr_id: exprId,
-      trace: opts.trace ?? null,
-    });
+    const newNodeId = this.ctx.addNode(
+      "vm",
+      [this.nodeId],
+      {
+        out_key: opts.outKey.id,
+        expr_id: exprId,
+        trace: opts.trace ?? null,
+      },
+      extensions
+    );
     return new CandidateSet(this.ctx, newNodeId);
   }
 
   /**
    * filter: apply predicate to update selection.
    */
-  filter(opts: { pred: PredNode; trace?: string }): CandidateSet {
+  filter(opts: {
+    pred: PredNode;
+    trace?: string;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
     assertNotUndefined(opts, "filter(opts)");
     assertNotUndefined(opts.pred, "filter({ pred })");
-    checkNoUndefined(opts as Record<string, unknown>, "filter(opts)");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest as Record<string, unknown>, "filter(opts)");
 
     const predId = this.ctx.addPred(opts.pred);
-    const newNodeId = this.ctx.addNode("filter", [this.nodeId], {
-      pred_id: predId,
-      trace: opts.trace ?? null,
-    });
+    const newNodeId = this.ctx.addNode(
+      "filter",
+      [this.nodeId],
+      {
+        pred_id: predId,
+        trace: opts.trace ?? null,
+      },
+      extensions
+    );
     return new CandidateSet(this.ctx, newNodeId);
   }
 
   /**
    * take: limit to first N rows.
    */
-  take(opts: { count: number; trace?: string }): CandidateSet {
+  take(opts: {
+    count: number;
+    trace?: string;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
     assertNotUndefined(opts, "take(opts)");
     assertNotUndefined(opts.count, "take({ count })");
-    checkNoUndefined(opts as Record<string, unknown>, "take(opts)");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest as Record<string, unknown>, "take(opts)");
 
-    const newNodeId = this.ctx.addNode("take", [this.nodeId], {
-      count: opts.count,
-      trace: opts.trace ?? null,
-    });
+    const newNodeId = this.ctx.addNode(
+      "take",
+      [this.nodeId],
+      {
+        count: opts.count,
+        trace: opts.trace ?? null,
+      },
+      extensions
+    );
     return new CandidateSet(this.ctx, newNodeId);
   }
 
   /**
    * concat: concatenate two candidate sets.
    */
-  concat(rhs: CandidateSet, opts?: { trace?: string }): CandidateSet {
+  concat(
+    rhs: CandidateSet,
+    opts?: { trace?: string; extensions?: Record<string, unknown> }
+  ): CandidateSet {
     assertNotUndefined(rhs, "concat(rhs)");
     if (rhs.ctx !== this.ctx) {
       throw new Error(
         "concat: CandidateSets must belong to the same PlanCtx"
       );
     }
+    let extensions: Record<string, unknown> | undefined;
     if (opts !== undefined) {
-      checkNoUndefined(opts as Record<string, unknown>, "concat(opts)");
+      const { extensions: ext, ...rest } = opts;
+      extensions = ext;
+      checkNoUndefined(rest as Record<string, unknown>, "concat(opts)");
     }
 
-    const newNodeId = this.ctx.addNode("concat", [this.nodeId, rhs.nodeId], {
-      trace: opts?.trace ?? null,
-    });
+    const newNodeId = this.ctx.addNode(
+      "concat",
+      [this.nodeId, rhs.nodeId],
+      {
+        trace: opts?.trace ?? null,
+      },
+      extensions
+    );
     return new CandidateSet(this.ctx, newNodeId);
   }
 
@@ -193,6 +301,8 @@ export interface PlanArtifact {
   outputs: string[];
   expr_table?: Record<string, ExprNode>;
   pred_table?: Record<string, PredNode>;
+  capabilities_required?: string[];
+  extensions?: Record<string, unknown>;
 }
 
 /**

@@ -11,6 +11,16 @@ export type { PredNode, RegexPattern } from "./pred.js";
 export { definePlan, PlanCtx, CandidateSet } from "./plan.js";
 export type { PlanDef, PlanArtifact } from "./plan.js";
 
+// Re-export guards for validation
+export {
+  assertNotUndefined,
+  checkNoUndefined,
+  normalizeCapabilitiesRequired,
+  isSortedUnique,
+  validateCapabilitiesAndExtensions,
+  validateNodeExtensions,
+} from "./guards.js";
+
 // Re-export tokens for convenience
 export { Key, P } from "@ranking-dsl/generated";
 export type { KeyToken, ParamToken } from "@ranking-dsl/generated";

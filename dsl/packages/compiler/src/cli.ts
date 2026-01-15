@@ -21,6 +21,10 @@ import { bundlePlan } from "./bundler.js";
 import { executePlan } from "./executor.js";
 import { stableStringify } from "./stable-stringify.js";
 import { isValidPlanName } from "@ranking-dsl/generated";
+import {
+  validateCapabilitiesAndExtensions,
+  validateNodeExtensions,
+} from "@ranking-dsl/runtime";
 
 /**
  * Validate that artifact conforms to PlanArtifact schema.
@@ -126,6 +130,20 @@ function validatePlanArtifact(artifact: unknown, planFileName: string): void {
     throw new Error(
       `Invalid artifact from ${planFileName}: pred_table must be an object if present`
     );
+  }
+
+  // RFC0001: Validate capabilities_required and extensions at plan level
+  validateCapabilitiesAndExtensions(
+    obj.capabilities_required,
+    obj.extensions,
+    `artifact from ${planFileName}`
+  );
+
+  // RFC0001: Validate node-level extensions
+  const planCapabilities = obj.capabilities_required as string[] | undefined;
+  for (let i = 0; i < obj.nodes.length; i++) {
+    const n = obj.nodes[i] as Record<string, unknown>;
+    validateNodeExtensions(n.extensions, planCapabilities, n.node_id as string);
   }
 }
 
