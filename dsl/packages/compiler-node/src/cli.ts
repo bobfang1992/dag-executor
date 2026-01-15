@@ -12,11 +12,7 @@ import { resolve, dirname, basename } from "node:path";
 import { mkdir, writeFile, stat, readdir, access, readFile } from "node:fs/promises";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import type { PlanDef } from "@ranking-dsl/runtime";
-import {
-  PlanCtx,
-  validateCapabilitiesAndExtensions,
-  validateNodeExtensions,
-} from "@ranking-dsl/runtime";
+import { PlanCtx, validateArtifact } from "@ranking-dsl/runtime";
 import { stableStringify } from "./stable-stringify.js";
 import { isValidPlanName } from "@ranking-dsl/generated";
 
@@ -220,20 +216,8 @@ async function compilePlan(planPath: string, force: boolean, customOutputDir: st
   const result = planDef.build(ctx);
   const artifact = ctx.finalize(result.getNodeId(), planDef.name);
 
-  // RFC0001: Validate capabilities and extensions
-  validateCapabilitiesAndExtensions(
-    artifact.capabilities_required,
-    artifact.extensions,
-    `artifact from ${planFileName}`
-  );
-  for (const node of artifact.nodes) {
-    const nodeObj = node as unknown as Record<string, unknown>;
-    validateNodeExtensions(
-      nodeObj.extensions,
-      artifact.capabilities_required,
-      nodeObj.node_id as string
-    );
-  }
+  // Validate artifact using shared validation for parity with QuickJS compiler
+  validateArtifact(artifact, planFileName);
 
   // Add built_by metadata
   const artifactWithMetadata = {

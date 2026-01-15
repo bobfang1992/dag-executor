@@ -21,6 +21,9 @@ export {
   validateNodeExtensions,
 } from "./guards.js";
 
+// Shared artifact validation (single source of truth for both compilers)
+export { validateArtifact } from "./artifact-validation.js";
+
 // Re-export tokens for convenience
 export { Key, P } from "@ranking-dsl/generated";
 export type { KeyToken, ParamToken } from "@ranking-dsl/generated";
