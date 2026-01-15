@@ -372,6 +372,24 @@ EOF
 gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
 ```
 
+## Codex Review
+
+Codex (OpenAI's GitHub code review bot) is enabled for this repo. To request a review:
+
+```bash
+# Tag Codex on an existing PR
+gh pr comment <PR_NUMBER> --body "@codex review"
+
+# With context about what changed
+gh pr comment 17 --body "@codex review
+
+Latest changes:
+- Fixed index generation
+- Added new tests"
+```
+
+Codex will post inline comments with severity labels (P0/P1/P2). Address P0/P1 findings before merging.
+
 ---
 
 ## Implementation Progress
