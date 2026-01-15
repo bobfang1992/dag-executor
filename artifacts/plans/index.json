@@ -2,9 +2,159 @@
   "schema_version": 1,
   "plans": [
     {
+      "name": "bad_in_list",
+      "path": "bad_in_list.plan.json",
+      "digest": "sha256:b2a8610cb59185b5f38cc7e7fe2d182e136f00c470204555322a9b6edda22460",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "bad_pred_table_shape",
+      "path": "bad_pred_table_shape.plan.json",
+      "digest": "sha256:743597b9fc4aa6c9ccdd731ab224fa6d4c417e086e9b2bf0eaabe55faa6b29a4",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "bad_regex_flags",
+      "path": "bad_regex_flags.plan.json",
+      "digest": "sha256:9f6819858c68eda06e80018790bcc718e8d401b03f60b97250bafd606403b30e",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "bad_trace_type",
+      "path": "bad_trace_type.plan.json",
+      "digest": "sha256:9b782d1b5740d5bf49333c28a136fe68d9a2a900bb8f13445bb0ad3a181f1232",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "bad_type_fanout",
+      "path": "bad_type_fanout.plan.json",
+      "digest": "sha256:261cf2548ce7d68dc9b13f4d4fff5db40fa28c3b03d5fe59374a060d00f81279",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "concat_bad_arity",
+      "path": "concat_bad_arity.plan.json",
+      "digest": "sha256:230760f84e7338d61ee2eddd946bd63a973673272e48ef34d87cacead72d4410",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "concat_demo",
+      "path": "concat_demo.plan.json",
+      "digest": "sha256:7e212fd11054bb1826fe9dbf52a1d60e73cfacb5e21b5f82b6512d8ec1c14510",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
       "name": "concat_plan",
       "path": "concat_plan.plan.json",
-      "digest": "sha256:3327d09c540764261d1079f3d0c693f1da43c2bb9198b9e38f3d9d425d2f91fe",
+      "digest": "sha256:8161b6e594626695f03111356c30ab7668a67f741cfd3e8e628eaeb7a56d3471",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "cycle",
+      "path": "cycle.plan.json",
+      "digest": "sha256:440aed3c53a8838b448922e9777d0ca032991909906eabe49558f2277af5cd3e",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "demo",
+      "path": "demo.plan.json",
+      "digest": "sha256:29daad452e5d0bf3d489e0d060ac45d6b884729e27ffb2ba73fdebd9d29f179e",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "extra_param",
+      "path": "extra_param.plan.json",
+      "digest": "sha256:9f2b426792ed1f7db87f4254c268c751e07dbbb6f859bb0353b38ab3189c4882",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "large_fanout",
+      "path": "large_fanout.plan.json",
+      "digest": "sha256:be32836eb2adae1d0d3d7edcb578f8965f906348c8b57357e02e709079150381",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "missing_fanout",
+      "path": "missing_fanout.plan.json",
+      "digest": "sha256:e71646bd4f64b32773479ef3b21edc03164c3583edd9b8b06416688a5f7c95d9",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "missing_input",
+      "path": "missing_input.plan.json",
+      "digest": "sha256:cea2f2d4f286280d7b73aa48e023ae29dbdcf343e669985b46651211e3503c09",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "missing_pred_id",
+      "path": "missing_pred_id.plan.json",
+      "digest": "sha256:a02d5d14f9519cd4757799c76d8707b144d5cfae71d43eaf5ca8a00247d18ff0",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "null_trace",
+      "path": "null_trace.plan.json",
+      "digest": "sha256:03e01eb5406a500e61aa8a1d60698bb30c057b50910672b4366e93e0b52ccbfb",
       "built_by": {
         "backend": "quickjs",
         "tool": "dslc",
@@ -14,7 +164,27 @@
     {
       "name": "reels_plan_a",
       "path": "reels_plan_a.plan.json",
-      "digest": "sha256:c8b2cdfa0466e3ac50519ab093fc780931692cb4a0f921d203d4cf5a160f3a6c",
+      "digest": "sha256:c84a1ae769ca3a37d2a823a043e43fc6ace9cf5230c2648538cee49210b17fd1",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "regex_demo",
+      "path": "regex_demo.plan.json",
+      "digest": "sha256:9e2467a651650e053a59b6e0d8a60597cc9528763645e9095629302e1c3caf69",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "regex_param_demo",
+      "path": "regex_param_demo.plan.json",
+      "digest": "sha256:cc960d5408a41a008f9d8834bf851e73277270a7ebbc12ba6fe55b55d92c9828",
       "built_by": {
         "backend": "quickjs",
         "tool": "dslc",
@@ -24,7 +194,27 @@
     {
       "name": "regex_plan",
       "path": "regex_plan.plan.json",
-      "digest": "sha256:03127fd0ea5513b0284904a8ce80c278d8e9f03c60563126122c9eb03401e1fb",
+      "digest": "sha256:82faaa1a2bd0e1d67e1542fc7794c11657a83c1bae4814e95a95a27036d35088",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "string_in_list",
+      "path": "string_in_list.plan.json",
+      "digest": "sha256:7ba416a727c3d94130d5653ab39b1639c7f523e261435499c0c4a85dc5bdc66a",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "unknown_pred_id",
+      "path": "unknown_pred_id.plan.json",
+      "digest": "sha256:5676e54c4904f0af7cf5d21136c69b31a0b6335ef48a5d3ce1196004c54fb163",
       "built_by": {
         "backend": "quickjs",
         "tool": "dslc",
