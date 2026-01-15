@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "plan_name": "bad_engine_node_ext_not_declared",
+  "nodes": [
+    {
+      "node_id": "n0",
+      "op": "viewer.follow",
+      "inputs": [],
+      "params": { "fanout": 10, "trace": null },
+      "extensions": {
+        "cap.rfc.0001.extensions_capabilities.v1": {}
+      }
+    }
+  ],
+  "outputs": ["n0"]
+}

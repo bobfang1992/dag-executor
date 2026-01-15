@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "plan_name": "bad_engine_ext_not_required",
+  "capabilities_required": ["cap.rfc.0001.extensions_capabilities.v1"],
+  "extensions": {
+    "cap.some.other.capability.v1": {}
+  },
+  "nodes": [
+    {
+      "node_id": "n0",
+      "op": "viewer.follow",
+      "inputs": [],
+      "params": { "fanout": 10, "trace": null }
+    }
+  ],
+  "outputs": ["n0"]
+}

@@ -56,6 +56,7 @@ add_executable(rankd
   src/executor.cpp
   src/task_registry.cpp
   src/output_contract.cpp
+  src/capability_registry.cpp
   ${TASK_SOURCES}
 )
 
@@ -91,6 +92,7 @@ add_executable(concat_tests
   src/executor.cpp
   src/task_registry.cpp
   src/output_contract.cpp
+  src/capability_registry.cpp
   ${TASK_SOURCES}
 )
 
@@ -108,6 +110,7 @@ add_executable(regex_tests
   src/executor.cpp
   src/task_registry.cpp
   src/output_contract.cpp
+  src/capability_registry.cpp
   ${TASK_SOURCES}
 )
 

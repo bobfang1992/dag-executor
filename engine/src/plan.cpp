@@ -1,4 +1,6 @@
 #include "plan.h"
+#include "capability_registry.h"
+#include <algorithm>
 #include <fstream>
 #include <stdexcept>
 #include <unordered_set>
@@ -314,6 +316,80 @@ Plan parse_plan(const std::string &path) {
       } catch (const std::runtime_error &e) {
         throw std::runtime_error("Error parsing pred '" + pred_id +
                                  "': " + e.what());
+      }
+    }
+  }
+
+  // RFC0001: capabilities_required (optional)
+  if (j.contains("capabilities_required")) {
+    if (!j["capabilities_required"].is_array()) {
+      throw std::runtime_error("Plan 'capabilities_required' must be an array");
+    }
+    for (const auto &cap : j["capabilities_required"]) {
+      if (!cap.is_string()) {
+        throw std::runtime_error(
+            "Plan 'capabilities_required' contains non-string element");
+      }
+      plan.capabilities_required.push_back(cap.get<std::string>());
+    }
+    // Validate sorted + unique (don't re-sort, reject if not canonical)
+    if (!std::is_sorted(plan.capabilities_required.begin(),
+                        plan.capabilities_required.end())) {
+      throw std::runtime_error(
+          "Plan 'capabilities_required' must be sorted lexicographically");
+    }
+    auto it = std::adjacent_find(plan.capabilities_required.begin(),
+                                 plan.capabilities_required.end());
+    if (it != plan.capabilities_required.end()) {
+      throw std::runtime_error(
+          "Plan 'capabilities_required' contains duplicate: " + *it);
+    }
+  }
+
+  // Build set of required capabilities for validation
+  std::unordered_set<std::string> caps_set(plan.capabilities_required.begin(),
+                                           plan.capabilities_required.end());
+
+  // RFC0001: extensions (optional)
+  if (j.contains("extensions")) {
+    if (!j["extensions"].is_object()) {
+      throw std::runtime_error("Plan 'extensions' must be an object");
+    }
+    plan.extensions = j["extensions"];
+    // Validate every key is in capabilities_required
+    for (auto it = plan.extensions.begin(); it != plan.extensions.end(); ++it) {
+      const std::string &key = it.key();
+      if (caps_set.find(key) == caps_set.end()) {
+        throw std::runtime_error(
+            "Plan extension key '" + key +
+            "' not in capabilities_required");
+      }
+      // Validate payload
+      validate_capability_payload(key, it.value(), "plan");
+    }
+  }
+
+  // RFC0001: node.extensions (already parsed above, now validate)
+  for (size_t i = 0; i < plan.nodes.size(); ++i) {
+    auto &node = plan.nodes[i];
+    const auto &nj = j["nodes"][i];
+    if (nj.contains("extensions")) {
+      if (!nj["extensions"].is_object()) {
+        throw std::runtime_error("Node '" + node.node_id +
+                                 "' extensions must be an object");
+      }
+      node.extensions = nj["extensions"];
+      // Validate every key is in plan.capabilities_required
+      for (auto it = node.extensions.begin(); it != node.extensions.end();
+           ++it) {
+        const std::string &key = it.key();
+        if (caps_set.find(key) == caps_set.end()) {
+          throw std::runtime_error("Node '" + node.node_id +
+                                   "' extension key '" + key +
+                                   "' requires plan capability '" + key + "'");
+        }
+        // Validate payload
+        validate_capability_payload(key, it.value(), "node:" + node.node_id);
       }
     }
   }

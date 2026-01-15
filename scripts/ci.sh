@@ -417,5 +417,37 @@ for name in [\"reels_plan_a\", \"concat_plan\", \"regex_plan\"]:
 "'
 wait_all
 
+# Batch 10: Engine RFC0001 validation (parallel)
+echo "--- Batch 10: Engine RFC0001 validation ---"
+run_bg "Test 45: Reject unknown capability" bash -c '
+if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_unknown_cap.plan.json 2>&1 | grep -q "unsupported capability"; then
+    exit 0
+else
+    exit 1
+fi
+'
+run_bg "Test 46: Reject unsorted capabilities" bash -c '
+if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_caps_unsorted.plan.json 2>&1 | grep -q "must be sorted"; then
+    exit 0
+else
+    exit 1
+fi
+'
+run_bg "Test 47: Reject extension not in capabilities" bash -c '
+if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_ext_not_required.plan.json 2>&1 | grep -q "not in capabilities_required"; then
+    exit 0
+else
+    exit 1
+fi
+'
+run_bg "Test 48: Reject node extension without capability" bash -c '
+if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_node_ext_not_declared.plan.json 2>&1 | grep -q "requires plan capability"; then
+    exit 0
+else
+    exit 1
+fi
+'
+wait_all
+
 echo ""
 echo "=== All CI tests passed ==="

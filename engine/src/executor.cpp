@@ -1,4 +1,5 @@
 #include "executor.h"
+#include "capability_registry.h"
 #include <queue>
 #include <stdexcept>
 #include <unordered_map>
@@ -11,6 +12,14 @@ void validate_plan(const Plan &plan) {
     throw std::runtime_error(
         "Unsupported schema_version: " + std::to_string(plan.schema_version) +
         " (expected 1)");
+  }
+
+  // RFC0001: Validate all required capabilities are supported
+  for (const auto &cap : plan.capabilities_required) {
+    if (!capability_is_supported(cap)) {
+      throw std::runtime_error("unsupported capability required by plan: " +
+                               cap);
+    }
   }
 
   // Build node_id -> index map and check uniqueness
