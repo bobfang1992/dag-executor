@@ -105,7 +105,7 @@ pnpm run plan:build:all
 **Error Handling:**
 Plans that attempt forbidden operations fail with clear errors:
 ```bash
-$ pnpm run dslc build examples/plans/evil.plan.ts --out artifacts/plans
+$ pnpm run dslc build test/fixtures/plans/evil.plan.ts --out artifacts/plans
 Error: QuickJS execution failed for evil.plan.ts: not a function
 ```
 
@@ -492,16 +492,19 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
   - Validates artifacts: no undefined, no functions, no symbols, no cycles (shared refs OK)
   - Full schema validation: schema_version, plan_name, nodes, outputs, node inputs reference existing nodes
 - Testing:
-  - `examples/plans/evil.plan.ts` - Attempts eval() → rejected ✅
-  - `examples/plans/evil_proto.plan.ts` - Attempts Function via prototype → rejected ✅
+  - `test/fixtures/plans/evil.plan.ts` - Attempts eval() → rejected ✅
+  - `test/fixtures/plans/evil_proto.plan.ts` - Attempts Function via prototype → rejected ✅
+  - `test/fixtures/plans/name_mismatch.plan.ts` - plan_name != filename → rejected ✅
   - CI Tests 32-33: Verify sandbox security
+  - CI Test 38: Verify plan_name/filename enforcement
 - Build: `pnpm run dslc build <plan.ts> --out artifacts/plans` (default for `pnpm run build`)
 - Benefits: Deterministic builds, sandboxed execution, portable (WASM, no native addons)
 
 **Step 10.5: Central Plan Store**
-- Two-tier plan store model:
+- Plan store model:
   - `plans/` → official plans (CI, production) → `artifacts/plans/`
   - `examples/plans/` → example/tutorial plans → `artifacts/plans-examples/`
+  - `test/fixtures/plans/` → negative test cases (not compiled, only for CI tests)
 - Each store has `manifest.json` (committed SSOT) and generated `index.json`
 - `index.json`: plan names, paths, digests, build metadata for engine lookup
 - Engine plan loading by name:
@@ -509,8 +512,9 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
   - `--plan_dir <dir>` - Plan store directory (default: `artifacts/plans`)
   - `--list-plans` - List available plans from index.json
 - Security: Plan names validated against `[A-Za-z0-9_]+` pattern (no path traversal)
+- Compiler enforcement: `plan_name` must match filename (prevents index mismatches)
 - Manifest sync tools: `pnpm run plan:manifest:sync`, `pnpm run plan:manifest:sync:examples`
-- CI tests: plan store index generation, engine `--list-plans`, `--plan_name` loading
+- CI tests: plan store index generation, engine `--list-plans`, `--plan_name` loading, name enforcement
 
 ### 🔲 Not Yet Implemented
 
