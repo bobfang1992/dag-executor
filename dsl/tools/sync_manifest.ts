@@ -31,16 +31,9 @@ async function findPlanFiles(dir: string, repoRoot: string): Promise<string[]> {
       if (entry.isDirectory()) {
         await walk(fullPath);
       } else if (entry.isFile() && entry.name.endsWith(".plan.ts")) {
-        // Skip test fixture files that are intentionally invalid:
-        // - evil*.plan.ts: security test files (attempt eval/Function)
-        // - name_mismatch.plan.ts: plan_name != filename test
-        const isTestFixture =
-          entry.name.startsWith("evil") || entry.name === "name_mismatch.plan.ts";
-        if (!isTestFixture) {
-          // Use forward slashes for cross-platform consistency
-          const relativePath = relative(repoRoot, fullPath).replace(/\\/g, "/");
-          results.push(relativePath);
-        }
+        // Use forward slashes for cross-platform consistency
+        const relativePath = relative(repoRoot, fullPath).replace(/\\/g, "/");
+        results.push(relativePath);
       }
     }
   }

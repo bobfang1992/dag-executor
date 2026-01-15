@@ -542,7 +542,7 @@ echo "=== All CI tests passed ==="
 
 echo ""
 echo "=== Test 32: Reject evil.plan.ts (QuickJS sandbox security) ==="
-if node dsl/packages/compiler/dist/cli.js build examples/plans/evil.plan.ts --out artifacts/plans 2>/dev/null; then
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/evil.plan.ts --out artifacts/plans 2>/dev/null; then
     echo "FAIL: evil.plan.ts should have been rejected (sandbox violation)"
     exit 1
 else
@@ -551,7 +551,7 @@ fi
 
 echo ""
 echo "=== Test 33: Reject evil_proto.plan.ts (Function constructor via prototype) ==="
-if node dsl/packages/compiler/dist/cli.js build examples/plans/evil_proto.plan.ts --out artifacts/plans 2>/dev/null; then
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/evil_proto.plan.ts --out artifacts/plans 2>/dev/null; then
     echo "FAIL: evil_proto.plan.ts should have been rejected (prototype bypass)"
     exit 1
 else
@@ -619,7 +619,7 @@ fi
 
 echo ""
 echo "=== Test 38: Reject name_mismatch.plan.ts (plan_name != filename) ==="
-if pnpm run dslc build examples/plans/name_mismatch.plan.ts --out /tmp/test-mismatch 2>&1 | grep -q "doesn't match filename"; then
+if pnpm run dslc build test/fixtures/plans/name_mismatch.plan.ts --out /tmp/test-mismatch 2>&1 | grep -q "doesn't match filename"; then
     echo "PASS: name_mismatch.plan.ts rejected as expected (plan_name must match filename)"
 else
     echo "FAIL: name_mismatch.plan.ts should have been rejected"
