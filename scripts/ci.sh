@@ -616,3 +616,12 @@ else
     echo "FAIL: artifacts/plans/index.json not found"
     exit 1
 fi
+
+echo ""
+echo "=== Test 38: Reject name_mismatch.plan.ts (plan_name != filename) ==="
+if pnpm run dslc build examples/plans/name_mismatch.plan.ts --out /tmp/test-mismatch 2>&1 | grep -q "doesn't match filename"; then
+    echo "PASS: name_mismatch.plan.ts rejected as expected (plan_name must match filename)"
+else
+    echo "FAIL: name_mismatch.plan.ts should have been rejected"
+    exit 1
+fi

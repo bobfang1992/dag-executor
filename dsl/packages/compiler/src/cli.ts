@@ -252,7 +252,16 @@ async function compilePlan(
     const validatedArtifact = artifact as Record<string, unknown>;
     const planName = (validatedArtifact as { plan_name: string }).plan_name;
 
-    // Step 4: Add built_by metadata
+    // Step 4: Enforce plan_name matches filename
+    const expectedName = planFileName.replace(/\.plan\.ts$/, "");
+    if (planName !== expectedName) {
+      throw new Error(
+        `Plan name "${planName}" doesn't match filename "${planFileName}". ` +
+        `Rename file to "${planName}.plan.ts" or change plan name to "${expectedName}".`
+      );
+    }
+
+    // Step 5: Add built_by metadata
     const bundleDigest = createHash("sha256").update(code).digest("hex").substring(0, 16);
     const artifactWithMetadata = {
       ...validatedArtifact,
@@ -264,7 +273,7 @@ async function compilePlan(
       },
     };
 
-    // Step 5: Write to output directory
+    // Step 6: Write to output directory
     const absOutputDir = resolve(process.cwd(), outputDir);
     await mkdir(absOutputDir, { recursive: true });
 
