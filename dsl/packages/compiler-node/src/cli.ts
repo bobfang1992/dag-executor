@@ -8,7 +8,7 @@
  * Plain Node.js cannot import .ts files without a loader.
  */
 
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, basename } from "node:path";
 import { mkdir, writeFile, stat, readdir, access, readFile } from "node:fs/promises";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import type { PlanDef } from "@ranking-dsl/runtime";
@@ -172,6 +172,16 @@ async function compilePlan(planPath: string, force: boolean, customOutputDir: st
   if (!planDef || typeof planDef.build !== "function") {
     throw new Error(
       `Plan module must export a default PlanDef with build() method: ${planPath}`
+    );
+  }
+
+  // Enforce plan_name matches filename
+  const planFileName = basename(absPath);
+  const expectedName = planFileName.replace(/\.plan\.ts$/, "");
+  if (planDef.name !== expectedName) {
+    throw new Error(
+      `Plan name "${planDef.name}" doesn't match filename "${planFileName}". ` +
+      `Rename file to "${planDef.name}.plan.ts" or change plan name to "${expectedName}".`
     );
   }
 
