@@ -390,6 +390,10 @@ Latest changes:
 
 Codex will post inline comments with severity labels (P0/P1/P2). Address P0/P1 findings before merging.
 
+**Important:** Always tag `@codex review` after:
+- Creating a new PR
+- Pushing updates to an existing PR
+
 ---
 
 ## Implementation Progress
