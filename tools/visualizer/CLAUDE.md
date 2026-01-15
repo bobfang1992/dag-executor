@@ -167,22 +167,14 @@ index.json → PlanSelector → loadPlanByName()
 - `publicDir` points to `../../artifacts` to serve plan JSONs at `/plans/`
 - Custom middleware serves `.plan.ts` sources at `/sources/<name>.plan.ts`
 - Searches both `plans/` and `examples/plans/` directories
+- **Security note**: The `/sources` middleware doesn't validate paths. This is acceptable since the visualizer is a local dev tool only (not deployed to production).
 
-## CI Screenshots
-
-Automated screenshot capture on PRs touching `tools/visualizer/**`:
+## Screenshots
 
 ```bash
 # Local screenshot capture
 pnpm -C tools/visualizer exec playwright install chromium  # First time only
-pnpm run visualizer:build
 pnpm -C tools/visualizer run screenshots
 ```
 
 Screenshots saved to `tools/visualizer/screenshots/` (gitignored).
-
-GitHub Actions workflow (`.github/workflows/visualizer-screenshots.yml`):
-1. Builds visualizer
-2. Captures screenshots via Playwright
-3. Uploads as artifacts
-4. Posts summary comment on PR
