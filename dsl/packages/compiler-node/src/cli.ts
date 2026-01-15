@@ -8,12 +8,13 @@
  * Plain Node.js cannot import .ts files without a loader.
  */
 
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, basename } from "node:path";
 import { mkdir, writeFile, stat, readdir, access, readFile } from "node:fs/promises";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import type { PlanDef } from "@ranking-dsl/runtime";
 import { PlanCtx } from "@ranking-dsl/runtime";
 import { stableStringify } from "./stable-stringify.js";
+import { isValidPlanName } from "@ranking-dsl/generated";
 
 // Read package version
 const __filename = fileURLToPath(import.meta.url);
@@ -172,6 +173,22 @@ async function compilePlan(planPath: string, force: boolean, customOutputDir: st
   if (!planDef || typeof planDef.build !== "function") {
     throw new Error(
       `Plan module must export a default PlanDef with build() method: ${planPath}`
+    );
+  }
+
+  // Enforce plan_name matches filename and is valid
+  const planFileName = basename(absPath);
+  const expectedName = planFileName.replace(/\.plan\.ts$/, "");
+  if (planDef.name !== expectedName) {
+    throw new Error(
+      `Plan name "${planDef.name}" doesn't match filename "${planFileName}". ` +
+      `Rename file to "${planDef.name}.plan.ts" or change plan name to "${expectedName}".`
+    );
+  }
+  if (!isValidPlanName(planDef.name)) {
+    throw new Error(
+      `Invalid plan name "${planDef.name}". ` +
+      `Plan names must match pattern [A-Za-z0-9_]+ (alphanumeric and underscores only).`
     );
   }
 

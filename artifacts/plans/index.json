@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "plans": [
+    {
+      "name": "concat_plan",
+      "path": "concat_plan.plan.json",
+      "digest": "sha256:3327d09c540764261d1079f3d0c693f1da43c2bb9198b9e38f3d9d425d2f91fe",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "reels_plan_a",
+      "path": "reels_plan_a.plan.json",
+      "digest": "sha256:c8b2cdfa0466e3ac50519ab093fc780931692cb4a0f921d203d4cf5a160f3a6c",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "regex_plan",
+      "path": "regex_plan.plan.json",
+      "digest": "sha256:03127fd0ea5513b0284904a8ce80c278d8e9f03c60563126122c9eb03401e1fb",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    }
+  ]
+}

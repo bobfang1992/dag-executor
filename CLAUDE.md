@@ -47,8 +47,9 @@ dsl/packages/
   compiler/         # dslc CLI
   generated/        # Auto-generated keys/params/features/task bindings
 engine/             # C++23 execution engine
+plans/              # Official plans (CI, production) → artifacts/plans/
+examples/plans/     # Example/tutorial plans → artifacts/plans-examples/
 artifacts/          # Compiled JSON artifacts
-examples/           # Example plans and fragments
 ```
 
 ## Key Design Constraints
@@ -104,7 +105,7 @@ pnpm run plan:build:all
 **Error Handling:**
 Plans that attempt forbidden operations fail with clear errors:
 ```bash
-$ pnpm run dslc build examples/plans/evil.plan.ts --out artifacts/plans
+$ pnpm run dslc build test/fixtures/plans/evil.plan.ts --out artifacts/plans
 Error: QuickJS execution failed for evil.plan.ts: not a function
 ```
 
@@ -123,21 +124,32 @@ pnpm run plan:build:all:node
 
 **Use for:** Debugging, development iteration. **Not for CI.**
 
-### Manifest-based Build System
+### Plan Store Model
 
-Plans to compile are listed in `examples/plans/manifest.json`:
+The project uses a central plan store model with two directories:
+
+| Directory | Purpose | Compiled To |
+|-----------|---------|-------------|
+| `plans/` | Official plans (CI, production) | `artifacts/plans/` |
+| `examples/plans/` | Example/tutorial plans | `artifacts/plans-examples/` |
+
+Each store has:
+- `manifest.json` - List of plans to compile (committed, source of truth)
+- `index.json` - Generated index with plan names, digests, and build metadata
+
+Example `plans/manifest.json`:
 ```json
 {
   "schema_version": 1,
   "plans": [
-    "examples/plans/reels_plan_a.plan.ts",
-    "examples/plans/concat_plan.plan.ts",
-    "examples/plans/regex_plan.plan.ts"
+    "plans/concat_plan.plan.ts",
+    "plans/reels_plan_a.plan.ts",
+    "plans/regex_plan.plan.ts"
   ]
 }
 ```
 
-**To add a plan:** Add its path to the `plans` array. The manifest controls `plan:build:all`.
+**To add a plan:** Add its path to the `plans` array, or run `pnpm run plan:manifest:sync`.
 
 See [docs/PLAN_COMPILER_GUIDE.md](docs/PLAN_COMPILER_GUIDE.md) for detailed usage.
 
@@ -284,8 +296,17 @@ engine/bin/rowset_tests
 # Run rankd (Step 00 fallback - no plan)
 echo '{"request_id": "test"}' | engine/bin/rankd
 
-# Run rankd with plan
+# Run rankd with plan by name (recommended)
+echo '{"request_id": "test"}' | engine/bin/rankd --plan_name reels_plan_a
+
+# Run rankd with plan by explicit path
 echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/demo.plan.json
+
+# Run with custom plan store directory
+echo '{}' | engine/bin/rankd --plan_dir artifacts/plans-examples --plan_name reels_plan_a
+
+# List available plans
+engine/bin/rankd --list-plans
 
 # Print registry digests
 engine/bin/rankd --print-registry
@@ -305,20 +326,25 @@ pnpm run build
 # Or step by step:
 pnpm run gen                      # Regenerate registry tokens
 pnpm run build:dsl                # Build DSL packages (including dslc compiler)
-pnpm run plan:build:all           # Compile all plans using QuickJS-based dslc
+pnpm run plan:build:all           # Compile official plans (plans/ → artifacts/plans/)
+pnpm run plan:build:examples      # Compile example plans (examples/plans/ → artifacts/plans-examples/)
 
 # Compile single plan with dslc (QuickJS sandbox)
-pnpm run dslc build examples/plans/reels_plan_a.plan.ts --out artifacts/plans
+pnpm run dslc build plans/my_plan.plan.ts --out artifacts/plans
+
+# Sync manifests from directory scan
+pnpm run plan:manifest:sync           # Sync plans/manifest.json
+pnpm run plan:manifest:sync:examples  # Sync examples/plans/manifest.json
 
 # Compile all plans with Node backend (debugging/fallback)
 pnpm run plan:build:all:node
 
 # Fallback: Node-based compiler (legacy, for development)
-pnpm run plan:build:node examples/plans/foo.plan.ts --out artifacts/plans
+pnpm run plan:build:node plans/foo.plan.ts --out artifacts/plans
 
 # Advanced: Direct invocation
-node dsl/packages/compiler/dist/cli.js build examples/plans/foo.plan.ts --out artifacts/plans
-tsx dsl/packages/compiler-node/src/cli.ts examples/plans/foo.plan.ts --out artifacts/plans
+node dsl/packages/compiler/dist/cli.js build plans/foo.plan.ts --out artifacts/plans
+tsx dsl/packages/compiler-node/src/cli.ts plans/foo.plan.ts --out artifacts/plans
 
 # Custom manifest and output directory
 tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir --backend quickjs
@@ -345,6 +371,28 @@ EOF
 # Create PR using --body-file
 gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
 ```
+
+## Codex Review
+
+Codex (OpenAI's GitHub code review bot) is enabled for this repo. To request a review:
+
+```bash
+# Tag Codex on an existing PR
+gh pr comment <PR_NUMBER> --body "@codex review"
+
+# With context about what changed
+gh pr comment 17 --body "@codex review
+
+Latest changes:
+- Fixed index generation
+- Added new tests"
+```
+
+Codex will post inline comments with severity labels (P0/P1/P2). Address P0/P1 findings before merging.
+
+**Important:** Always tag `@codex review` after:
+- Creating a new PR
+- Pushing updates to an existing PR
 
 ---
 
@@ -466,11 +514,29 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
   - Validates artifacts: no undefined, no functions, no symbols, no cycles (shared refs OK)
   - Full schema validation: schema_version, plan_name, nodes, outputs, node inputs reference existing nodes
 - Testing:
-  - `examples/plans/evil.plan.ts` - Attempts eval() → rejected ✅
-  - `examples/plans/evil_proto.plan.ts` - Attempts Function via prototype → rejected ✅
+  - `test/fixtures/plans/evil.plan.ts` - Attempts eval() → rejected ✅
+  - `test/fixtures/plans/evil_proto.plan.ts` - Attempts Function via prototype → rejected ✅
+  - `test/fixtures/plans/name_mismatch.plan.ts` - plan_name != filename → rejected ✅
   - CI Tests 32-33: Verify sandbox security
+  - CI Test 38: Verify plan_name/filename enforcement
 - Build: `pnpm run dslc build <plan.ts> --out artifacts/plans` (default for `pnpm run build`)
 - Benefits: Deterministic builds, sandboxed execution, portable (WASM, no native addons)
+
+**Step 10.5: Central Plan Store**
+- Plan store model:
+  - `plans/` → official plans (CI, production) → `artifacts/plans/`
+  - `examples/plans/` → example/tutorial plans → `artifacts/plans-examples/`
+  - `test/fixtures/plans/` → negative test cases (not compiled, only for CI tests)
+- Each store has `manifest.json` (committed SSOT) and generated `index.json`
+- `index.json`: plan names, paths, digests, build metadata for engine lookup
+- Engine plan loading by name:
+  - `--plan_name <name>` - Load plan by name from plan_dir
+  - `--plan_dir <dir>` - Plan store directory (default: `artifacts/plans`)
+  - `--list-plans` - List available plans from index.json
+- Security: Plan names validated against `[A-Za-z0-9_]+` pattern (no path traversal)
+- Compiler enforcement: `plan_name` must match filename (prevents index mismatches)
+- Manifest sync tools: `pnpm run plan:manifest:sync`, `pnpm run plan:manifest:sync:examples`
+- CI tests: plan store index generation, engine `--list-plans`, `--plan_name` loading, name enforcement
 
 ### 🔲 Not Yet Implemented
 
@@ -526,5 +592,10 @@ gh pr create --title "Step XX: Feature Name" --body-file /tmp/pr-body.md
 **Tooling (§14)**
 - [x] dslc compiler CLI (QuickJS-based, sandboxed execution)
 - [x] plan-build CLI (legacy Node-based compiler, available as fallback)
+- [x] Plan store with index.json generation
+- [x] Manifest sync tools (plan:manifest:sync)
+- [x] Engine plan loading by name (--plan_name, --list-plans)
+- [ ] Plan skeleton generator (`plan:new` - interactive wizard to scaffold new plans)
+- [ ] Task skeleton generator (scaffold new C++ task with header, source, registry entry)
 - [ ] SourceRef generation
 - [ ] AST extraction for complex expressions (future enhancement)

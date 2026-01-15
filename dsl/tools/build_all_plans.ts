@@ -7,16 +7,17 @@
  *   tsx dsl/tools/build_all_plans.ts [options]
  *
  * Options:
- *   --manifest <path>  Manifest file path (default: examples/plans/manifest.json)
+ *   --manifest <path>  Manifest file path (default: plans/manifest.json)
  *   --out <dir>        Output directory (default: artifacts/plans)
  *   --backend <type>   Compiler backend: quickjs | node (default: quickjs)
  */
 
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
+import { resolve, basename } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
+import { createHash } from "node:crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -33,10 +34,26 @@ interface BuildOptions {
   backend: "quickjs" | "node";
 }
 
+interface IndexEntry {
+  name: string;
+  path: string;
+  digest: string;
+  built_by: {
+    backend: string;
+    tool: string;
+    tool_version: string;
+  };
+}
+
+interface PlanIndex {
+  schema_version: number;
+  plans: IndexEntry[];
+}
+
 async function parseArgs(): Promise<BuildOptions> {
   const args = process.argv.slice(2);
   const options: BuildOptions = {
-    manifest: "examples/plans/manifest.json",
+    manifest: "plans/manifest.json",
     out: "artifacts/plans",
     backend: "quickjs",
   };
@@ -74,7 +91,7 @@ Usage:
   tsx dsl/tools/build_all_plans.ts [options]
 
 Options:
-  --manifest <path>  Manifest file path (default: examples/plans/manifest.json)
+  --manifest <path>  Manifest file path (default: plans/manifest.json)
   --out <dir>        Output directory (default: artifacts/plans)
   --backend <type>   Compiler backend: quickjs | node (default: quickjs)
   --help, -h         Show this help message
@@ -169,6 +186,85 @@ function runCommand(
   });
 }
 
+/**
+ * Stable stringify for computing deterministic digest.
+ * No whitespace, stable key ordering.
+ */
+function stableStringifyForDigest(obj: unknown): string {
+  if (obj === null || typeof obj !== "object") {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return "[" + obj.map(stableStringifyForDigest).join(",") + "]";
+  }
+  const keys = Object.keys(obj).sort();
+  const pairs = keys.map(
+    (k) => `${JSON.stringify(k)}:${stableStringifyForDigest((obj as Record<string, unknown>)[k])}`
+  );
+  return "{" + pairs.join(",") + "}";
+}
+
+/**
+ * Generate index.json for the plan store.
+ * Only includes plans that were successfully compiled (from compiledPlanNames),
+ * not all .plan.json files in the output directory. This ensures manifest is SSOT.
+ */
+async function generateIndex(
+  outputDir: string,
+  backend: "quickjs" | "node",
+  compiledPlanNames: string[]
+): Promise<void> {
+  const absOutputDir = resolve(REPO_ROOT, outputDir);
+
+  if (compiledPlanNames.length === 0) {
+    console.log("No plans compiled, skipping index generation");
+    return;
+  }
+
+  const entries: IndexEntry[] = [];
+
+  for (const planName of compiledPlanNames) {
+    const file = `${planName}.plan.json`;
+    const filePath = resolve(absOutputDir, file);
+
+    try {
+      const content = await readFile(filePath, "utf-8");
+      const plan = JSON.parse(content) as { plan_name: string; built_by?: { tool_version?: string } };
+
+      // Compute digest of the canonical JSON (no whitespace, stable key order)
+      const digest = createHash("sha256")
+        .update(stableStringifyForDigest(JSON.parse(content)))
+        .digest("hex");
+
+      entries.push({
+        name: plan.plan_name,
+        path: file,
+        digest: `sha256:${digest}`,
+        built_by: {
+          backend,
+          tool: backend === "quickjs" ? "dslc" : "compiler-node",
+          tool_version: plan.built_by?.tool_version ?? "0.1.0",
+        },
+      });
+    } catch (err) {
+      console.warn(`Warning: Could not read ${file} for index: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // Sort by name for determinism
+  entries.sort((a, b) => a.name.localeCompare(b.name));
+
+  const index: PlanIndex = {
+    schema_version: 1,
+    plans: entries,
+  };
+
+  // Write index with stable formatting (2-space indent)
+  const indexPath = resolve(absOutputDir, "index.json");
+  await writeFile(indexPath, JSON.stringify(index, null, 2) + "\n", "utf-8");
+  console.log(`Generated index: ${outputDir}/index.json (${entries.length} plans)`);
+}
+
 async function main() {
   try {
     const options = await parseArgs();
@@ -182,13 +278,24 @@ async function main() {
 
     console.log(`Found ${manifest.plans.length} plan(s) to compile\n`);
 
+    // Ensure output directory exists
+    const absOutputDir = resolve(REPO_ROOT, options.out);
+    await mkdir(absOutputDir, { recursive: true });
+
     let successCount = 0;
     let failureCount = 0;
+    const compiledPlanNames: string[] = [];
 
     for (const planPath of manifest.plans) {
       try {
         await compilePlan(planPath, options.out, options.backend);
         successCount++;
+
+        // Extract plan name from path: "plans/reels_plan_a.plan.ts" -> "reels_plan_a"
+        const planBasename = planPath.split("/").pop()?.replace(".plan.ts", "") ?? "";
+        if (planBasename) {
+          compiledPlanNames.push(planBasename);
+        }
       } catch (err) {
         console.error(`\nError compiling ${planPath}:`);
         if (err instanceof Error) {
@@ -198,6 +305,13 @@ async function main() {
         }
         failureCount++;
       }
+    }
+
+    console.log();
+
+    // Generate index.json only for plans in the manifest (not stale artifacts)
+    if (compiledPlanNames.length > 0) {
+      await generateIndex(options.out, options.backend, compiledPlanNames);
     }
 
     console.log();

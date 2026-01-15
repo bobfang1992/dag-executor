@@ -26,8 +26,14 @@ cmake --build engine/build --parallel
 # Step 00 fallback (no plan)
 echo '{"request_id": "test-123"}' | engine/bin/rankd
 
-# Execute a plan
+# Execute a plan by name (recommended)
+echo '{"request_id": "test"}' | engine/bin/rankd --plan_name reels_plan_a
+
+# Execute a plan by path
 echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/demo.plan.json
+
+# List available plans
+engine/bin/rankd --list-plans
 
 # Print registry digests
 engine/bin/rankd --print-registry
@@ -108,31 +114,37 @@ Pred.and(p1, p2)  Pred.or(p1, p2)  Pred.not(p)
 ### Compile & Run
 
 ```bash
-# Compile all plans (manifest-based, QuickJS sandbox)
+# Compile all official plans (plans/ → artifacts/plans/)
 pnpm run plan:build:all
 
-# Compile a single plan
-pnpm run dslc build examples/plans/my_plan.plan.ts --out artifacts/plans
+# Compile all example plans (examples/plans/ → artifacts/plans-examples/)
+pnpm run plan:build:examples
 
-# Run with engine
+# Compile a single plan
+pnpm run dslc build plans/my_plan.plan.ts --out artifacts/plans
+
+# Run by plan name (recommended)
+echo '{"request_id": "test"}' | engine/bin/rankd --plan_name my_plan
+
+# Run by explicit path
 echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/my_plan.plan.json
 
 # With param overrides
 echo '{"request_id": "t", "param_overrides": {"media_age_penalty_weight": 0.5}}' \
-  | engine/bin/rankd --plan artifacts/plans/my_plan.plan.json
+  | engine/bin/rankd --plan_name my_plan
 ```
 
 ### Alternative: Node-based Compiler (Debug/Fallback)
 
 ```bash
 # Single plan with Node compiler (faster iteration, less secure)
-pnpm run plan:build:node examples/plans/my_plan.plan.ts --out artifacts/plans
+pnpm run plan:build:node plans/my_plan.plan.ts --out artifacts/plans
 
 # All plans with Node backend
 pnpm run plan:build:all:node
 ```
 
-**Note:** Edit `examples/plans/manifest.json` to add/remove plans from batch compilation.
+**Note:** Plans are listed in `plans/manifest.json` (official) or `examples/plans/manifest.json` (examples). Run `pnpm run plan:manifest:sync` to update from directory scan.
 
 ### Security & Compiler Backends
 
@@ -163,8 +175,11 @@ dsl/packages/
   compiler/              # dslc compiler (QuickJS-based, primary)
   compiler-node/         # Legacy Node-based compiler (fallback)
   generated/             # Generated Key/Param/Feature tokens
-artifacts/plans/         # Compiled plan JSON files
-examples/plans/          # Example .plan.ts files
+plans/                   # Official .plan.ts files → artifacts/plans/
+examples/plans/          # Example .plan.ts files → artifacts/plans-examples/
+artifacts/
+  plans/                 # Compiled official plans + index.json
+  plans-examples/        # Compiled example plans + index.json
 scripts/                 # CI and tooling scripts
 ```
 
