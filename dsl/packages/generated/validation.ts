@@ -5,8 +5,8 @@
 // Patterns (as RegExp)
 // ============================================================
 
-export const PLAN_NAME_PATTERN = /^[A-Za-z0-9_]+$/;
-export const NODE_ID_PATTERN = /^[A-Za-z0-9_]+$/;
+export const PLAN_NAME_PATTERN = new RegExp("^[A-Za-z0-9_]+$");
+export const NODE_ID_PATTERN = new RegExp("^[A-Za-z0-9_]+$");
 
 // ============================================================
 // Validation functions

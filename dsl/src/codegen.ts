@@ -692,7 +692,8 @@ function generateValidationTs(validation: ValidationRules, digest: string): stri
   ];
 
   for (const [name, pattern] of Object.entries(validation.patterns)) {
-    lines.push(`export const ${name.toUpperCase()}_PATTERN = /${pattern}/;`);
+    // Use new RegExp() to avoid escaping issues with regex literal syntax
+    lines.push(`export const ${name.toUpperCase()}_PATTERN = new RegExp(${JSON.stringify(pattern)});`);
   }
 
   lines.push("");
@@ -759,7 +760,9 @@ function generateValidationH(validation: ValidationRules, digest: string): strin
   ];
 
   for (const [name, pattern] of Object.entries(validation.patterns)) {
-    lines.push(`inline const std::string k${name.split("_").map(w => w[0].toUpperCase() + w.slice(1)).join("")}Pattern = "${pattern}";`);
+    // Escape backslashes and quotes for C++ string literal
+    const escapedPattern = pattern.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    lines.push(`inline const std::string k${name.split("_").map(w => w[0].toUpperCase() + w.slice(1)).join("")}Pattern = "${escapedPattern}";`);
   }
 
   lines.push("");
