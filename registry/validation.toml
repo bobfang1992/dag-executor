@@ -1,0 +1,31 @@
+# Shared validation rules for both DSL (TypeScript) and Engine (C++)
+# Generated outputs:
+#   - dsl/packages/generated/validation.ts
+#   - engine/include/validation.h
+
+schema_version = 1
+
+[patterns]
+# Plan names: alphanumeric and underscore only (no hyphens, dots, etc.)
+# Used by: compilers (plan_name validation), engine (--plan_name)
+plan_name = "^[A-Za-z0-9_]+$"
+
+# Node IDs: same rules as plan names
+# Used by: plan artifact validation
+node_id = "^[A-Za-z0-9_]+$"
+
+[limits]
+# Maximum fanout for source tasks (viewer.follow, etc.)
+# Prevents accidental resource exhaustion
+max_fanout = 10000000
+
+# Current schema version for plan artifacts
+plan_schema_version = 1
+
+[enums]
+# Valid regex flags for PredIR regex op
+# Empty string = case-sensitive, "i" = case-insensitive
+regex_flags = ["", "i"]
+
+# Valid comparison operators for PredIR cmp op
+cmp_operators = ["==", "!=", "<", "<=", ">", ">="]

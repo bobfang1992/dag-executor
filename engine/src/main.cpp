@@ -4,7 +4,6 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <random>
-#include <regex>
 #include <sstream>
 #include <string>
 
@@ -16,18 +15,12 @@
 #include "plan.h"
 #include "pred_eval.h"
 #include "task_registry.h"
+#include "validation.h"
 
 using json = nlohmann::ordered_json; // ordered for deterministic output
 
-// Valid plan name pattern: [A-Za-z0-9_]+ only
-// This prevents path traversal attacks (no /, .., ., etc.)
-bool is_valid_plan_name(const std::string &name) {
-  if (name.empty()) {
-    return false;
-  }
-  static const std::regex valid_pattern("^[A-Za-z0-9_]+$");
-  return std::regex_match(name, valid_pattern);
-}
+// Use generated validation from registry/validation.toml
+using rankd::validation::is_valid_plan_name;
 
 std::string generate_uuid() {
   static std::random_device rd;

@@ -20,6 +20,7 @@ import { createHash } from "node:crypto";
 import { bundlePlan } from "./bundler.js";
 import { executePlan } from "./executor.js";
 import { stableStringify } from "./stable-stringify.js";
+import { isValidPlanName } from "@ranking-dsl/generated";
 
 /**
  * Validate that artifact conforms to PlanArtifact schema.
@@ -252,12 +253,18 @@ async function compilePlan(
     const validatedArtifact = artifact as Record<string, unknown>;
     const planName = (validatedArtifact as { plan_name: string }).plan_name;
 
-    // Step 4: Enforce plan_name matches filename
+    // Step 4: Enforce plan_name matches filename and is valid
     const expectedName = planFileName.replace(/\.plan\.ts$/, "");
     if (planName !== expectedName) {
       throw new Error(
         `Plan name "${planName}" doesn't match filename "${planFileName}". ` +
         `Rename file to "${planName}.plan.ts" or change plan name to "${expectedName}".`
+      );
+    }
+    if (!isValidPlanName(planName)) {
+      throw new Error(
+        `Invalid plan name "${planName}". ` +
+        `Plan names must match pattern [A-Za-z0-9_]+ (alphanumeric and underscores only).`
       );
     }
 
