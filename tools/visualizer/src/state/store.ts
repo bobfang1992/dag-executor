@@ -261,13 +261,13 @@ function countVisibleNodes(graph: VisGraph, _expanded: Set<string>): number {
 // Set up browser history handling
 function initHistory() {
   // Handle browser back/forward buttons
-  window.addEventListener('popstate', (event) => {
+  window.addEventListener('popstate', async (event) => {
     isHandlingPopState = true;
     try {
       const state = useStore.getState();
       if (event.state?.plan) {
-        // Navigate to a plan
-        state.loadPlanByName(event.state.plan);
+        // Navigate to a plan - await to keep flag set during async load
+        await state.loadPlanByName(event.state.plan);
       } else {
         // Navigate back to selector
         state.clearPlan();
@@ -283,9 +283,9 @@ function initHistory() {
   if (planName) {
     // Load index first, then load the plan
     const state = useStore.getState();
-    state.loadIndex().then(() => {
+    state.loadIndex().then(async () => {
       isHandlingPopState = true; // Don't push duplicate history
-      state.loadPlanByName(planName);
+      await state.loadPlanByName(planName);
       isHandlingPopState = false;
     });
   }

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SCREENSHOTS_DIR = join(__dirname, '..', 'screenshots');
-const PORT = 4173; // Vite preview default port
+const PORT = 5173; // Vite dev server port (preview doesn't have artifacts since copyPublicDir: false)
 const BASE_URL = `http://localhost:${PORT}`;
 
 async function waitForServer(url: string, timeout = 30000): Promise<void> {
@@ -84,9 +84,9 @@ async function main(): Promise<void> {
   // Create screenshots directory
   await mkdir(SCREENSHOTS_DIR, { recursive: true });
 
-  // Start preview server
-  console.log('Starting preview server...');
-  const server: ChildProcess = spawn('pnpm', ['run', 'preview'], {
+  // Start dev server (preview doesn't have artifacts since copyPublicDir: false)
+  console.log('Starting dev server...');
+  const server: ChildProcess = spawn('pnpm', ['run', 'dev', '--', '--open', 'false'], {
     cwd: join(__dirname, '..'),
     stdio: 'pipe',
     shell: true,

@@ -16,6 +16,7 @@ export default function Canvas() {
   const graphContainerRef = useRef<Container | null>(null);
   const isDraggingRef = useRef(false);
   const lastPosRef = useRef({ x: 0, y: 0 });
+  const nodeClickedRef = useRef(false); // Track if a node was clicked (to prevent DOM handler clearing selection)
   const [isReady, setIsReady] = useState(false);
 
   const graph = useStore((s) => s.graph);
@@ -248,6 +249,7 @@ export default function Canvas() {
       // Interaction
       nodeContainer.on('pointerdown', (e) => {
         e.stopPropagation();
+        nodeClickedRef.current = true; // Prevent DOM handler from clearing selection
         selectNode(id);
       });
       nodeContainer.on('pointerenter', () => hoverNode(id));
@@ -262,7 +264,11 @@ export default function Canvas() {
     if (e.target === containerRef.current?.querySelector('canvas')) {
       isDraggingRef.current = true;
       lastPosRef.current = { x: e.clientX, y: e.clientY };
-      selectNode(null);
+      // Only clear selection if a node wasn't clicked (Pixi handler runs first)
+      if (!nodeClickedRef.current) {
+        selectNode(null);
+      }
+      nodeClickedRef.current = false; // Reset for next click
     }
   }, [selectNode]);
 
