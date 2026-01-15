@@ -1,142 +1,191 @@
 # Plan Compiler Invocation Guide
 
-This document describes how to compile ranking plans with the two available compilers.
+This document describes how to compile ranking plans and manage the plan store.
 
-## Overview
+## Plan Store Overview
+
+The project uses a central plan store model:
+
+| Directory | Purpose | Compiled To |
+|-----------|---------|-------------|
+| `plans/` | Official plans (CI, production) | `artifacts/plans/` |
+| `examples/plans/` | Example/tutorial plans | `artifacts/plans-examples/` |
+
+Each store has:
+- `manifest.json` - List of plans to compile (committed SSOT)
+- `index.json` - Generated index with plan names and digests
+
+---
+
+## Compilers
 
 Two compilers are available:
 - **QuickJS-based (dslc)**: Primary compiler, used in CI and production
 - **Node-based (compiler-node)**: Legacy fallback for debugging
 
-**CI Policy:** CI must use QuickJS only. The manifest-based build system (`plan:build:all`) uses QuickJS by default.
+**CI Policy:** CI must use QuickJS only.
 
 ---
 
-## QuickJS-based Compiler (dslc) - Primary/Default
+## Building Official Plans (Recommended)
 
-### Single Plan Compilation
-
-```bash
-# Recommended: via npm script
-pnpm run dslc build <plan.ts> --out <output-dir>
-
-# Example:
-pnpm run dslc build examples/plans/my_plan.plan.ts --out artifacts/plans
-```
-
-### Compile All Plans (Manifest-based)
+### Build All Official Plans
 
 ```bash
-# Default: uses QuickJS backend
+# Build all official plans (uses plans/manifest.json)
 pnpm run plan:build:all
 
-# Reads from: examples/plans/manifest.json
 # Outputs to: artifacts/plans/
+# Generates: artifacts/plans/index.json
 ```
 
-The manifest file (`examples/plans/manifest.json`) lists all plans to compile:
+### Build Single Plan
+
+```bash
+# Single plan with dslc (QuickJS)
+pnpm run dslc build plans/my_plan.plan.ts --out artifacts/plans
+```
+
+### Run with Engine
+
+```bash
+# Run by plan name (recommended)
+echo '{}' | engine/bin/rankd --plan_name reels_plan_a
+
+# Run by explicit path
+echo '{}' | engine/bin/rankd --plan artifacts/plans/reels_plan_a.plan.json
+
+# List available plans
+engine/bin/rankd --list-plans
+```
+
+---
+
+## Building Example Plans
+
+```bash
+# Build all example plans
+pnpm run plan:build:examples
+
+# Outputs to: artifacts/plans-examples/
+# Generates: artifacts/plans-examples/index.json
+
+# Run example plan
+echo '{}' | engine/bin/rankd --plan_dir artifacts/plans-examples --plan_name reels_plan_a
+```
+
+---
+
+## Managing Manifests
+
+Manifests list plans to compile. They are committed files (SSOT).
+
+### Sync Manifests
+
+```bash
+# Sync official manifest (scans plans/**/*.plan.ts)
+pnpm run plan:manifest:sync
+
+# Sync examples manifest (scans examples/plans/**/*.plan.ts)
+pnpm run plan:manifest:sync:examples
+```
+
+### Manifest Format
+
 ```json
 {
   "schema_version": 1,
   "plans": [
-    "examples/plans/reels_plan_a.plan.ts",
-    "examples/plans/concat_plan.plan.ts",
-    "examples/plans/regex_plan.plan.ts"
+    "plans/concat_plan.plan.ts",
+    "plans/reels_plan_a.plan.ts",
+    "plans/regex_plan.plan.ts"
   ]
 }
 ```
 
-**To add a new plan:** Add its path to the `plans` array in the manifest.
+Plans are sorted lexicographically for determinism.
 
-### Advanced/Debug: Direct Invocation
+---
+
+## Debug/Fallback: Node Compiler
+
+**Use for:** Debugging, development iteration, or when QuickJS compilation fails.
 
 ```bash
-# Direct node invocation (not recommended for normal use)
-node dsl/packages/compiler/dist/cli.js build <plan.ts> --out <output-dir>
+# Single plan with Node compiler
+pnpm run plan:build:node plans/my_plan.plan.ts --out artifacts/plans
 
-# Advanced: custom manifest and output
-tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir --backend quickjs
+# All official plans with Node backend
+pnpm run plan:build:all:node
+
+# All example plans with Node backend
+pnpm run plan:build:examples:node
 ```
 
 ---
 
-## Node-based Compiler (compiler-node) - Legacy/Fallback
-
-**Use for:** Debugging, development iteration, or when QuickJS compilation fails.
-
-### Single Plan Compilation
+## Advanced: Direct Invocation
 
 ```bash
-# Recommended: via npm script with explicit --out
-pnpm run plan:build:node <plan.ts> --out artifacts/plans
+# Direct dslc invocation
+node dsl/packages/compiler/dist/cli.js build <plan.ts> --out <output-dir>
 
-# Example:
-pnpm run plan:build:node examples/plans/my_plan.plan.ts --out artifacts/plans
-```
+# Direct Node compiler invocation
+tsx dsl/packages/compiler-node/src/cli.ts <plan.ts> --out <output-dir>
 
-### Compile All Plans (Manifest-based, Node backend)
-
-```bash
-# Uses Node backend instead of QuickJS
-pnpm run plan:build:all:node
-
-# Or with custom options:
-tsx dsl/tools/build_all_plans.ts --backend node
-```
-
-### Advanced Options
-
-```bash
-# With incremental build tracking (skip up-to-date plans)
-pnpm run plan:build:node examples/plans/my_plan.plan.ts --out artifacts/plans
-
-# Force rebuild (ignore timestamps)
-pnpm run plan:build:node examples/plans/my_plan.plan.ts --out artifacts/plans --force
-
-# Direct tsx invocation
-tsx dsl/packages/compiler-node/src/cli.ts <plan.ts> --out artifacts/plans
+# Custom manifest and output
+tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir --backend quickjs
 ```
 
 ---
 
 ## Quick Reference
 
-| Compiler | Primary Command | Use Case |
-|----------|----------------|----------|
-| **QuickJS (dslc)** | `pnpm run dslc build <file> --out <dir>` | Production, CI, default |
-| **Node (compiler-node)** | `pnpm run plan:build:node <file> --out <dir>` | Debugging, fallback |
-| **Build all (QuickJS)** | `pnpm run plan:build:all` | CI, production builds |
-| **Build all (Node)** | `pnpm run plan:build:all:node` | Debug builds |
-
-### Key Differences
-
-| Feature | QuickJS (dslc) | Node (compiler-node) |
-|---------|----------------|---------------------|
-| **Execution** | Sandboxed (no eval, no I/O) | Full Node.js access |
-| **Security** | ✅ Locked down | ⚠️ Less restricted |
-| **Determinism** | ✅ Guaranteed | ✅ With stable imports |
-| **Speed** | Moderate (bundling + sandbox) | Fast (direct execution) |
-| **Incremental** | ❌ No | ✅ Yes (with --force) |
-| **CI Use** | ✅ Required | ❌ Not for CI |
+| Command | Description |
+|---------|-------------|
+| `pnpm run plan:build:all` | Build official plans (QuickJS) |
+| `pnpm run plan:build:examples` | Build example plans (QuickJS) |
+| `pnpm run plan:build:all:node` | Build official plans (Node, debug) |
+| `pnpm run plan:manifest:sync` | Sync official manifest |
+| `pnpm run dslc build <file> --out <dir>` | Build single plan (QuickJS) |
+| `pnpm run plan:build:node <file> --out <dir>` | Build single plan (Node) |
 
 ---
 
-## Metadata
+## Engine Plan Loading
 
-Both compilers add `built_by` metadata to generated artifacts:
+| Option | Description |
+|--------|-------------|
+| `--plan <path>` | Load plan from explicit path |
+| `--plan_name <name>` | Load plan by name from plan_dir |
+| `--plan_dir <dir>` | Plan store directory (default: `artifacts/plans`) |
+| `--list-plans` | List available plans from index.json |
+
+**Security:** Plan names must match `[A-Za-z0-9_]+` only. Invalid names are rejected.
+
+---
+
+## Index File Format
+
+Generated `index.json`:
 
 ```json
 {
-  "built_by": {
-    "backend": "quickjs",  // or "node"
-    "tool": "dslc",        // or "compiler-node"
-    "tool_version": "0.1.0",
-    "bundle_digest": "a1b2c3d4..."  // QuickJS only
-  }
+  "schema_version": 1,
+  "plans": [
+    {
+      "name": "reels_plan_a",
+      "path": "reels_plan_a.plan.json",
+      "digest": "sha256:...",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    }
+  ]
 }
 ```
-
-This metadata is informational only and does not affect execution.
 
 ---
 
@@ -147,10 +196,11 @@ This metadata is informational only and does not affect execution.
 - Check for use of Node globals (process, fs, require) in your plan
 - Check for dynamic imports or eval
 
-### Incremental builds not working
-- Node compiler only: use `--force` to rebuild all
-- QuickJS always rebuilds (no incremental support)
+### Manifest out of sync
+- Run `pnpm run plan:manifest:sync` to regenerate from directory scan
+- Commit the updated manifest
 
-### Manifest not updating
-- Edit `examples/plans/manifest.json` directly
-- No need to update package.json scripts
+### Plan not found by name
+- Check `--plan_dir` points to correct directory
+- Run `engine/bin/rankd --list-plans` to see available plans
+- Ensure plan was compiled (check `index.json`)

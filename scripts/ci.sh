@@ -557,3 +557,62 @@ if node dsl/packages/compiler/dist/cli.js build examples/plans/evil_proto.plan.t
 else
     echo "PASS: evil_proto.plan.ts rejected as expected (Function.prototype.constructor disabled)"
 fi
+
+echo ""
+echo "=== Test 34: Execute plan by name (--plan_name) ==="
+REQUEST='{"request_id": "plan-name-test"}'
+RESPONSE=$(echo "$REQUEST" | engine/bin/rankd --plan_name reels_plan_a)
+
+echo "Request:  $REQUEST"
+echo "Response: $RESPONSE"
+
+echo "$RESPONSE" | python3 -c "
+import sys, json
+r = json.load(sys.stdin)
+assert r['request_id'] == 'plan-name-test', 'request_id mismatch'
+assert len(r['candidates']) == 5, f'expected 5 candidates, got {len(r[\"candidates\"])}'
+expected_ids = [3, 4, 5, 6, 7]
+actual_ids = [c['id'] for c in r['candidates']]
+assert actual_ids == expected_ids, f'expected ids {expected_ids}, got {actual_ids}'
+print('PASS: --plan_name works correctly')
+"
+
+echo ""
+echo "=== Test 35: Reject invalid plan_name (path traversal attempt) ==="
+if echo '{}' | engine/bin/rankd --plan_name '../x' 2>/dev/null; then
+    echo "FAIL: '../x' should have been rejected as invalid plan_name"
+    exit 1
+else
+    echo "PASS: '../x' rejected as expected (path traversal blocked)"
+fi
+
+echo ""
+echo "=== Test 36: Reject invalid plan_name (slash in name) ==="
+if echo '{}' | engine/bin/rankd --plan_name 'a/b' 2>/dev/null; then
+    echo "FAIL: 'a/b' should have been rejected as invalid plan_name"
+    exit 1
+else
+    echo "PASS: 'a/b' rejected as expected (invalid character blocked)"
+fi
+
+echo ""
+echo "=== Test 37: Verify index.json was generated ==="
+if [ -f artifacts/plans/index.json ]; then
+    echo "index.json contents:"
+    cat artifacts/plans/index.json
+    python3 -c "
+import json
+with open('artifacts/plans/index.json') as f:
+    idx = json.load(f)
+assert idx['schema_version'] == 1, 'wrong schema_version'
+assert len(idx['plans']) >= 3, f'expected at least 3 plans, got {len(idx[\"plans\"])}'
+names = [p['name'] for p in idx['plans']]
+assert 'reels_plan_a' in names, 'reels_plan_a not in index'
+assert 'concat_plan' in names, 'concat_plan not in index'
+assert 'regex_plan' in names, 'regex_plan not in index'
+print('PASS: index.json has expected structure')
+"
+else
+    echo "FAIL: artifacts/plans/index.json not found"
+    exit 1
+fi

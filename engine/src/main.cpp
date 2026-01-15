@@ -1,8 +1,10 @@
 #include <CLI/CLI.hpp>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <random>
+#include <regex>
 #include <sstream>
 #include <string>
 
@@ -16,6 +18,16 @@
 #include "task_registry.h"
 
 using json = nlohmann::ordered_json; // ordered for deterministic output
+
+// Valid plan name pattern: [A-Za-z0-9_]+ only
+// This prevents path traversal attacks (no /, .., ., etc.)
+bool is_valid_plan_name(const std::string &name) {
+  if (name.empty()) {
+    return false;
+  }
+  static const std::regex valid_pattern("^[A-Za-z0-9_]+$");
+  return std::regex_match(name, valid_pattern);
+}
 
 std::string generate_uuid() {
   static std::random_device rd;
@@ -39,11 +51,21 @@ int main(int argc, char *argv[]) {
   CLI::App app{"rankd - Ranking DAG executor"};
 
   std::string plan_path;
+  std::string plan_dir = "artifacts/plans";
+  std::string plan_name;
   bool print_registry = false;
+  bool list_plans = false;
 
   app.add_option("--plan", plan_path, "Path to plan JSON file");
+  app.add_option("--plan_dir", plan_dir,
+                 "Plan store directory (default: artifacts/plans)");
+  app.add_option("--plan_name", plan_name,
+                 "Plan name to load from plan_dir (resolves to "
+                 "<plan_dir>/<name>.plan.json)");
   app.add_flag("--print-registry", print_registry,
                "Print registry digests and exit");
+  app.add_flag("--list-plans", list_plans,
+               "List available plans from plan_dir/index.json and exit");
 
   CLI11_PARSE(app, argc, argv);
 
@@ -62,6 +84,47 @@ int main(int argc, char *argv[]) {
     output["num_tasks"] = task_registry.num_tasks();
     std::cout << output.dump() << std::endl;
     return 0;
+  }
+
+  // Handle --list-plans
+  if (list_plans) {
+    std::string index_path = plan_dir + "/index.json";
+    std::ifstream index_file(index_path);
+    if (!index_file.is_open()) {
+      std::cerr << "Error: Cannot open " << index_path << std::endl;
+      return 1;
+    }
+    try {
+      json index = json::parse(index_file);
+      if (index.contains("plans") && index["plans"].is_array()) {
+        std::cout << "Available plans in " << plan_dir << ":" << std::endl;
+        for (const auto &plan : index["plans"]) {
+          if (plan.contains("name") && plan["name"].is_string()) {
+            std::cout << "  " << plan["name"].get<std::string>() << std::endl;
+          }
+        }
+      }
+    } catch (const json::parse_error &e) {
+      std::cerr << "Error: Failed to parse " << index_path << ": " << e.what()
+                << std::endl;
+      return 1;
+    }
+    return 0;
+  }
+
+  // Resolve plan_name to plan_path
+  if (!plan_name.empty()) {
+    if (!is_valid_plan_name(plan_name)) {
+      std::cerr << "Error: Invalid plan_name '" << plan_name
+                << "'. Plan names must match [A-Za-z0-9_]+ only." << std::endl;
+      return 1;
+    }
+    if (!plan_path.empty()) {
+      std::cerr << "Error: Cannot specify both --plan and --plan_name"
+                << std::endl;
+      return 1;
+    }
+    plan_path = plan_dir + "/" + plan_name + ".plan.json";
   }
 
   // Read all stdin

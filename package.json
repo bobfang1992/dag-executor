@@ -10,7 +10,11 @@
     "dslc": "node dsl/packages/compiler/dist/cli.js",
     "plan:build:all": "tsx dsl/tools/build_all_plans.ts --backend quickjs",
     "plan:build:all:node": "tsx dsl/tools/build_all_plans.ts --backend node",
-    "plan:build:node": "tsx dsl/packages/compiler-node/src/cli.ts"
+    "plan:build:examples": "tsx dsl/tools/build_all_plans.ts --manifest examples/plans/manifest.json --out artifacts/plans-examples --backend quickjs",
+    "plan:build:examples:node": "tsx dsl/tools/build_all_plans.ts --manifest examples/plans/manifest.json --out artifacts/plans-examples --backend node",
+    "plan:build:node": "tsx dsl/packages/compiler-node/src/cli.ts",
+    "plan:manifest:sync": "tsx dsl/tools/sync_manifest.ts --dir plans",
+    "plan:manifest:sync:examples": "tsx dsl/tools/sync_manifest.ts --dir examples/plans"
   },
   "dependencies": {
     "@ranking-dsl/runtime": "workspace:*",
