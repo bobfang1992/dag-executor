@@ -50,7 +50,18 @@ engine/             # C++23 execution engine
 plans/              # Official plans (CI, production) → artifacts/plans/
 examples/plans/     # Example/tutorial plans → artifacts/plans-examples/
 artifacts/          # Compiled JSON artifacts
+docs/               # Developer guides
 ```
+
+### Documentation
+
+| Guide | Audience | Purpose |
+|-------|----------|---------|
+| [TASK_IMPLEMENTATION_GUIDE.md](docs/TASK_IMPLEMENTATION_GUIDE.md) | Infra engineers | How to create C++ tasks |
+| [PLAN_AUTHORING_GUIDE.md](docs/PLAN_AUTHORING_GUIDE.md) | Ranking engineers | How to write plans in TS |
+| [PLAN_COMPILER_GUIDE.md](docs/PLAN_COMPILER_GUIDE.md) | All | Compiler internals |
+| [ADDING_CAPABILITIES.md](docs/ADDING_CAPABILITIES.md) | All | How to add IR capabilities |
+| [CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) | All | Capability payload examples |
 
 ## Key Design Constraints
 
