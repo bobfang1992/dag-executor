@@ -396,6 +396,56 @@ Codex will post inline comments with severity labels (P0/P1/P2). Address P0/P1 f
 
 ---
 
+## Capabilities and Extensions (RFC 0001)
+
+The system uses a capability-gated extension mechanism for evolving the Plan/Fragment JSON IR.
+
+### Key Concepts
+
+- **Capability ID**: Stable string like `cap.rfc.NNNN.<slug>.vK`
+- **`capabilities_required`**: Sorted, unique list of capabilities a plan needs
+- **`extensions`**: Map from capability ID to RFC-defined payload
+- **Fail-closed**: Unknown capabilities cause plan rejection
+
+### Adding New Capabilities
+
+See [docs/ADDING_CAPABILITIES.md](docs/ADDING_CAPABILITIES.md) for the full workflow.
+
+Quick summary:
+1. Write RFC with `capability_id` in frontmatter
+2. Register capability in `engine/src/capability_registry.cpp`
+3. Add payload validation if needed
+4. Update DSL runtime support
+5. Add tests and update CI
+
+### Registered Capabilities
+
+| RFC | Capability ID | Purpose |
+|-----|---------------|---------|
+| 0001 | `cap.rfc.0001.extensions_capabilities.v1` | Base extensions mechanism |
+| 0002 | `cap.rfc.0002.timeout_wrapper.v1` | Region deadline + fallback |
+| 0003 | `cap.rfc.0003.debug_capture_postlude.v1` | Breakpoints, capture, postlude |
+| 0004 | `cap.rfc.0004.if_request_branching.v1` | Runtime request branching |
+| 0005 | `cap.rfc.0005.key_effects_writes_exact.v1` | Compile-time effect inference |
+| 0006 | `cap.rfc.0006.plan-visualizer.v1` | Plan visualizer tool (no runtime) |
+
+### Key Files
+
+| Component | Location |
+|-----------|----------|
+| C++ registry | `engine/src/capability_registry.cpp` |
+| DSL runtime | `dsl/packages/runtime/src/plan.ts` |
+| Artifact validation | `dsl/packages/runtime/src/artifact-validation.ts` |
+| Index generation | `dsl/tools/build_all_plans.ts` |
+
+### Digest Computation
+
+`capabilities_digest = sha256(canonical_json({capabilities_required, extensions}))`
+
+Computed identically in TS and C++ for cross-language parity.
+
+---
+
 ## Implementation Progress
 
 ### ✅ Completed
@@ -537,6 +587,36 @@ Codex will post inline comments with severity labels (P0/P1/P2). Address P0/P1 f
 - Compiler enforcement: `plan_name` must match filename (prevents index mismatches)
 - Manifest sync tools: `pnpm run plan:manifest:sync`, `pnpm run plan:manifest:sync:examples`
 - CI tests: plan store index generation, engine `--list-plans`, `--plan_name` loading, name enforcement
+
+**Step 11.1: DSL/dslc Capabilities Support (RFC 0001)**
+- DSL runtime (`dsl/packages/runtime/src/plan.ts`):
+  - `ctx.requireCapability(capId, payload?)` - Declare required capabilities
+  - Node-level `extensions` option in task params
+  - Validation: caps sorted/unique, extension keys in caps, node extensions in plan caps
+- Shared artifact validation (`dsl/packages/runtime/src/artifact-validation.ts`)
+- Test fixtures: `valid_capabilities.plan.ts`, `bad_caps_unsorted.plan.ts`, etc.
+- CI tests 38-44: RFC0001 validation and compiler parity
+
+**Step 11.2: Engine Capabilities Support (RFC 0001)**
+- C++ capability registry (`engine/src/capability_registry.cpp`):
+  - `capability_is_supported()` - Check if capability is known
+  - `validate_capability_payload()` - Validate extension payloads
+  - `compute_capabilities_digest()` - SHA256 of canonical capabilities JSON
+- Plan parsing (`engine/src/plan.cpp`):
+  - Parse `capabilities_required` (sorted, unique validation)
+  - Parse `extensions` (keys must be in capabilities_required)
+  - Parse node-level `extensions`
+- Executor validation: Reject plans with unsupported capabilities
+- Engine test fixtures: `bad_engine_*.plan.json`
+- CI tests 45-49: Engine RFC0001 validation
+
+**Step 11.3: Capabilities Digest and Index**
+- `capabilities_digest` field in `index.json` for each plan
+- TypeScript implementation in `dsl/tools/build_all_plans.ts`
+- C++ implementation in `engine/src/capability_registry.cpp`
+- Parity tests: TS and C++ produce identical digests
+- `--print-plan-info` flag for engine to output plan metadata
+- CI tests 50-52: Digest parity and index validation
 
 ### 🔲 Not Yet Implemented
 

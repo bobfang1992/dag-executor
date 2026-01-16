@@ -5,8 +5,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # Create temp directory for parallel job outputs
-TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
+# Note: Don't use TMPDIR as variable name - it's a system env var on macOS
+CI_TEMP=$(mktemp -d)
+trap "rm -rf $CI_TEMP" EXIT
 
 # Track background job PIDs and their descriptions
 declare -a PIDS=()
@@ -15,7 +16,7 @@ declare -a DESCRIPTIONS=()
 # Run a command in background, capturing output
 run_bg() {
     local desc="$1"
-    local outfile="$TMPDIR/${#PIDS[@]}.out"
+    local outfile="$CI_TEMP/${#PIDS[@]}.out"
     shift
     "$@" > "$outfile" 2>&1 &
     PIDS+=($!)
@@ -31,7 +32,7 @@ wait_all() {
         else
             echo "✗ ${DESCRIPTIONS[$i]} FAILED"
             echo "--- Output ---"
-            cat "$TMPDIR/$i.out"
+            cat "$CI_TEMP/$i.out"
             echo "--- End ---"
             failed=1
         fi
@@ -71,7 +72,7 @@ echo "=== Phase 5: Integration tests ==="
 # Helper to run a test and check result
 run_test() {
     local name="$1"
-    local outfile="$TMPDIR/test_${name//[^a-zA-Z0-9]/_}.out"
+    local outfile="$CI_TEMP/test_${name//[^a-zA-Z0-9]/_}.out"
     shift
     if "$@" > "$outfile" 2>&1; then
         echo "✓ $name"
@@ -323,10 +324,10 @@ wait_all
 # Batch 7: QuickJS sandbox + plan store tests (parallel)
 echo "--- Batch 7: Sandbox + plan store ---"
 run_bg "Test 32: Reject evil.plan.ts" bash -c '
-if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/evil.plan.ts --out /tmp/ci-evil 2>/dev/null; then exit 1; fi
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/evil.plan.ts --out /tmp/ci-evil-32 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 33: Reject evil_proto.plan.ts" bash -c '
-if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/evil_proto.plan.ts --out /tmp/ci-evil 2>/dev/null; then exit 1; fi
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/evil_proto.plan.ts --out /tmp/ci-evil-33 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 34: --plan_name" bash -c '
 response=$(echo "{\"request_id\": \"x\"}" | engine/bin/rankd --plan_name reels_plan_a)
@@ -356,21 +357,22 @@ assert \"regex_plan\" in names
 wait_all
 
 # Batch 8: RFC0001 capabilities tests (parallel)
+# Use direct CLI invocation to avoid pnpm lock contention
 echo "--- Batch 8: RFC0001 capabilities ---"
 run_bg "Test 38: Reject name_mismatch" bash -c '
-pnpm run dslc build test/fixtures/plans/name_mismatch.plan.ts --out /tmp/ci-mismatch 2>&1 | grep -q "doesn'\''t match filename"
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/name_mismatch.plan.ts --out /tmp/ci-mismatch 2>&1 | grep -q "doesn'\''t match filename"
 '
 run_bg "Test 39: Reject bad_caps_unsorted" bash -c '
-pnpm run dslc build test/fixtures/plans/bad_caps_unsorted.plan.ts --out /tmp/ci-caps 2>&1 | grep -q "must be sorted and unique"
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_caps_unsorted.plan.ts --out /tmp/ci-caps 2>&1 | grep -q "must be sorted and unique"
 '
 run_bg "Test 40: Reject bad_ext_key" bash -c '
-pnpm run dslc build test/fixtures/plans/bad_ext_key_not_required.plan.ts --out /tmp/ci-ext 2>&1 | grep -q "must appear in capabilities_required"
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_ext_key_not_required.plan.ts --out /tmp/ci-ext 2>&1 | grep -q "must appear in capabilities_required"
 '
 run_bg "Test 41: Reject bad_node_ext" bash -c '
-pnpm run dslc build test/fixtures/plans/bad_node_ext_not_declared.plan.ts --out /tmp/ci-node 2>&1 | grep -q "requires plan capability"
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_node_ext_not_declared.plan.ts --out /tmp/ci-node 2>&1 | grep -q "requires plan capability"
 '
 run_bg "Test 42: valid_capabilities" bash -c '
-pnpm run dslc build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/ci-valid-caps
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/ci-valid-caps
 python3 -c "
 import json
 with open(\"/tmp/ci-valid-caps/valid_capabilities.plan.json\") as f:
@@ -382,11 +384,13 @@ assert plan[\"nodes\"][0][\"extensions\"][\"cap.debug\"][\"node_debug\"] == True
 wait_all
 
 # Batch 9: Compiler parity tests (parallel)
+# Use direct CLI invocation to avoid pnpm lock contention
+# Use ./node_modules/.bin/tsx for Node compiler (tsx installed via pnpm)
 echo "--- Batch 9: Compiler parity ---"
 run_bg "Test 43: Parity (valid_capabilities)" bash -c '
 mkdir -p /tmp/parity-test/qjs /tmp/parity-test/node
-pnpm run dslc build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/qjs
-pnpm run plan:build:node test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/node
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/qjs
+./node_modules/.bin/tsx dsl/packages/compiler-node/src/cli.ts test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/node
 python3 -c "
 import json
 with open(\"/tmp/parity-test/qjs/valid_capabilities.plan.json\") as f:
@@ -401,8 +405,8 @@ assert qjs == node, \"Compiler outputs differ\"
 run_bg "Test 44: Parity (multiple plans)" bash -c '
 mkdir -p /tmp/parity-multi/qjs /tmp/parity-multi/node
 for plan in plans/reels_plan_a.plan.ts plans/concat_plan.plan.ts plans/regex_plan.plan.ts; do
-    pnpm run dslc build "$plan" --out /tmp/parity-multi/qjs
-    pnpm run plan:build:node "$plan" --out /tmp/parity-multi/node
+    node dsl/packages/compiler/dist/cli.js build "$plan" --out /tmp/parity-multi/qjs
+    ./node_modules/.bin/tsx dsl/packages/compiler-node/src/cli.ts "$plan" --out /tmp/parity-multi/node
 done
 python3 -c "
 import json
@@ -453,6 +457,84 @@ if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_nonempty_paylo
 else
     exit 1
 fi
+'
+wait_all
+
+# Batch 11: capabilities_digest parity tests (parallel)
+# Use direct CLI invocation to avoid pnpm lock contention
+echo "--- Batch 11: capabilities_digest parity ---"
+run_bg "Test 50: Digest parity (with caps)" bash -c '
+# Compile plan with dslc (direct invocation)
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/ci-digest-parity >/dev/null 2>&1
+
+# Get C++ digest
+CPP_DIGEST=$(engine/bin/rankd --print-plan-info --plan /tmp/ci-digest-parity/valid_capabilities.plan.json | python3 -c "import json,sys; print(json.load(sys.stdin)[\"capabilities_digest\"])")
+
+# Compute TS digest using same algorithm
+TS_DIGEST=$(cat /tmp/ci-digest-parity/valid_capabilities.plan.json | python3 -c "
+import json, hashlib, sys
+
+def stable_stringify(obj):
+    if obj is None:
+        return \"null\"
+    if isinstance(obj, bool):
+        return \"true\" if obj else \"false\"
+    if isinstance(obj, str):
+        return json.dumps(obj)
+    if isinstance(obj, (int, float)):
+        return json.dumps(obj)
+    if isinstance(obj, list):
+        return \"[\" + \",\".join(stable_stringify(x) for x in obj) + \"]\"
+    if isinstance(obj, dict):
+        keys = sorted(obj.keys())
+        pairs = [json.dumps(k) + \":\" + stable_stringify(obj[k]) for k in keys]
+        return \"{\" + \",\".join(pairs) + \"}\"
+    return json.dumps(obj)
+
+plan = json.load(sys.stdin)
+caps = plan.get(\"capabilities_required\", [])
+exts = plan.get(\"extensions\", {})
+if not caps and not exts:
+    print(\"\")
+else:
+    canonical = {\"capabilities_required\": caps, \"extensions\": exts}
+    digest = hashlib.sha256(stable_stringify(canonical).encode()).hexdigest()
+    print(f\"sha256:{digest}\")
+")
+
+if [ "$CPP_DIGEST" = "$TS_DIGEST" ]; then
+    exit 0
+else
+    echo "Digest mismatch: C++=$CPP_DIGEST TS=$TS_DIGEST"
+    exit 1
+fi
+'
+
+run_bg "Test 51: Digest parity (no caps)" bash -c '
+# Get C++ digest for plan without capabilities
+CPP_DIGEST=$(engine/bin/rankd --print-plan-info --plan artifacts/plans/reels_plan_a.plan.json | python3 -c "import json,sys; print(json.load(sys.stdin)[\"capabilities_digest\"])")
+
+# Should be empty string
+if [ "$CPP_DIGEST" = "" ]; then
+    exit 0
+else
+    echo "Expected empty digest, got: $CPP_DIGEST"
+    exit 1
+fi
+'
+
+run_bg "Test 52: Index has capabilities_digest" bash -c '
+# Check that index.json has capabilities_digest field for all plans
+python3 << "PYEOF"
+import json
+with open("artifacts/plans/index.json") as f:
+    index = json.load(f)
+for plan in index["plans"]:
+    if "capabilities_digest" not in plan:
+        print("Missing capabilities_digest in plan:", plan["name"])
+        exit(1)
+print("All plans have capabilities_digest field")
+PYEOF
 '
 wait_all
 

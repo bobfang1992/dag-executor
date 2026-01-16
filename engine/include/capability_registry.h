@@ -1,7 +1,9 @@
 #pragma once
 
 #include <nlohmann/json.hpp>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace rankd {
 
@@ -29,5 +31,22 @@ bool capability_is_supported(std::string_view cap_id);
 void validate_capability_payload(std::string_view cap_id,
                                   const nlohmann::json &payload,
                                   std::string_view scope);
+
+/**
+ * Compute capabilities digest for RFC0001.
+ *
+ * Returns "sha256:<hex>" of canonical JSON, or "" if both fields are
+ * empty/absent.
+ *
+ * Canonical form: {"capabilities_required":[...],"extensions":{...}}
+ * - Keys sorted alphabetically ("capabilities_required" < "extensions")
+ * - Empty arrays/objects normalized to [] and {}
+ *
+ * This must produce identical output to the TypeScript implementation
+ * for cross-language parity.
+ */
+std::string compute_capabilities_digest(
+    const std::vector<std::string> &capabilities_required,
+    const nlohmann::json &extensions);
 
 } // namespace rankd

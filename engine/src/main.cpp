@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 
+#include "capability_registry.h"
 #include "executor.h"
 #include "feature_registry.h"
 #include "key_registry.h"
@@ -48,6 +49,7 @@ int main(int argc, char *argv[]) {
   std::string plan_name;
   bool print_registry = false;
   bool list_plans = false;
+  bool print_plan_info = false;
 
   app.add_option("--plan", plan_path, "Path to plan JSON file");
   app.add_option("--plan_dir", plan_dir,
@@ -59,6 +61,8 @@ int main(int argc, char *argv[]) {
                "Print registry digests and exit");
   app.add_flag("--list-plans", list_plans,
                "List available plans from plan_dir/index.json and exit");
+  app.add_flag("--print-plan-info", print_plan_info,
+               "Print plan info (including capabilities_digest) and exit");
 
   CLI11_PARSE(app, argc, argv);
 
@@ -103,6 +107,46 @@ int main(int argc, char *argv[]) {
       return 1;
     }
     return 0;
+  }
+
+  // Handle --print-plan-info (requires --plan or --plan_name)
+  if (print_plan_info) {
+    // Resolve plan_name to plan_path if needed
+    if (!plan_name.empty()) {
+      if (!is_valid_plan_name(plan_name)) {
+        std::cerr << "Error: Invalid plan_name '" << plan_name
+                  << "'. Plan names must match [A-Za-z0-9_]+ only." << std::endl;
+        return 1;
+      }
+      plan_path = plan_dir + "/" + plan_name + ".plan.json";
+    }
+
+    if (plan_path.empty()) {
+      std::cerr << "Error: --print-plan-info requires --plan or --plan_name"
+                << std::endl;
+      return 1;
+    }
+
+    try {
+      rankd::Plan plan = rankd::parse_plan(plan_path);
+      // Note: we don't call validate_plan() here to allow inspecting
+      // plans with unsupported capabilities
+
+      json output;
+      output["plan_name"] = plan.plan_name;
+      output["capabilities_required"] = plan.capabilities_required;
+      output["extensions"] = plan.extensions.is_null()
+                                 ? nlohmann::json::object()
+                                 : plan.extensions;
+      output["capabilities_digest"] = rankd::compute_capabilities_digest(
+          plan.capabilities_required, plan.extensions);
+
+      std::cout << output.dump() << std::endl;
+      return 0;
+    } catch (const std::exception &e) {
+      std::cerr << "Error: " << e.what() << std::endl;
+      return 1;
+    }
   }
 
   // Resolve plan_name to plan_path
