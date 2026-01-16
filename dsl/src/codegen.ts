@@ -1056,13 +1056,11 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
     "enum class CapabilityStatus { Implemented, Draft, Deprecated, Blocked };",
     "",
     "// Simple schema representation (subset of JSON Schema)",
-    "// For now, we only need to track:",
-    "// - has_schema: false = no payload allowed",
-    "// - additional_properties: false = only allowed keys accepted",
     "struct PayloadSchema {",
-    "  bool has_schema;             // false = no payload allowed",
-    "  bool additional_properties;  // true = allow extra keys",
-    "  // Property definitions can be added as needed",
+    "  bool has_schema;                        // false = no payload allowed",
+    "  bool additional_properties;             // true = allow extra keys",
+    "  const std::string_view* allowed_keys;   // pointer to array of allowed property names",
+    "  size_t num_allowed_keys;                // number of allowed properties",
     "};",
     "",
     "struct CapabilityMeta {",
@@ -1074,19 +1072,40 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
     "  PayloadSchema schema;",
     "};",
     "",
-    `inline constexpr size_t kCapabilityCount = ${capabilities.length};`,
-    `inline constexpr std::string_view kCapabilityRegistryDigest = "${digest}";`,
-    "",
-    `inline constexpr std::array<CapabilityMeta, kCapabilityCount> kCapabilityRegistry = {{`,
   ];
+
+  // Generate property arrays for each capability that has properties
+  for (const cap of capabilities) {
+    const props = cap.payload_schema?.properties;
+    if (props && Object.keys(props).length > 0) {
+      const propNames = Object.keys(props).sort();
+      const varName = `kProps_${cap.name}`;
+      lines.push(`inline constexpr std::array<std::string_view, ${propNames.length}> ${varName} = {{`);
+      for (const name of propNames) {
+        lines.push(`    ${JSON.stringify(name)},`);
+      }
+      lines.push("}};");
+      lines.push("");
+    }
+  }
+
+  lines.push(`inline constexpr size_t kCapabilityCount = ${capabilities.length};`);
+  lines.push(`inline constexpr std::string_view kCapabilityRegistryDigest = "${digest}";`);
+  lines.push("");
+  lines.push(`inline constexpr std::array<CapabilityMeta, kCapabilityCount> kCapabilityRegistry = {{`);
 
   for (const cap of capabilities) {
     const hasSchema = cap.payload_schema !== null;
     const additionalProps = cap.payload_schema?.additionalProperties !== false;
+    const props = cap.payload_schema?.properties;
+    const propNames = props ? Object.keys(props).sort() : [];
+    const numProps = propNames.length;
+    const propsPtr = numProps > 0 ? `kProps_${cap.name}.data()` : "nullptr";
+
     lines.push(`    {${JSON.stringify(cap.id)}, ${JSON.stringify(cap.rfc)}, ${JSON.stringify(cap.name)},`);
     lines.push(`     CapabilityStatus::${cppCapabilityStatus(cap.status)},`);
     lines.push(`     ${JSON.stringify(cap.doc)},`);
-    lines.push(`     {.has_schema = ${hasSchema}, .additional_properties = ${additionalProps}}},`);
+    lines.push(`     {.has_schema = ${hasSchema}, .additional_properties = ${additionalProps}, .allowed_keys = ${propsPtr}, .num_allowed_keys = ${numProps}}},`);
   }
 
   lines.push("}};");

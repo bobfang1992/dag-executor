@@ -11,13 +11,12 @@ namespace rankd {
 enum class CapabilityStatus { Implemented, Draft, Deprecated, Blocked };
 
 // Simple schema representation (subset of JSON Schema)
-// For now, we only need to track:
-// - has_schema: false = no payload allowed
-// - additional_properties: false = only allowed keys accepted
 struct PayloadSchema {
   bool has_schema;            // false = no payload allowed
   bool additional_properties; // true = allow extra keys
-  // Property definitions can be added as needed
+  const std::string_view
+      *allowed_keys;       // pointer to array of allowed property names
+  size_t num_allowed_keys; // number of allowed properties
 };
 
 struct CapabilityMeta {
@@ -40,7 +39,10 @@ inline constexpr std::array<CapabilityMeta, kCapabilityCount>
          "extensions_capabilities",
          CapabilityStatus::Implemented,
          "Base extensions/capabilities mechanism for IR evolution",
-         {.has_schema = true, .additional_properties = false}},
+         {.has_schema = true,
+          .additional_properties = false,
+          .allowed_keys = nullptr,
+          .num_allowed_keys = 0}},
     }};
 
 } // namespace rankd

@@ -13,8 +13,10 @@ namespace rankd {
 static std::unordered_set<std::string> build_supported_caps() {
   std::unordered_set<std::string> caps;
   for (const auto &meta : kCapabilityRegistry) {
-    // Include all capabilities except blocked ones
-    if (meta.status != CapabilityStatus::Blocked) {
+    // Only include implemented capabilities (and deprecated for backwards compat)
+    // Draft capabilities are not yet implemented - plans using them should be rejected
+    if (meta.status == CapabilityStatus::Implemented ||
+        meta.status == CapabilityStatus::Deprecated) {
       caps.insert(std::string(meta.id));
     }
   }
@@ -68,14 +70,23 @@ void validate_capability_payload(std::string_view cap_id,
   }
 
   // Check additional properties (schema-driven validation)
-  if (!schema.additional_properties && !payload.empty()) {
-    // additionalProperties: false means no extra keys allowed
-    // For RFC0001 base capability: no properties defined, so must be empty {}
-    throw std::runtime_error(
-        std::string("capability '") + std::string(cap_id) + "' at " +
-        std::string(scope) +
-        ": payload must be empty object {}, got object with " +
-        std::to_string(payload.size()) + " field(s)");
+  if (!schema.additional_properties) {
+    // additionalProperties: false means only allowed keys accepted
+    for (auto it = payload.begin(); it != payload.end(); ++it) {
+      const std::string &key = it.key();
+      bool allowed = false;
+      for (size_t i = 0; i < schema.num_allowed_keys; ++i) {
+        if (schema.allowed_keys[i] == key) {
+          allowed = true;
+          break;
+        }
+      }
+      if (!allowed) {
+        throw std::runtime_error(
+            std::string("capability '") + std::string(cap_id) + "' at " +
+            std::string(scope) + ": unexpected key '" + key + "'");
+      }
+    }
   }
 }
 
