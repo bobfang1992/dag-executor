@@ -5,6 +5,7 @@
       "name": "concat_plan",
       "path": "concat_plan.plan.json",
       "digest": "sha256:1a853efadbfd79661db4e81718730bfdef7365919bf4c247042d047efc210e29",
+      "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",
         "tool": "dslc",
@@ -15,6 +16,7 @@
       "name": "reels_plan_a",
       "path": "reels_plan_a.plan.json",
       "digest": "sha256:589610bb8ad5f05abd9087d673e68a31099a2e9b517368d082070219a88c512c",
+      "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",
         "tool": "dslc",
@@ -25,6 +27,7 @@
       "name": "regex_plan",
       "path": "regex_plan.plan.json",
       "digest": "sha256:191a14f169db6ca0f87c4526b47a6441ad73f4bc3e136cabb5ffc7b1df66b454",
+      "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",
         "tool": "dslc",

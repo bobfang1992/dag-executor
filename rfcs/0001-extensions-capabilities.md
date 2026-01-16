@@ -1,7 +1,7 @@
 ---
 rfc: 0001
 title: "Extensions + Capability Gates for IR Evolution"
-status: Draft  # Draft | Review | Accepted | Implemented | Final | Rejected | Superseded
+status: Implemented  # Draft | Review | Accepted | Implemented | Final | Rejected | Superseded
 created: 2026-01-13
 updated: 2026-01-13
 authors:
@@ -202,6 +202,24 @@ Recommended (not required for the mechanism):
 - Step 2: Update cache key to include `capabilities_digest`.
 - Step 3: Future RFCs use capability IDs and store payload in `extensions`.
 
-## 10. Open questions
+## 10. Implementation Reference
+
+This RFC has been implemented in Steps 11.1-11.3:
+
+### DSL/dslc (TypeScript)
+- **Runtime**: `dsl/packages/runtime/src/plan.ts` - `ctx.requireCapability()`, node extensions
+- **Validation**: `dsl/packages/runtime/src/artifact-validation.ts` - Shared artifact validation
+- **Index**: `dsl/tools/build_all_plans.ts` - `computeCapabilitiesDigest()`, index generation
+
+### Engine (C++)
+- **Registry**: `engine/src/capability_registry.cpp` - `capability_is_supported()`, `validate_capability_payload()`, `compute_capabilities_digest()`
+- **Parsing**: `engine/src/plan.cpp` - Parse capabilities_required, extensions, node extensions
+- **Validation**: `engine/src/executor.cpp` - Reject unsupported capabilities
+- **CLI**: `engine/src/main.cpp` - `--print-plan-info` flag
+
+### Adding New Capabilities
+See [docs/ADDING_CAPABILITIES.md](../docs/ADDING_CAPABILITIES.md) for the workflow.
+
+## 11. Open questions
 - Q1: Do we require fragments to avoid providing extension payloads (plan-only), or keep the merge rule as specified?
 - Q2: Do we want a global allowlist of capability IDs in prod environments (similar to task allowlists)?

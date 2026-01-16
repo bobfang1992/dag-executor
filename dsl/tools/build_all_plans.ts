@@ -38,6 +38,7 @@ interface IndexEntry {
   name: string;
   path: string;
   digest: string;
+  capabilities_digest: string;
   built_by: {
     backend: string;
     tool: string;
@@ -205,6 +206,41 @@ function stableStringifyForDigest(obj: unknown): string {
 }
 
 /**
+ * Compute capabilities digest for RFC0001.
+ * Returns sha256:<hex> of canonical JSON, or "" if both fields are empty/absent.
+ *
+ * Canonical form: {"capabilities_required":[...],"extensions":{...}}
+ * - Keys sorted alphabetically ("capabilities_required" < "extensions")
+ * - Empty arrays/objects normalized to [] and {}
+ */
+function computeCapabilitiesDigest(
+  capabilitiesRequired: string[] | undefined,
+  extensions: Record<string, unknown> | undefined
+): string {
+  // Normalize to empty if absent
+  const caps = capabilitiesRequired ?? [];
+  const exts = extensions ?? {};
+
+  // If both are empty, return empty string (no capabilities)
+  if (caps.length === 0 && Object.keys(exts).length === 0) {
+    return "";
+  }
+
+  // Build canonical object with sorted keys
+  const canonical = {
+    capabilities_required: caps,
+    extensions: exts,
+  };
+
+  // Compute digest of canonical JSON
+  const hash = createHash("sha256")
+    .update(stableStringifyForDigest(canonical))
+    .digest("hex");
+
+  return `sha256:${hash}`;
+}
+
+/**
  * Generate index.json for the plan store.
  * Only includes plans that were successfully compiled (from compiledPlanNames),
  * not all .plan.json files in the output directory. This ensures manifest is SSOT.
@@ -229,17 +265,29 @@ async function generateIndex(
 
     try {
       const content = await readFile(filePath, "utf-8");
-      const plan = JSON.parse(content) as { plan_name: string; built_by?: { tool_version?: string } };
+      const plan = JSON.parse(content) as {
+        plan_name: string;
+        built_by?: { tool_version?: string };
+        capabilities_required?: string[];
+        extensions?: Record<string, unknown>;
+      };
 
       // Compute digest of the canonical JSON (no whitespace, stable key order)
       const digest = createHash("sha256")
         .update(stableStringifyForDigest(JSON.parse(content)))
         .digest("hex");
 
+      // Compute capabilities digest (RFC0001)
+      const capabilitiesDigest = computeCapabilitiesDigest(
+        plan.capabilities_required,
+        plan.extensions
+      );
+
       entries.push({
         name: plan.plan_name,
         path: file,
         digest: `sha256:${digest}`,
+        capabilities_digest: capabilitiesDigest,
         built_by: {
           backend,
           tool: backend === "quickjs" ? "dslc" : "compiler-node",

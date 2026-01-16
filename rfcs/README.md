@@ -52,3 +52,18 @@ Every Accepted RFC must specify:
 
 ## Template
 Start from `0000-template.md`.
+
+## RFC Index
+
+| RFC | Title | Status | Capability ID |
+|-----|-------|--------|---------------|
+| [0001](0001-extensions-capabilities.md) | Extensions + Capability Gates | **Implemented** | `cap.rfc.0001.extensions_capabilities.v1` |
+| [0002](0002-timeout-wrapper.md) | Timeout Wrapper Meta-Task | Draft | `cap.rfc.0002.timeout_wrapper.v1` |
+| [0003](0003-debuggability-breakpoints-capture-after-request.md) | Debuggability: Breakpoints, Capture, Postlude | Draft | `cap.rfc.0003.debug_capture_postlude.v1` |
+| [0004](0004-runtime-branching-if-request.md) | Runtime Request Branching | Draft | `cap.rfc.0004.if_request_branching.v1` |
+| [0005](0005-key-effects-writes-exact.md) | Key Effects (writes_exact) | Draft | `cap.rfc.0005.key_effects_writes_exact.v1` |
+| [0006](0006-plan-visualizer.md) | Plan Visualizer | Draft | `cap.rfc.0006.plan-visualizer.v1` |
+
+## Adding Capabilities
+
+See [docs/ADDING_CAPABILITIES.md](../docs/ADDING_CAPABILITIES.md) for the implementation workflow.

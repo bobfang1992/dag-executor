@@ -456,5 +456,81 @@ fi
 '
 wait_all
 
+# Batch 11: capabilities_digest parity tests (parallel)
+echo "--- Batch 11: capabilities_digest parity ---"
+run_bg "Test 50: Digest parity (with caps)" bash -c '
+# Compile plan with TS
+pnpm run dslc build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/ci-digest-parity >/dev/null 2>&1
+
+# Get C++ digest
+CPP_DIGEST=$(engine/bin/rankd --print-plan-info --plan /tmp/ci-digest-parity/valid_capabilities.plan.json | python3 -c "import json,sys; print(json.load(sys.stdin)[\"capabilities_digest\"])")
+
+# Compute TS digest using same algorithm
+TS_DIGEST=$(cat /tmp/ci-digest-parity/valid_capabilities.plan.json | python3 -c "
+import json, hashlib, sys
+
+def stable_stringify(obj):
+    if obj is None:
+        return \"null\"
+    if isinstance(obj, bool):
+        return \"true\" if obj else \"false\"
+    if isinstance(obj, str):
+        return json.dumps(obj)
+    if isinstance(obj, (int, float)):
+        return json.dumps(obj)
+    if isinstance(obj, list):
+        return \"[\" + \",\".join(stable_stringify(x) for x in obj) + \"]\"
+    if isinstance(obj, dict):
+        keys = sorted(obj.keys())
+        pairs = [json.dumps(k) + \":\" + stable_stringify(obj[k]) for k in keys]
+        return \"{\" + \",\".join(pairs) + \"}\"
+    return json.dumps(obj)
+
+plan = json.load(sys.stdin)
+caps = plan.get(\"capabilities_required\", [])
+exts = plan.get(\"extensions\", {})
+if not caps and not exts:
+    print(\"\")
+else:
+    canonical = {\"capabilities_required\": caps, \"extensions\": exts}
+    digest = hashlib.sha256(stable_stringify(canonical).encode()).hexdigest()
+    print(f\"sha256:{digest}\")
+")
+
+if [ "$CPP_DIGEST" = "$TS_DIGEST" ]; then
+    exit 0
+else
+    echo "Digest mismatch: C++=$CPP_DIGEST TS=$TS_DIGEST"
+    exit 1
+fi
+'
+
+run_bg "Test 51: Digest parity (no caps)" bash -c '
+# Get C++ digest for plan without capabilities
+CPP_DIGEST=$(engine/bin/rankd --print-plan-info --plan artifacts/plans/reels_plan_a.plan.json | python3 -c "import json,sys; print(json.load(sys.stdin)[\"capabilities_digest\"])")
+
+# Should be empty string
+if [ "$CPP_DIGEST" = "" ]; then
+    exit 0
+else
+    echo "Expected empty digest, got: $CPP_DIGEST"
+    exit 1
+fi
+'
+
+run_bg "Test 52: Index has capabilities_digest" bash -c '
+# Check that index.json has capabilities_digest field for all plans
+python3 -c "
+import json
+with open(\"artifacts/plans/index.json\") as f:
+    index = json.load(f)
+for plan in index[\"plans\"]:
+    if \"capabilities_digest\" not in plan:
+        print(f\"Missing capabilities_digest in plan: {plan[\"name\"]}\")
+        exit(1)
+print(\"All plans have capabilities_digest field\")
+"'
+wait_all
+
 echo ""
 echo "=== All CI tests passed ==="
