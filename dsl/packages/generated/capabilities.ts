@@ -58,12 +58,10 @@ export function validatePayload(capId: string, payload: unknown): void {
     return;
   }
 
-  // Absent/null payload is OK only if no required fields
-  if (payload === undefined || payload === null) {
-    if (schema.required && schema.required.length > 0) {
-      throw new Error(`capability '${capId}': payload is null but has required fields`);
-    }
-    return;
+  // Undefined payload is OK (key omitted), but null is invalid for object schemas
+  if (payload === undefined) return;
+  if (payload === null) {
+    throw new Error(`capability '${capId}': payload is null, expected object (use {} or omit key)`);
   }
 
   if (schema.type === "object") {

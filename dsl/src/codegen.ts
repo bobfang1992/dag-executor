@@ -984,12 +984,10 @@ function generateCapabilitiesTs(capabilities: CapabilityEntry[], digest: string)
   lines.push("    return;");
   lines.push("  }");
   lines.push("");
-  lines.push("  // Absent/null payload is OK only if no required fields");
-  lines.push("  if (payload === undefined || payload === null) {");
-  lines.push("    if (schema.required && schema.required.length > 0) {");
-  lines.push("      throw new Error(`capability '${capId}': payload is null but has required fields`);");
-  lines.push("    }");
-  lines.push("    return;");
+  lines.push("  // Undefined payload is OK (key omitted), but null is invalid for object schemas");
+  lines.push("  if (payload === undefined) return;");
+  lines.push("  if (payload === null) {");
+  lines.push("    throw new Error(`capability '${capId}': payload is null, expected object (use {} or omit key)`);");
   lines.push("  }");
   lines.push("");
   lines.push('  if (schema.type === "object") {');

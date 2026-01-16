@@ -58,14 +58,11 @@ void validate_capability_payload(std::string_view cap_id,
     return;
   }
 
-  // Absent payload is OK only if no required fields
+  // Null payload is never valid for object schemas - use {} or omit the key
   if (payload.is_null()) {
-    if (schema.num_required_keys > 0) {
-      throw std::runtime_error(
-          std::string("capability '") + std::string(cap_id) + "' at " +
-          std::string(scope) + ": payload is null but has required fields");
-    }
-    return;
+    throw std::runtime_error(
+        std::string("capability '") + std::string(cap_id) + "' at " +
+        std::string(scope) + ": payload is null, expected object (use {} or omit key)");
   }
 
   if (!payload.is_object()) {
