@@ -368,6 +368,9 @@ Plan parse_plan(const std::string &path) {
       validate_capability_payload(key, it.value(), "plan");
     }
   }
+  // Note: We don't require plan-level extensions for capabilities with required
+  // fields. The capability might be configured at node-level only. Validation
+  // happens when a payload IS provided (either plan or node level).
 
   // RFC0001: node.extensions (already parsed above, now validate)
   for (size_t i = 0; i < plan.nodes.size(); ++i) {

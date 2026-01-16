@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "id": "cap.rfc.0001.extensions_capabilities.v1",
+      "rfc": "0001",
+      "name": "extensions_capabilities",
+      "status": "implemented",
+      "doc": "Base extensions/capabilities mechanism for IR evolution",
+      "payload_schema": {
+        "type": "object",
+        "additionalProperties": false
+      }
+    }
+  ]
+}

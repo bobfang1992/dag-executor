@@ -8,6 +8,7 @@
 #include <string>
 
 #include "capability_registry.h"
+#include "capability_registry_gen.h"
 #include "executor.h"
 #include "feature_registry.h"
 #include "key_registry.h"
@@ -74,10 +75,13 @@ int main(int argc, char *argv[]) {
     output["param_registry_digest"] = std::string(rankd::kParamRegistryDigest);
     output["feature_registry_digest"] =
         std::string(rankd::kFeatureRegistryDigest);
+    output["capability_registry_digest"] =
+        std::string(rankd::kCapabilityRegistryDigest);
     output["task_manifest_digest"] = task_registry.compute_manifest_digest();
     output["num_keys"] = rankd::kKeyCount;
     output["num_params"] = rankd::kParamCount;
     output["num_features"] = rankd::kFeatureCount;
+    output["num_capabilities"] = rankd::kCapabilityCount;
     output["num_tasks"] = task_registry.num_tasks();
     std::cout << output.dump() << std::endl;
     return 0;

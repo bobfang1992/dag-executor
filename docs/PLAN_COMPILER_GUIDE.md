@@ -177,6 +177,7 @@ Generated `index.json`:
       "name": "reels_plan_a",
       "path": "reels_plan_a.plan.json",
       "digest": "sha256:...",
+      "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",
         "tool": "dslc",
@@ -186,6 +187,10 @@ Generated `index.json`:
   ]
 }
 ```
+
+**Fields:**
+- `digest`: SHA256 of the plan artifact
+- `capabilities_digest`: SHA256 of `{capabilities_required, extensions}` (empty string if no capabilities)
 
 ---
 

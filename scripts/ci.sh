@@ -168,10 +168,12 @@ r = json.load(sys.stdin)
 assert \"key_registry_digest\" in r
 assert \"param_registry_digest\" in r
 assert \"feature_registry_digest\" in r
+assert \"capability_registry_digest\" in r
 assert \"task_manifest_digest\" in r
 assert r[\"num_keys\"] == 8
 assert r[\"num_params\"] == 3
 assert r[\"num_features\"] == 2
+assert r[\"num_capabilities\"] == 1
 assert r[\"num_tasks\"] == 6
 "'
 wait_all
@@ -452,7 +454,7 @@ else
 fi
 '
 run_bg "Test 49: Reject non-empty payload for base capability" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_nonempty_payload.plan.json 2>&1 | grep -q "payload must be empty"; then
+if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_nonempty_payload.plan.json 2>&1 | grep -q "unexpected key"; then
     exit 0
 else
     exit 1
@@ -535,6 +537,21 @@ for plan in index["plans"]:
         exit(1)
 print("All plans have capabilities_digest field")
 PYEOF
+'
+
+run_bg "Test 53: Capability registry digest parity (TS == C++)" bash -c '
+# Get TS digest from generated artifacts
+TS_DIGEST=$(cat artifacts/capabilities.digest | tr -d "\\n")
+
+# Get C++ digest from --print-registry
+CPP_DIGEST=$(engine/bin/rankd --print-registry | python3 -c "import json,sys; print(json.load(sys.stdin)[\"capability_registry_digest\"])")
+
+if [ "$TS_DIGEST" = "$CPP_DIGEST" ]; then
+    exit 0
+else
+    echo "Capability registry digest mismatch: TS=$TS_DIGEST C++=$CPP_DIGEST"
+    exit 1
+fi
 '
 wait_all
 

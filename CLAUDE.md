@@ -406,6 +406,7 @@ The system uses a capability-gated extension mechanism for evolving the Plan/Fra
 - **`capabilities_required`**: Sorted, unique list of capabilities a plan needs
 - **`extensions`**: Map from capability ID to RFC-defined payload
 - **Fail-closed**: Unknown capabilities cause plan rejection
+- **Single source of truth**: Capabilities defined in `registry/capabilities.toml`
 
 ### Adding New Capabilities
 
@@ -413,36 +414,61 @@ See [docs/ADDING_CAPABILITIES.md](docs/ADDING_CAPABILITIES.md) for the full work
 
 Quick summary:
 1. Write RFC with `capability_id` in frontmatter
-2. Register capability in `engine/src/capability_registry.cpp`
-3. Add payload validation if needed
-4. Update DSL runtime support
-5. Add tests and update CI
+2. Add capability to `registry/capabilities.toml` with payload schema
+3. Run `pnpm -C dsl run gen` to regenerate TS + C++
+4. Add tests and update CI
+
+### Capability Registry (TOML)
+
+Capabilities are defined in `registry/capabilities.toml`:
+
+```toml
+[[capability]]
+id = "cap.rfc.0001.extensions_capabilities.v1"
+rfc = "0001"
+name = "extensions_capabilities"
+status = "implemented"    # implemented | draft | deprecated | blocked
+doc = "Base extensions/capabilities mechanism for IR evolution"
+payload_schema = '''
+{
+  "type": "object",
+  "additionalProperties": false
+}
+'''
+```
+
+Codegen generates:
+- `dsl/packages/generated/capabilities.ts` - TS registry + `validatePayload()`
+- `engine/include/capability_registry_gen.h` - C++ constexpr metadata
 
 ### Registered Capabilities
 
-| RFC | Capability ID | Purpose |
-|-----|---------------|---------|
-| 0001 | `cap.rfc.0001.extensions_capabilities.v1` | Base extensions mechanism |
-| 0002 | `cap.rfc.0002.timeout_wrapper.v1` | Region deadline + fallback |
-| 0003 | `cap.rfc.0003.debug_capture_postlude.v1` | Breakpoints, capture, postlude |
-| 0004 | `cap.rfc.0004.if_request_branching.v1` | Runtime request branching |
-| 0005 | `cap.rfc.0005.key_effects_writes_exact.v1` | Compile-time effect inference |
-| 0006 | `cap.rfc.0006.plan-visualizer.v1` | Plan visualizer tool (no runtime) |
+| RFC | Capability ID | Status |
+|-----|---------------|--------|
+| 0001 | `cap.rfc.0001.extensions_capabilities.v1` | implemented |
+
+See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examples.
 
 ### Key Files
 
 | Component | Location |
 |-----------|----------|
-| C++ registry | `engine/src/capability_registry.cpp` |
+| Capability registry (TOML) | `registry/capabilities.toml` |
+| Generated TS module | `dsl/packages/generated/capabilities.ts` |
+| Generated C++ header | `engine/include/capability_registry_gen.h` |
+| C++ runtime logic | `engine/src/capability_registry.cpp` |
 | DSL runtime | `dsl/packages/runtime/src/plan.ts` |
 | Artifact validation | `dsl/packages/runtime/src/artifact-validation.ts` |
-| Index generation | `dsl/tools/build_all_plans.ts` |
 
 ### Digest Computation
 
-`capabilities_digest = sha256(canonical_json({capabilities_required, extensions}))`
+**Capability Registry Digest**: `sha256(canonical_json({schema_version, entries}))`
+- TS: `CAPABILITY_REGISTRY_DIGEST` from `@ranking-dsl/generated`
+- C++: `kCapabilityRegistryDigest` from `capability_registry_gen.h`
+- Engine: `engine/bin/rankd --print-registry`
 
-Computed identically in TS and C++ for cross-language parity.
+**Plan Capabilities Digest**: `sha256(canonical_json({capabilities_required, extensions}))`
+- Computed identically in TS and C++ for cross-language parity
 
 ---
 
@@ -618,12 +644,23 @@ Computed identically in TS and C++ for cross-language parity.
 - `--print-plan-info` flag for engine to output plan metadata
 - CI tests 50-52: Digest parity and index validation
 
+**Step 11.4: Capability Registry Codegen**
+- `registry/capabilities.toml` - Single source of truth for capability definitions
+- Embedded JSON Schema for payload validation in TOML
+- `dsl/packages/generated/capabilities.ts` - Generated TS registry + `validatePayload()`
+- `engine/include/capability_registry_gen.h` - Generated C++ constexpr metadata
+- `engine/src/capability_registry.cpp` - Schema-driven validation from generated registry
+- `artifacts/capabilities.json` + `artifacts/capabilities.digest` - JSON artifacts
+- `--print-registry` extended with `capability_registry_digest` and `num_capabilities`
+- CI test 53: Capability registry digest parity (TS == C++)
+
 ### 🔲 Not Yet Implemented
 
 **Registries (§3)**
 - [x] Key Registry (`registry/keys.toml`) + codegen
 - [x] Param Registry (`registry/params.toml`) + codegen
 - [x] Feature Registry (`registry/features.toml`) + codegen
+- [x] Capability Registry (`registry/capabilities.toml`) + codegen
 - [ ] Lifecycle/deprecation enforcement
 
 **DSL Layer (§4-7)**

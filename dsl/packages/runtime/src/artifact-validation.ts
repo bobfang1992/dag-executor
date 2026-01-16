@@ -5,6 +5,7 @@
  * between compilers. Do NOT add validation directly to compiler CLIs.
  */
 
+import { validatePayload, SUPPORTED_CAPABILITIES } from "@ranking-dsl/generated";
 import {
   validateCapabilitiesAndExtensions,
   validateNodeExtensions,
@@ -141,10 +142,31 @@ export function validateArtifact(artifact: unknown, planFileName: string): void 
     `artifact from ${planFileName}`
   );
 
+  // Validate extension payloads against their schemas
+  // Note: We only validate payloads that ARE provided. If a capability has
+  // required fields but no plan-level extension, that's OK - the capability
+  // might be configured at node-level only. validatePayload() ensures that
+  // when a payload IS provided, it has all required fields.
+  if (obj.extensions && typeof obj.extensions === "object") {
+    for (const [capId, payload] of Object.entries(obj.extensions as Record<string, unknown>)) {
+      validatePayload(capId, payload);
+    }
+  }
+
   // Validate node-level extensions
   const planCapabilities = obj.capabilities_required as string[] | undefined;
   for (let i = 0; i < obj.nodes.length; i++) {
     const n = obj.nodes[i] as Record<string, unknown>;
     validateNodeExtensions(n.extensions, planCapabilities, n.node_id as string);
+
+    // Validate node extension payloads against their schemas
+    if (n.extensions && typeof n.extensions === "object") {
+      for (const [capId, payload] of Object.entries(n.extensions as Record<string, unknown>)) {
+        validatePayload(capId, payload);
+      }
+    }
   }
 }
+
+// Re-export for convenience
+export { SUPPORTED_CAPABILITIES };
