@@ -400,6 +400,10 @@ function parseCapabilities(tomlPath: string): CapabilityEntry[] {
       } catch (e) {
         throw new Error(`capability ${id}: payload_schema is not valid JSON: ${e}`);
       }
+      // Enforce object type - non-object payloads not supported
+      if (payload_schema.type !== "object") {
+        throw new Error(`capability ${id}: payload_schema.type must be "object", got "${payload_schema.type}"`);
+      }
     }
 
     if (seenIds.has(id)) throw new Error(`Duplicate capability id: ${id}`);
