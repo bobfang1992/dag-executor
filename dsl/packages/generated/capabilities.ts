@@ -33,7 +33,7 @@ export const CAPABILITY_REGISTRY: Record<string, CapabilityMeta> = {
 
 export const SUPPORTED_CAPABILITIES = new Set(
   Object.entries(CAPABILITY_REGISTRY)
-    .filter(([, meta]) => meta.status !== "blocked")
+    .filter(([, meta]) => meta.status === "implemented" || meta.status === "deprecated")
     .map(([id]) => id)
 );
 

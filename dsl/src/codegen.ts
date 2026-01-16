@@ -955,7 +955,7 @@ function generateCapabilitiesTs(capabilities: CapabilityEntry[], digest: string)
   lines.push("");
   lines.push("export const SUPPORTED_CAPABILITIES = new Set(");
   lines.push("  Object.entries(CAPABILITY_REGISTRY)");
-  lines.push('    .filter(([, meta]) => meta.status !== "blocked")');
+  lines.push('    .filter(([, meta]) => meta.status === "implemented" || meta.status === "deprecated")');
   lines.push("    .map(([id]) => id)");
   lines.push(");");
   lines.push("");
