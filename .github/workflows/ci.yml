@@ -27,13 +27,18 @@ jobs:
       - name: Install dependencies (Ubuntu)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y cmake clang-format
-        # Note: Ubuntu apt has Catch2 v2.x, but we need v3.x - CMake will fetch it
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
-        run: |
-          brew install clang-format catch2
-          echo "CMAKE_PREFIX_PATH=$(brew --prefix)" >> $GITHUB_ENV
+        run: brew install clang-format
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: engine/build
+          key: ${{ runner.os }}-cmake-${{ hashFiles('engine/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-cmake-
 
       - name: Run CI
         run: ./scripts/ci.sh
