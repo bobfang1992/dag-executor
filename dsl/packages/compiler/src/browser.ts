@@ -33,39 +33,44 @@ import generatedSource from "virtual:generated-source";
 // esbuild-wasm instance (initialized lazily)
 let esbuildWasm: EsbuildLike | null = null;
 
-// Default CDN URL for esbuild WASM (fallback when no local WASM provided)
-const DEFAULT_ESBUILD_WASM_URL =
-  "https://unpkg.com/esbuild-wasm@0.19.12/esbuild.wasm";
-
 /**
  * Options for initializing the browser compiler.
  */
 export interface InitCompilerOptions {
   /**
-   * URL to the esbuild.wasm file.
-   * If not provided, falls back to CDN (unpkg.com).
-   * For offline/CSP-restricted environments, bundle the WASM and provide the URL:
+   * URL to the esbuild.wasm file (required).
+   * Must match the installed esbuild-wasm version to avoid JS/WASM mismatch.
+   *
+   * Example with Vite:
    *   import wasmUrl from 'esbuild-wasm/esbuild.wasm?url';
    *   await initCompiler({ wasmURL: wasmUrl });
    */
-  wasmURL?: string;
+  wasmURL: string;
 }
 
 /**
  * Initialize the browser compiler.
  * Must be called before compilePlan().
  *
- * @param options - Optional configuration including wasmURL for offline support
+ * @param options - Configuration including wasmURL (required)
  */
-export async function initCompiler(options?: InitCompilerOptions): Promise<void> {
+export async function initCompiler(options: InitCompilerOptions): Promise<void> {
   if (esbuildWasm) return; // Already initialized
+
+  if (!options?.wasmURL) {
+    throw new Error(
+      "wasmURL is required. Import the WASM file and pass its URL:\n" +
+      "  import wasmUrl from 'esbuild-wasm/esbuild.wasm?url';\n" +
+      "  await initCompiler({ wasmURL: wasmUrl });"
+    );
+  }
 
   // Dynamic import to avoid bundling issues
   const esbuild = await import("esbuild-wasm");
 
-  // Initialize esbuild-wasm with provided or default WASM URL
+  // Initialize esbuild-wasm with provided WASM URL
   await esbuild.initialize({
-    wasmURL: options?.wasmURL ?? DEFAULT_ESBUILD_WASM_URL,
+    wasmURL: options.wasmURL,
   });
 
   // esbuild-wasm's build() is compatible with our EsbuildLike interface
