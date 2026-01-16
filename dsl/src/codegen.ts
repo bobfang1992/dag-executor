@@ -12,6 +12,7 @@ type KeyType = "int" | "float" | "string" | "bool" | "feature_bundle";
 type ParamType = "int" | "float" | "string" | "bool";
 type FeatureType = "int" | "float" | "string" | "bool";
 type Status = "active" | "deprecated" | "blocked";
+type CapabilityStatus = "implemented" | "draft" | "deprecated" | "blocked";
 
 interface KeyEntry {
   key_id: number;
@@ -48,6 +49,23 @@ interface FeatureEntry {
   doc: string;
 }
 
+// JSON Schema subset for capability payload validation
+interface JsonSchema {
+  type?: string;
+  properties?: Record<string, JsonSchema>;
+  additionalProperties?: boolean;
+  required?: string[];
+}
+
+interface CapabilityEntry {
+  id: string;           // "cap.rfc.0001.extensions_capabilities.v1"
+  rfc: string;          // "0001"
+  name: string;         // "extensions_capabilities"
+  status: CapabilityStatus;
+  doc: string;
+  payload_schema: JsonSchema | null;  // Parsed JSON Schema or null (no payload allowed)
+}
+
 interface ValidationRules {
   schema_version: number;
   patterns: Record<string, string>;
@@ -63,6 +81,7 @@ const KEY_TYPES: readonly string[] = ["int", "float", "string", "bool", "feature
 const PARAM_TYPES: readonly string[] = ["int", "float", "string", "bool"];
 const FEATURE_TYPES: readonly string[] = ["int", "float", "string", "bool"];
 const STATUSES: readonly string[] = ["active", "deprecated", "blocked"];
+const CAPABILITY_STATUSES: readonly string[] = ["implemented", "draft", "deprecated", "blocked"];
 
 function isKeyType(v: unknown): v is KeyType {
   return typeof v === "string" && KEY_TYPES.includes(v);
@@ -78,6 +97,10 @@ function isFeatureType(v: unknown): v is FeatureType {
 
 function isStatus(v: unknown): v is Status {
   return typeof v === "string" && STATUSES.includes(v);
+}
+
+function isCapabilityStatus(v: unknown): v is CapabilityStatus {
+  return typeof v === "string" && CAPABILITY_STATUSES.includes(v);
 }
 
 function assertString(v: unknown, field: string): string {
@@ -327,6 +350,69 @@ function parseValidation(tomlPath: string): ValidationRules {
   return { schema_version, patterns, limits, enums };
 }
 
+function parseCapabilities(tomlPath: string): CapabilityEntry[] {
+  const content = readFileSync(tomlPath, "utf-8");
+  const parsed: unknown = parseToml(content);
+
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error("Invalid TOML structure in capabilities.toml");
+  }
+
+  const obj = parsed as Record<string, unknown>;
+
+  const schemaVersion = obj["schema_version"];
+  if (schemaVersion !== 1) {
+    throw new Error(`Unsupported capabilities.toml schema_version: ${schemaVersion}`);
+  }
+
+  const rawCaps = obj["capability"];
+  if (!Array.isArray(rawCaps)) {
+    throw new Error("Expected [[capability]] array in capabilities.toml");
+  }
+
+  const entries: CapabilityEntry[] = [];
+  const seenIds = new Set<string>();
+
+  for (const raw of rawCaps) {
+    if (typeof raw !== "object" || raw === null) {
+      throw new Error("Invalid capability entry");
+    }
+    const r = raw as Record<string, unknown>;
+
+    const id = assertString(r["id"], "id");
+    const rfc = assertString(r["rfc"], "rfc");
+    const name = assertString(r["name"], "name");
+    const statusVal = r["status"];
+    if (!isCapabilityStatus(statusVal)) {
+      throw new Error(`Invalid capability status: ${statusVal}`);
+    }
+    const doc = assertString(r["doc"], "doc");
+
+    // Parse payload_schema: string containing JSON or absent
+    let payload_schema: JsonSchema | null = null;
+    const schemaStr = r["payload_schema"];
+    if (schemaStr !== undefined) {
+      if (typeof schemaStr !== "string") {
+        throw new Error(`capability ${id}: payload_schema must be a string (JSON)"`);
+      }
+      try {
+        payload_schema = JSON.parse(schemaStr) as JsonSchema;
+      } catch (e) {
+        throw new Error(`capability ${id}: payload_schema is not valid JSON: ${e}`);
+      }
+    }
+
+    if (seenIds.has(id)) throw new Error(`Duplicate capability id: ${id}`);
+    seenIds.add(id);
+
+    entries.push({ id, rfc, name, status: statusVal, doc, payload_schema });
+  }
+
+  // Sort by id for deterministic output
+  entries.sort((a, b) => a.id.localeCompare(b.id));
+  return entries;
+}
+
 // ============================================================
 // Digest Computation
 // ============================================================
@@ -496,6 +582,7 @@ function generateIndexTs(): string {
     'export { P, ParamToken, ParamType, PARAM_REGISTRY_DIGEST, PARAM_COUNT } from "./params.js";',
     'export { Feat, FeatureToken, FeatureType, FEATURE_REGISTRY_DIGEST, FEATURE_COUNT } from "./features.js";',
     'export * from "./validation.js";',
+    'export * from "./capabilities.js";',
     "",
   ].join("\n");
 }
@@ -820,6 +907,197 @@ function generateValidationH(validation: ValidationRules, digest: string): strin
 }
 
 // ============================================================
+// Capabilities Code Generation
+// ============================================================
+
+function generateCapabilitiesTs(capabilities: CapabilityEntry[], digest: string): string {
+  const lines: string[] = [
+    "// AUTO-GENERATED - DO NOT EDIT",
+    "// Generated by dsl/src/codegen.ts from registry/capabilities.toml",
+    "",
+    'export type CapabilityStatus = "implemented" | "draft" | "deprecated" | "blocked";',
+    "",
+    "// JSON Schema subset for capability payload validation",
+    "export interface JsonSchema {",
+    "  type?: string;",
+    "  properties?: Record<string, JsonSchema>;",
+    "  additionalProperties?: boolean;",
+    "  required?: string[];",
+    "}",
+    "",
+    "export interface CapabilityMeta {",
+    "  id: string;",
+    "  rfc: string;",
+    "  name: string;",
+    "  status: CapabilityStatus;",
+    "  doc: string;",
+    "  payloadSchema: JsonSchema | null;",
+    "}",
+    "",
+    "export const CAPABILITY_REGISTRY: Record<string, CapabilityMeta> = {",
+  ];
+
+  for (const cap of capabilities) {
+    const schemaStr = cap.payload_schema === null
+      ? "null"
+      : JSON.stringify(cap.payload_schema);
+    lines.push(`  ${JSON.stringify(cap.id)}: {`);
+    lines.push(`    id: ${JSON.stringify(cap.id)},`);
+    lines.push(`    rfc: ${JSON.stringify(cap.rfc)},`);
+    lines.push(`    name: ${JSON.stringify(cap.name)},`);
+    lines.push(`    status: ${JSON.stringify(cap.status)},`);
+    lines.push(`    doc: ${JSON.stringify(cap.doc)},`);
+    lines.push(`    payloadSchema: ${schemaStr},`);
+    lines.push("  },");
+  }
+
+  lines.push("};");
+  lines.push("");
+  lines.push("export const SUPPORTED_CAPABILITIES = new Set(");
+  lines.push("  Object.entries(CAPABILITY_REGISTRY)");
+  lines.push('    .filter(([, meta]) => meta.status !== "blocked")');
+  lines.push("    .map(([id]) => id)");
+  lines.push(");");
+  lines.push("");
+  lines.push(`export const CAPABILITY_REGISTRY_DIGEST = "${digest}";`);
+  lines.push(`export const CAPABILITY_COUNT = ${capabilities.length};`);
+  lines.push("");
+  lines.push("// ============================================================");
+  lines.push("// Simple JSON Schema validator (subset for capability payloads)");
+  lines.push("// ============================================================");
+  lines.push("");
+  lines.push("export function validatePayload(capId: string, payload: unknown): void {");
+  lines.push("  const meta = CAPABILITY_REGISTRY[capId];");
+  lines.push("  if (!meta) return; // Unknown cap handled elsewhere");
+  lines.push("");
+  lines.push("  const schema = meta.payloadSchema;");
+  lines.push("");
+  lines.push("  // No schema = no payload allowed");
+  lines.push("  if (schema === null) {");
+  lines.push("    if (payload !== undefined && payload !== null) {");
+  lines.push("      throw new Error(`capability '${capId}': no payload allowed`);");
+  lines.push("    }");
+  lines.push("    return;");
+  lines.push("  }");
+  lines.push("");
+  lines.push("  // Absent/null payload is OK when schema exists");
+  lines.push("  if (payload === undefined || payload === null) return;");
+  lines.push("");
+  lines.push('  if (schema.type === "object") {');
+  lines.push("    if (typeof payload !== \"object\" || payload === null || Array.isArray(payload)) {");
+  lines.push("      throw new Error(`capability '${capId}': payload must be object`);");
+  lines.push("    }");
+  lines.push("    const obj = payload as Record<string, unknown>;");
+  lines.push("    if (schema.additionalProperties === false) {");
+  lines.push("      const allowed = new Set(Object.keys(schema.properties ?? {}));");
+  lines.push("      for (const key of Object.keys(obj)) {");
+  lines.push("        if (!allowed.has(key)) {");
+  lines.push("          throw new Error(`capability '${capId}': unexpected key '${key}'`);");
+  lines.push("        }");
+  lines.push("      }");
+  lines.push("    }");
+  lines.push("    // Check required properties");
+  lines.push("    for (const req of schema.required ?? []) {");
+  lines.push("      if (!(req in obj)) {");
+  lines.push("        throw new Error(`capability '${capId}': missing required '${req}'`);");
+  lines.push("      }");
+  lines.push("    }");
+  lines.push("    // Type-check properties");
+  lines.push("    for (const [key, propSchema] of Object.entries(schema.properties ?? {})) {");
+  lines.push("      if (key in obj) {");
+  lines.push("        validatePropertyType(capId, key, obj[key], propSchema);");
+  lines.push("      }");
+  lines.push("    }");
+  lines.push("  }");
+  lines.push("}");
+  lines.push("");
+  lines.push("function validatePropertyType(");
+  lines.push("  capId: string,");
+  lines.push("  key: string,");
+  lines.push("  value: unknown,");
+  lines.push("  schema: JsonSchema");
+  lines.push("): void {");
+  lines.push('  if (schema.type === "boolean" && typeof value !== "boolean") {');
+  lines.push("    throw new Error(`capability '${capId}': '${key}' must be boolean`);");
+  lines.push("  }");
+  lines.push('  if (schema.type === "string" && typeof value !== "string") {');
+  lines.push("    throw new Error(`capability '${capId}': '${key}' must be string`);");
+  lines.push("  }");
+  lines.push('  if (schema.type === "number" && typeof value !== "number") {');
+  lines.push("    throw new Error(`capability '${capId}': '${key}' must be number`);");
+  lines.push("  }");
+  lines.push("}");
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+function cppCapabilityStatus(s: CapabilityStatus): string {
+  switch (s) {
+    case "implemented": return "Implemented";
+    case "draft": return "Draft";
+    case "deprecated": return "Deprecated";
+    case "blocked": return "Blocked";
+  }
+}
+
+function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string): string {
+  const lines: string[] = [
+    "// AUTO-GENERATED - DO NOT EDIT",
+    "// Generated by dsl/src/codegen.ts from registry/capabilities.toml",
+    "#pragma once",
+    "",
+    "#include <array>",
+    "#include <optional>",
+    "#include <string_view>",
+    "",
+    "namespace rankd {",
+    "",
+    "enum class CapabilityStatus { Implemented, Draft, Deprecated, Blocked };",
+    "",
+    "// Simple schema representation (subset of JSON Schema)",
+    "// For now, we only need to track:",
+    "// - has_schema: false = no payload allowed",
+    "// - additional_properties: false = only allowed keys accepted",
+    "struct PayloadSchema {",
+    "  bool has_schema;             // false = no payload allowed",
+    "  bool additional_properties;  // true = allow extra keys",
+    "  // Property definitions can be added as needed",
+    "};",
+    "",
+    "struct CapabilityMeta {",
+    "  std::string_view id;",
+    "  std::string_view rfc;",
+    "  std::string_view name;",
+    "  CapabilityStatus status;",
+    "  std::string_view doc;",
+    "  PayloadSchema schema;",
+    "};",
+    "",
+    `inline constexpr size_t kCapabilityCount = ${capabilities.length};`,
+    `inline constexpr std::string_view kCapabilityRegistryDigest = "${digest}";`,
+    "",
+    `inline constexpr std::array<CapabilityMeta, kCapabilityCount> kCapabilityRegistry = {{`,
+  ];
+
+  for (const cap of capabilities) {
+    const hasSchema = cap.payload_schema !== null;
+    const additionalProps = cap.payload_schema?.additionalProperties !== false;
+    lines.push(`    {${JSON.stringify(cap.id)}, ${JSON.stringify(cap.rfc)}, ${JSON.stringify(cap.name)},`);
+    lines.push(`     CapabilityStatus::${cppCapabilityStatus(cap.status)},`);
+    lines.push(`     ${JSON.stringify(cap.doc)},`);
+    lines.push(`     {.has_schema = ${hasSchema}, .additional_properties = ${additionalProps}}},`);
+  }
+
+  lines.push("}};");
+  lines.push("");
+  lines.push("} // namespace rankd");
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+// ============================================================
 // Main
 // ============================================================
 
@@ -832,17 +1110,20 @@ function main() {
   const params = parseParams(path.join(repoRoot, "registry/params.toml"));
   const features = parseFeatures(path.join(repoRoot, "registry/features.toml"));
   const validation = parseValidation(path.join(repoRoot, "registry/validation.toml"));
+  const capabilities = parseCapabilities(path.join(repoRoot, "registry/capabilities.toml"));
 
   // Build canonical JSON
   const keysCanonical = { schema_version: 1, entries: keys };
   const paramsCanonical = { schema_version: 1, entries: params };
   const featuresCanonical = { schema_version: 1, entries: features };
   const validationCanonical = { schema_version: 1, ...validation };
+  const capabilitiesCanonical = { schema_version: 1, entries: capabilities };
 
   const keysDigest = computeDigest(keysCanonical);
   const paramsDigest = computeDigest(paramsCanonical);
   const featuresDigest = computeDigest(featuresCanonical);
   const validationDigest = computeDigest(validationCanonical);
+  const capabilitiesDigest = computeDigest(capabilitiesCanonical);
 
   // Generate all outputs
   const outputs: Array<{ path: string; content: string }> = [
@@ -850,15 +1131,18 @@ function main() {
     { path: "artifacts/keys.json", content: JSON.stringify(keysCanonical, null, 2) + "\n" },
     { path: "artifacts/params.json", content: JSON.stringify(paramsCanonical, null, 2) + "\n" },
     { path: "artifacts/features.json", content: JSON.stringify(featuresCanonical, null, 2) + "\n" },
+    { path: "artifacts/capabilities.json", content: JSON.stringify(capabilitiesCanonical, null, 2) + "\n" },
     // Artifacts digests
     { path: "artifacts/keys.digest", content: keysDigest + "\n" },
     { path: "artifacts/params.digest", content: paramsDigest + "\n" },
     { path: "artifacts/features.digest", content: featuresDigest + "\n" },
+    { path: "artifacts/capabilities.digest", content: capabilitiesDigest + "\n" },
     // TypeScript
     { path: "dsl/packages/generated/keys.ts", content: generateKeysTs(keys, keysDigest) },
     { path: "dsl/packages/generated/params.ts", content: generateParamsTs(params, paramsDigest) },
     { path: "dsl/packages/generated/features.ts", content: generateFeaturesTs(features, featuresDigest) },
     { path: "dsl/packages/generated/validation.ts", content: generateValidationTs(validation, validationDigest) },
+    { path: "dsl/packages/generated/capabilities.ts", content: generateCapabilitiesTs(capabilities, capabilitiesDigest) },
     { path: "dsl/packages/generated/index.ts", content: generateIndexTs() },
     // C++ headers (formatted with clang-format)
     // Note: We use *_registry.h names to avoid shadowing system headers (e.g. <features.h>)
@@ -866,6 +1150,7 @@ function main() {
     { path: "engine/include/param_registry.h", content: formatCpp(generateParamsH(params, paramsDigest)) },
     { path: "engine/include/feature_registry.h", content: formatCpp(generateFeaturesH(features, featuresDigest)) },
     { path: "engine/include/validation.h", content: formatCpp(generateValidationH(validation, validationDigest)) },
+    { path: "engine/include/capability_registry_gen.h", content: formatCpp(generateCapabilitiesH(capabilities, capabilitiesDigest)) },
   ];
 
   if (checkMode) {

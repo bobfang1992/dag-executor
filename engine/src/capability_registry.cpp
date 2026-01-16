@@ -1,5 +1,6 @@
 #include "capability_registry.h"
 
+#include "capability_registry_gen.h"
 #include "sha256.h"
 
 #include <nlohmann/json.hpp>
@@ -8,28 +9,56 @@
 
 namespace rankd {
 
-// Set of capabilities supported by this engine version.
-// Add new capabilities here as they are implemented.
-static const std::unordered_set<std::string> supported_capabilities = {
-    // RFC0001: Base extensions/capabilities mechanism
-    "cap.rfc.0001.extensions_capabilities.v1",
-};
+// Build supported capabilities set from generated registry (once at startup)
+static std::unordered_set<std::string> build_supported_caps() {
+  std::unordered_set<std::string> caps;
+  for (const auto &meta : kCapabilityRegistry) {
+    // Include all capabilities except blocked ones
+    if (meta.status != CapabilityStatus::Blocked) {
+      caps.insert(std::string(meta.id));
+    }
+  }
+  return caps;
+}
+
+static const std::unordered_set<std::string> supported_capabilities =
+    build_supported_caps();
 
 bool capability_is_supported(std::string_view cap_id) {
   return supported_capabilities.count(std::string(cap_id)) > 0;
 }
 
+// Helper: lookup capability metadata from generated registry
+static const CapabilityMeta *find_capability_meta(std::string_view cap_id) {
+  for (const auto &meta : kCapabilityRegistry) {
+    if (meta.id == cap_id)
+      return &meta;
+  }
+  return nullptr;
+}
+
 void validate_capability_payload(std::string_view cap_id,
                                   const nlohmann::json &payload,
                                   std::string_view scope) {
-  // Policy: payloads must be absent (null) or empty object {}
-  // This is the strictest policy for the base RFC0001 mechanism.
-  // Future capabilities can define their own payload schemas.
+  const auto *meta = find_capability_meta(cap_id);
+  if (!meta)
+    return; // Unknown cap handled by capability_is_supported
 
-  if (payload.is_null()) {
-    // Absent payload is OK
+  const auto &schema = meta->schema;
+
+  // No schema = no payload allowed
+  if (!schema.has_schema) {
+    if (!payload.is_null()) {
+      throw std::runtime_error(std::string("capability '") +
+                                std::string(cap_id) + "' at " +
+                                std::string(scope) + ": no payload allowed");
+    }
     return;
   }
+
+  // Absent payload is always OK when schema exists
+  if (payload.is_null())
+    return;
 
   if (!payload.is_object()) {
     throw std::runtime_error(
@@ -38,18 +67,16 @@ void validate_capability_payload(std::string_view cap_id,
         payload.type_name());
   }
 
-  // Capability-specific payload validation
-  // The base RFC0001 capability requires empty payload (fail-closed)
-  if (cap_id == "cap.rfc.0001.extensions_capabilities.v1") {
-    if (!payload.empty()) {
-      throw std::runtime_error(
-          std::string("capability '") + std::string(cap_id) + "' at " +
-          std::string(scope) +
-          ": payload must be empty object {}, got object with " +
-          std::to_string(payload.size()) + " field(s)");
-    }
+  // Check additional properties (schema-driven validation)
+  if (!schema.additional_properties && !payload.empty()) {
+    // additionalProperties: false means no extra keys allowed
+    // For RFC0001 base capability: no properties defined, so must be empty {}
+    throw std::runtime_error(
+        std::string("capability '") + std::string(cap_id) + "' at " +
+        std::string(scope) +
+        ": payload must be empty object {}, got object with " +
+        std::to_string(payload.size()) + " field(s)");
   }
-  // Future capabilities can add their own payload schemas here
 }
 
 // Helper: produce canonical JSON string with sorted keys (no whitespace)

@@ -7,7 +7,8 @@ This guide explains how to add a new capability to the dag-executor system, foll
 Capabilities are the extension mechanism for evolving the Plan/Fragment JSON IR without changing the base schema. Each capability:
 - Has a unique, immutable ID following naming conventions
 - Gates new features behind fail-closed validation
-- May define an extension payload schema
+- May define an extension payload schema (JSON Schema)
+- Is defined in `registry/capabilities.toml` (single source of truth)
 
 ## Capability ID Naming Convention
 
@@ -38,39 +39,76 @@ requires: [0001]  # All capabilities depend on RFC 0001
 
 Define your extension payload schema in the RFC if needed.
 
-### 2. Register the Capability in C++ Engine
+### 2. Register the Capability in TOML
 
-Edit `engine/src/capability_registry.cpp`:
+Edit `registry/capabilities.toml`:
 
-```cpp
-// Add to supported_capabilities set
-static const std::unordered_set<std::string> supported_capabilities = {
-    "cap.rfc.0001.extensions_capabilities.v1",
-    "cap.rfc.NNNN.<slug>.v1",  // <-- Add here
-};
+```toml
+[[capability]]
+id = "cap.rfc.NNNN.<slug>.v1"
+rfc = "NNNN"
+name = "<slug>"
+status = "draft"    # draft → implemented when ready
+doc = "Description of what this capability enables"
+
+# Optional: Define payload schema (JSON Schema)
+# If omitted, no payload is allowed (must be null/absent)
+payload_schema = '''
+{
+  "type": "object",
+  "properties": {
+    "trace_events": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}
+'''
 ```
 
-If your capability has a payload schema, add validation in `validate_capability_payload()`:
+**Status values:**
+- `implemented` - Fully supported by engine
+- `draft` - RFC approved, not yet implemented
+- `deprecated` - Will be removed in future version
+- `blocked` - Rejected, plan using this will be rejected
+
+**Payload schema:**
+- Omit for capabilities that don't allow payloads
+- JSON Schema subset: `type`, `properties`, `additionalProperties`, `required`
+- Supported types: `object`, `boolean`, `string`, `number`
+
+### 3. Run Codegen
+
+```bash
+# Regenerate TS + C++ from TOML
+pnpm -C dsl run gen
+
+# Verify generated files
+pnpm -C dsl run gen:check
+```
+
+This generates:
+- `dsl/packages/generated/capabilities.ts` - TS registry + validator
+- `engine/include/capability_registry_gen.h` - C++ constexpr metadata
+- `artifacts/capabilities.json` - JSON artifact
+- `artifacts/capabilities.digest` - SHA256 digest
+
+### 4. Add Engine-Specific Logic (if needed)
+
+If your capability requires custom engine behavior beyond schema validation, update `engine/src/capability_registry.cpp`:
 
 ```cpp
 void validate_capability_payload(std::string_view cap_id,
                                   const nlohmann::json &payload,
                                   std::string_view scope) {
-  // ... existing validation ...
+  // ... schema-driven validation happens automatically ...
 
-  // Add capability-specific validation
+  // Add capability-specific semantic validation if needed
   if (cap_id == "cap.rfc.NNNN.<slug>.v1") {
-    // Validate payload schema
-    if (!payload.contains("required_field")) {
-      throw std::runtime_error(
-          std::string("capability '") + std::string(cap_id) + "' at " +
-          std::string(scope) + ": missing required_field");
-    }
+    // Custom validation logic
   }
 }
 ```
 
-### 3. Add DSL Runtime Support (if needed)
+### 5. Add DSL Runtime Support (if needed)
 
 If plans need to declare this capability, update `dsl/packages/runtime/src/plan.ts`:
 
@@ -81,13 +119,7 @@ requireCapability(capId: string, payload?: Record<string, unknown>): void {
 }
 ```
 
-### 4. Add Artifact Validation (if needed)
-
-If the capability introduces new artifact fields, update validation in:
-- `dsl/packages/runtime/src/artifact-validation.ts` (shared validation)
-- `engine/src/plan.cpp` (C++ parsing/validation)
-
-### 5. Add Tests
+### 6. Add Tests
 
 Create test fixtures:
 
@@ -110,10 +142,10 @@ run_bg "Test NN: <Description>" bash -c '
 '
 ```
 
-### 6. Rebuild and Verify
+### 7. Rebuild and Verify
 
 ```bash
-# Rebuild engine
+# Rebuild engine (picks up generated header)
 cmake --build engine/build --parallel
 
 # Rebuild DSL
@@ -123,92 +155,19 @@ pnpm run build:dsl
 ./scripts/ci.sh
 ```
 
-## Extension Payload Schemas by RFC
-
-### RFC 0001: Base Mechanism
-- **Capability ID**: `cap.rfc.0001.extensions_capabilities.v1`
-- **Payload**: Empty object `{}` required (no fields allowed)
-- **Purpose**: Meta-capability that gates the extensions mechanism itself
-
-### RFC 0002: Timeout Wrapper
-- **Capability ID**: `cap.rfc.0002.timeout_wrapper.v1`
-- **Payload Schema**:
-```jsonc
-{
-  // Plan-level extension
-  "cap.rfc.0002.timeout_wrapper.v1": {
-    // No plan-level payload defined in v1
-  }
-}
-```
-- **Node-level extensions**: Defined per `timeout_wrapper` node params
-
-### RFC 0003: Debug Capture & Postlude
-- **Capability ID**: `cap.rfc.0003.debug_capture_postlude.v1`
-- **Payload Schema**:
-```jsonc
-{
-  "cap.rfc.0003.debug_capture_postlude.v1": {
-    "postlude_jobs": [
-      {
-        "anchor_breakpoint": "plan::fragment::label",
-        "job_fragment_digest": "sha256:...",
-        "when": { /* optional predicate */ },
-        "budgets": { /* job budgets */ },
-        "sinks": ["sink_id"]
-      }
-    ]
-  }
-}
-```
-
-### RFC 0004: Runtime Request Branching
-- **Capability ID**: `cap.rfc.0004.if_request_branching.v1`
-- **Payload Schema**:
-```jsonc
-{
-  "cap.rfc.0004.if_request_branching.v1": {
-    // No plan-level payload defined in v1
-  }
-}
-```
-- **Node-level extensions**: Defined per `if_request` node params
-
-### RFC 0005: Key Effects (writes_exact)
-- **Capability ID**: `cap.rfc.0005.key_effects_writes_exact.v1`
-- **Payload Schema**:
-```jsonc
-{
-  "cap.rfc.0005.key_effects_writes_exact.v1": {
-    // Effect metadata for tooling
-    "node_effects": {
-      "node_id": {
-        "writes": ["key_id_1", "key_id_2"],
-        "effect_type": "exact"  // or "may" or "unknown"
-      }
-    }
-  }
-}
-```
-
-### RFC 0006: Plan Visualizer
-- **Capability ID**: `cap.rfc.0006.plan-visualizer.v1`
-- **Payload Schema**: None (tooling-only, no runtime capability needed)
-- **Note**: This is a pure tooling RFC; plans don't need to declare this capability
-
 ## File Locations Summary
 
 | Component | Location |
 |-----------|----------|
-| C++ capability registry | `engine/src/capability_registry.cpp` |
-| C++ capability header | `engine/include/capability_registry.h` |
+| Capability registry (TOML) | `registry/capabilities.toml` |
+| Generated TS module | `dsl/packages/generated/capabilities.ts` |
+| Generated C++ header | `engine/include/capability_registry_gen.h` |
+| C++ runtime logic | `engine/src/capability_registry.cpp` |
 | DSL runtime | `dsl/packages/runtime/src/plan.ts` |
 | Artifact validation | `dsl/packages/runtime/src/artifact-validation.ts` |
-| Plan parsing (C++) | `engine/src/plan.cpp` |
 | Test fixtures (DSL) | `test/fixtures/plans/` |
 | Test fixtures (Engine) | `artifacts/plans/bad_engine_*.plan.json` |
 | CI tests | `scripts/ci.sh` |
-| RFC docs | `rfcs/` |
 
 ## Governance Rules
 
@@ -216,14 +175,32 @@ pnpm run build:dsl
 2. **Immutable IDs**: Once published, capability IDs cannot change
 3. **Breaking Changes**: Require new version (`v2`, `v3`, etc.)
 4. **Extension Keys**: Must be declared in `capabilities_required`
-5. **Payload Validation**: Strict schema validation per capability
+5. **Schema Validation**: Payloads validated against JSON Schema from registry
+6. **Blocked Status**: Capabilities with `status = "blocked"` reject plans
 
 ## Digest Computation
 
-The `capabilities_digest` is computed as:
+Two digests are tracked:
+
+### Capability Registry Digest
+
+Computed from the canonical JSON of all capability entries:
 
 ```
-sha256(canonical_json({
+capability_registry_digest = sha256(canonical_json({schema_version, entries}))
+```
+
+Available via:
+- TS: `CAPABILITY_REGISTRY_DIGEST` from `@ranking-dsl/generated`
+- C++: `kCapabilityRegistryDigest` from `capability_registry_gen.h`
+- Engine: `engine/bin/rankd --print-registry`
+
+### Plan Capabilities Digest
+
+Computed per-plan from capabilities used:
+
+```
+capabilities_digest = sha256(canonical_json({
   "capabilities_required": [...],
   "extensions": {...}
 }))
@@ -231,37 +208,40 @@ sha256(canonical_json({
 
 Where `canonical_json` sorts keys alphabetically and uses no whitespace.
 
-Both TypeScript (`dsl/tools/build_all_plans.ts`) and C++ (`engine/src/capability_registry.cpp`) implementations must produce identical digests.
+Both TypeScript (`dsl/tools/build_all_plans.ts`) and C++ (`engine/src/capability_registry.cpp`) implementations produce identical digests.
 
-## Future: Capability Registry Codegen (Step 11.4)
-
-Currently, capability validation is implemented separately in TypeScript and C++. A future improvement is to define capabilities in a TOML registry and codegen both implementations:
+## Example: Adding a Hypothetical RFC 0007
 
 ```toml
-# registry/capabilities.toml (future)
+# registry/capabilities.toml
 
-[capabilities.rfc0001_extensions]
-id = "cap.rfc.0001.extensions_capabilities.v1"
-rfc = "0001"
-status = "implemented"
-
-[capabilities.rfc0001_extensions.plan_payload]
-type = "object"
-additional_properties = false  # empty {} required
-
-[capabilities.rfc0002_timeout_wrapper]
-id = "cap.rfc.0002.timeout_wrapper.v1"
-rfc = "0002"
+[[capability]]
+id = "cap.rfc.0007.feature_caching.v1"
+rfc = "0007"
+name = "feature_caching"
 status = "draft"
-requires = ["cap.rfc.0001.extensions_capabilities.v1"]
-
-[capabilities.rfc0002_timeout_wrapper.node_payload]
-type = "object"
-properties.trace_timeout_events = { type = "boolean", optional = true }
+doc = "Enable feature caching with TTL and eviction policies"
+payload_schema = '''
+{
+  "type": "object",
+  "properties": {
+    "default_ttl_seconds": {"type": "number"},
+    "eviction_policy": {"type": "string"}
+  },
+  "required": ["default_ttl_seconds"],
+  "additionalProperties": false
+}
+'''
 ```
 
-Benefits:
-- Single source of truth (no TS/C++ drift)
-- Schema reviewable in one place
-- Can generate documentation automatically
-- Easier to add new capabilities
+After running `pnpm -C dsl run gen`:
+- Plans can declare `capabilities_required: ["cap.rfc.0007.feature_caching.v1"]`
+- Extensions must include `default_ttl_seconds` (required)
+- Extensions may include `eviction_policy` (optional)
+- No other fields allowed (`additionalProperties: false`)
+
+## See Also
+
+- [CAPABILITY_EXAMPLES.md](CAPABILITY_EXAMPLES.md) - Examples for each RFC capability
+- [PLAN_AUTHORING_GUIDE.md](PLAN_AUTHORING_GUIDE.md) - How to write plans
+- `registry/capabilities.toml` - Current capability definitions
