@@ -7,10 +7,9 @@
     "declarationMap": true,
     "composite": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
   "exclude": [
-    "src/browser.ts",
-    "src/virtual-modules.d.ts"
+    "src/browser.ts"
   ],
   "references": [
     { "path": "../runtime" },

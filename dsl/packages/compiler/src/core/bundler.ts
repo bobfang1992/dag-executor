@@ -7,6 +7,13 @@
 
 import type * as esbuildTypes from "esbuild";
 
+/**
+ * Minimal esbuild interface - supports both esbuild and esbuild-wasm.
+ */
+export interface EsbuildLike {
+  build(options: esbuildTypes.BuildOptions): Promise<esbuildTypes.BuildResult>;
+}
+
 export interface BundleOptions {
   /** The plan source code */
   planSource: string;
@@ -17,7 +24,7 @@ export interface BundleOptions {
   /** Source code for @ranking-dsl/generated (pre-bundled) */
   generatedSource: string;
   /** esbuild instance (allows using esbuild or esbuild-wasm) */
-  esbuild: typeof esbuildTypes;
+  esbuild: EsbuildLike;
 }
 
 export interface BundleResult {
@@ -104,9 +111,9 @@ export async function bundlePlanCore(
     throw new Error(`Bundle failed:\n${errorMessages.join("\n")}`);
   }
 
-  if (result.outputFiles.length !== 1) {
+  if (!result.outputFiles || result.outputFiles.length !== 1) {
     throw new Error(
-      `Expected exactly one output file, got ${result.outputFiles.length}`
+      `Expected exactly one output file, got ${result.outputFiles?.length ?? 0}`
     );
   }
 

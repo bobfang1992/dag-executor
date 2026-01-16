@@ -21,9 +21,9 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "build:browser": "vite build",
-    "build:all": "tsc && vite build",
+    "build": "tsc && vite build && cp src/browser.d.ts dist/browser.d.ts",
+    "build:node": "tsc",
+    "build:browser": "vite build && cp src/browser.d.ts dist/browser.d.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

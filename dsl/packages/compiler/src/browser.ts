@@ -1,122 +1,79 @@
 /**
- * Browser entry point for the plan compiler.
+ * @ranking-dsl/compiler/browser - Browser-compatible plan compiler.
  *
- * This module provides a browser-compatible compilePlan() function that uses
- * esbuild-wasm and quickjs-emscripten (both WASM-based).
+ * This entry point is designed for browser environments where:
+ * - esbuild-wasm is used instead of native esbuild
+ * - QuickJS WASM is loaded via singlefile variant (embedded)
  *
- * The runtime and generated package sources are inlined at build time.
+ * Usage:
+ *   import { initCompiler, compilePlan } from '@ranking-dsl/compiler/browser';
+ *
+ *   await initCompiler();
+ *   const result = await compilePlan(sourceCode, 'my_plan');
  */
 
-import * as esbuild from "esbuild-wasm";
-import { compilePlan as compilePlanCore } from "./core/index.js";
-import type { CompileResult } from "./core/index.js";
+import {
+  compilePlan as compilePlanCore,
+  stableStringify,
+  type CompileResult,
+  type EsbuildLike,
+} from "./core/index.js";
 
-// These will be replaced at build time with the actual source code
-// Using virtual modules defined in vite.config.ts
-import RUNTIME_SOURCE from "virtual:runtime-source";
-import GENERATED_SOURCE from "virtual:generated-source";
+// Re-export utilities
+export { stableStringify };
+export type { CompileResult };
 
-export type { CompileResult, CompileSuccess, CompileFailure } from "./core/index.js";
+// Virtual module imports - these are replaced by Vite during browser build
+// For tsc, we declare them as external strings
+// @ts-ignore - Virtual modules are injected by Vite
+import runtimeSource from "virtual:runtime-source";
+// @ts-ignore - Virtual modules are injected by Vite
+import generatedSource from "virtual:generated-source";
 
-let initialized = false;
-let initPromise: Promise<void> | null = null;
-
-// Use CDN for WASM files - more reliable than trying to serve from node_modules
-const ESBUILD_WASM_URL = "https://cdn.jsdelivr.net/npm/esbuild-wasm@0.19.12/esbuild.wasm";
+// esbuild-wasm instance (initialized lazily)
+let esbuildWasm: EsbuildLike | null = null;
 
 /**
- * Initialize the compiler (loads WASM modules).
- * Call this early to avoid delay on first compile.
- * Safe to call multiple times - will only initialize once.
+ * Initialize the browser compiler.
+ * Must be called before compilePlan().
  */
 export async function initCompiler(): Promise<void> {
-  if (initialized) return;
+  if (esbuildWasm) return; // Already initialized
 
-  if (initPromise) {
-    return initPromise;
-  }
+  // Dynamic import to avoid bundling issues
+  const esbuild = await import("esbuild-wasm");
 
-  initPromise = (async () => {
-    // Initialize esbuild-wasm with CDN URL
-    await esbuild.initialize({
-      wasmURL: ESBUILD_WASM_URL,
-    });
-    initialized = true;
-  })();
+  // Initialize esbuild-wasm
+  // In browser, we need to use wasmURL or wasmModule
+  await esbuild.initialize({
+    wasmURL: "https://unpkg.com/esbuild-wasm@0.19.12/esbuild.wasm",
+  });
 
-  return initPromise;
+  // esbuild-wasm's build() is compatible with our EsbuildLike interface
+  esbuildWasm = esbuild as EsbuildLike;
 }
 
 /**
- * Check if the compiler has been initialized.
- */
-export function isInitialized(): boolean {
-  return initialized;
-}
-
-/**
- * Compile a plan from TypeScript source code.
+ * Compile a plan from TypeScript source to JSON artifact.
  *
- * @param planSource - The TypeScript source code of the plan
- * @param planName - The plan name (should match the name in definePlan())
- * @returns CompileResult with either success + artifact or failure + error
- *
- * @example
- * ```typescript
- * import { initCompiler, compilePlan } from '@ranking-dsl/compiler/browser';
- *
- * await initCompiler();
- *
- * const result = await compilePlan(`
- *   import { definePlan } from '@ranking-dsl/runtime';
- *   import { Key } from '@ranking-dsl/generated';
- *
- *   export default definePlan({
- *     name: 'my_plan',
- *     build: (c, ctx) => {
- *       return ctx.viewer.follow({ fanout: 100 }).take({ limit: 10 });
- *     },
- *   });
- * `, 'my_plan');
- *
- * if (result.success) {
- *   console.log(result.artifact);
- * }
- * ```
+ * @param source - The TypeScript source code
+ * @param planName - The plan name (used for filename validation)
+ * @returns Compilation result with success/failure and artifact
  */
 export async function compilePlan(
-  planSource: string,
+  source: string,
   planName: string
 ): Promise<CompileResult> {
-  // Auto-initialize if needed
-  if (!initialized) {
-    await initCompiler();
+  if (!esbuildWasm) {
+    throw new Error("Compiler not initialized. Call initCompiler() first.");
   }
 
-  const planFilename = `${planName}.plan.ts`;
-
   return compilePlanCore({
-    planSource,
-    planFilename,
-    runtimeSource: RUNTIME_SOURCE,
-    generatedSource: GENERATED_SOURCE,
-    esbuild,
-    toolVersion: "0.1.0-browser",
+    planSource: source,
+    planFilename: `${planName}.plan.ts`,
+    runtimeSource: runtimeSource as string,
+    generatedSource: generatedSource as string,
+    esbuild: esbuildWasm,
+    toolVersion: "browser",
   });
-}
-
-/**
- * Get the embedded runtime source code.
- * Useful for providing type definitions to an editor.
- */
-export function getRuntimeSource(): string {
-  return RUNTIME_SOURCE;
-}
-
-/**
- * Get the embedded generated source code.
- * Useful for providing type definitions to an editor.
- */
-export function getGeneratedSource(): string {
-  return GENERATED_SOURCE;
 }
