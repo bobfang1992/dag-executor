@@ -43,10 +43,10 @@ import { Key, P } from '@ranking-dsl/generated';
 
 export default definePlan({
   name: 'browser_test',
-  build: (c, ctx) => {
+  build: (ctx) => {
     const source = ctx.viewer.follow({ fanout: 50 });
-    const scored = source.vm(Key.final_score, Key.id * 0.1);
-    return scored.take({ limit: 5 });
+    const scored = source.vm({ outKey: Key.final_score, expr: Key.id * 0.1 });
+    return scored.take({ count: 5 });
   },
 });
 `;
@@ -62,7 +62,7 @@ export default definePlan({
       statusEl.textContent = 'Status: Loading compiler module...';
 
       // Import the local browser bundle
-      const { initCompiler, compilePlan, isInitialized } = await import('../dist/browser.js');
+      const { initCompiler, compilePlan } = await import('../dist/browser.js');
 
       statusEl.textContent = 'Status: Initializing WASM (esbuild + quickjs)...';
       await initCompiler();
@@ -70,7 +70,7 @@ export default definePlan({
       statusEl.innerHTML = '<span class="success">Status: Ready!</span>';
       compileBtn.disabled = false;
 
-      return { compilePlan, isInitialized };
+      return { compilePlan };
     }
 
     async function runTest(compilePlan) {

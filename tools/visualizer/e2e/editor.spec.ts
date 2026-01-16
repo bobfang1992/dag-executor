@@ -12,7 +12,7 @@ test.describe('Live Plan Editor', () => {
 
   test('loads with default plan template', async ({ page }) => {
     // Click "New Plan" button to open editor
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
 
     // Wait for editor panel to appear
     await expect(page.locator('text=Compile & Visualize')).toBeVisible();
@@ -23,7 +23,7 @@ test.describe('Live Plan Editor', () => {
   });
 
   test('compiles plan and shows DAG visualization', async ({ page }) => {
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
 
     // Wait for compiler to be ready (button becomes enabled)
     await expect(page.locator('button:has-text("Compile & Visualize")')).toBeEnabled({ timeout: 30000 });
@@ -37,7 +37,7 @@ test.describe('Live Plan Editor', () => {
 
   // Skip: Monaco editor typing in Playwright is unreliable
   test.skip('shows error for invalid plan code', async ({ page }) => {
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
     await expect(page.locator('button:has-text("Compile & Visualize")')).toBeEnabled({ timeout: 30000 });
 
     // Focus Monaco editor and type invalid code
@@ -53,7 +53,7 @@ test.describe('Live Plan Editor', () => {
   });
 
   test('saves plan with Save As', async ({ page }) => {
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
     await expect(page.locator('button:has-text("Compile & Visualize")')).toBeEnabled({ timeout: 30000 });
 
     // Click Save As
@@ -75,7 +75,7 @@ test.describe('Live Plan Editor', () => {
   });
 
   test('switches between saved plans', async ({ page }) => {
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
     await expect(page.locator('button:has-text("Compile & Visualize")')).toBeEnabled({ timeout: 30000 });
 
     // Save first plan
@@ -104,7 +104,7 @@ test.describe('Live Plan Editor', () => {
   });
 
   test('renames a saved plan', async ({ page }) => {
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
     await expect(page.locator('button:has-text("Compile & Visualize")')).toBeEnabled({ timeout: 30000 });
 
     // Save plan
@@ -131,7 +131,7 @@ test.describe('Live Plan Editor', () => {
 
   // Skip: Modal button selection is flaky in Playwright
   test.skip('deletes a saved plan', async ({ page }) => {
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
     await expect(page.locator('button:has-text("Compile & Visualize")')).toBeEnabled({ timeout: 30000 });
 
     // Save plan
@@ -158,7 +158,7 @@ test.describe('Live Plan Editor', () => {
   });
 
   test('resets to default plan', async ({ page }) => {
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
     await expect(page.locator('button:has-text("Compile & Visualize")')).toBeEnabled({ timeout: 30000 });
 
     // Modify code in Monaco
@@ -178,7 +178,7 @@ test.describe('Live Plan Editor', () => {
   });
 
   test('shares plan via URL', async ({ page, context }) => {
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
     await expect(page.locator('button:has-text("Compile & Visualize")')).toBeEnabled({ timeout: 30000 });
 
     // Grant clipboard permissions
@@ -199,7 +199,7 @@ test.describe('Live Plan Editor', () => {
     const encoded = encodeURIComponent(Buffer.from(testCode).toString('base64'));
 
     await page.goto(`/#code=${encoded}`);
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
 
     // Editor should contain the decoded code
     await expect(page.locator('.monaco-editor .view-lines')).toContainText('Loaded from URL');
@@ -207,7 +207,7 @@ test.describe('Live Plan Editor', () => {
 
   // Skip: Monaco keyboard shortcuts don't reliably work in Playwright
   test.skip('compiles with keyboard shortcut Cmd+Enter', async ({ page }) => {
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
     await expect(page.locator('button:has-text("Compile & Visualize")')).toBeEnabled({ timeout: 30000 });
 
     // Focus editor and press Cmd+Enter
@@ -224,7 +224,7 @@ test.describe('Plan Selector Integration', () => {
     await page.goto('/');
 
     // Click New Plan
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
 
     // Editor should be visible
     await expect(page.locator('text=Compile & Visualize')).toBeVisible();
@@ -233,7 +233,7 @@ test.describe('Plan Selector Integration', () => {
   // Skip: Navigation back to selector varies by test environment
   test.skip('can return to plan selector from editor', async ({ page }) => {
     await page.goto('/');
-    await page.click('text=New Plan');
+    await page.click('text=Create New Plan');
 
     // Click the title to go back (use text selector since h1 might not be exact match)
     await page.click('text=Plan Visualizer');
