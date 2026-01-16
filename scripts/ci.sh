@@ -385,11 +385,12 @@ wait_all
 
 # Batch 9: Compiler parity tests (parallel)
 # Use direct CLI invocation to avoid pnpm lock contention
+# Use ./node_modules/.bin/tsx for Node compiler (tsx installed via pnpm)
 echo "--- Batch 9: Compiler parity ---"
 run_bg "Test 43: Parity (valid_capabilities)" bash -c '
 mkdir -p /tmp/parity-test/qjs /tmp/parity-test/node
 node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/qjs
-tsx dsl/packages/compiler-node/src/cli.ts test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/node
+./node_modules/.bin/tsx dsl/packages/compiler-node/src/cli.ts test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/node
 python3 -c "
 import json
 with open(\"/tmp/parity-test/qjs/valid_capabilities.plan.json\") as f:
@@ -405,7 +406,7 @@ run_bg "Test 44: Parity (multiple plans)" bash -c '
 mkdir -p /tmp/parity-multi/qjs /tmp/parity-multi/node
 for plan in plans/reels_plan_a.plan.ts plans/concat_plan.plan.ts plans/regex_plan.plan.ts; do
     node dsl/packages/compiler/dist/cli.js build "$plan" --out /tmp/parity-multi/qjs
-    tsx dsl/packages/compiler-node/src/cli.ts "$plan" --out /tmp/parity-multi/node
+    ./node_modules/.bin/tsx dsl/packages/compiler-node/src/cli.ts "$plan" --out /tmp/parity-multi/node
 done
 python3 -c "
 import json
