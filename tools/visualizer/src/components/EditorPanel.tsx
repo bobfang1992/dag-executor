@@ -43,13 +43,14 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
-// Compress/decompress for URL sharing using base64
+// Compress/decompress for URL sharing using URL-safe base64
 function encodeForUrl(code: string): string {
   try {
     // Use TextEncoder for proper UTF-8 handling, then base64
     const bytes = new TextEncoder().encode(code);
     const binary = String.fromCharCode(...bytes);
-    return btoa(binary);
+    // Use encodeURIComponent to make base64 URL-safe (handles +, /, = characters)
+    return encodeURIComponent(btoa(binary));
   } catch {
     return '';
   }
@@ -57,7 +58,9 @@ function encodeForUrl(code: string): string {
 
 function decodeFromUrl(encoded: string): string | null {
   try {
-    const binary = atob(encoded);
+    // Decode URL encoding first, then base64
+    const base64 = decodeURIComponent(encoded);
+    const binary = atob(base64);
     const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
     return new TextDecoder().decode(bytes);
   } catch {
@@ -306,6 +309,11 @@ export default function EditorPanel() {
     compilePlan: (source: string, name: string) => Promise<unknown>;
   } | null>(null);
 
+  // Refs for handlers to avoid stale closures in Monaco keyboard shortcuts
+  const handleCompileRef = useRef<() => void>(() => {});
+  const handleSaveAsRef = useRef<() => void>(() => {});
+  const handleFormatRef = useRef<() => void>(() => {});
+
   const loadPlan = useStore((s) => s.loadPlan);
 
   // Save to localStorage on code change (debounced)
@@ -374,18 +382,19 @@ export default function EditorPanel() {
     );
 
     // Add keyboard shortcut for compile (Cmd/Ctrl+Enter)
+    // Use refs to avoid stale closures
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      handleCompile();
+      handleCompileRef.current();
     });
 
     // Add keyboard shortcut for save (Cmd/Ctrl+S)
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      handleSaveAs();
+      handleSaveAsRef.current();
     });
 
     // Add keyboard shortcut for format (Cmd/Ctrl+Shift+F)
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF, () => {
-      handleFormat();
+      handleFormatRef.current();
     });
   }, []);
 
@@ -460,6 +469,19 @@ export default function EditorPanel() {
     const defaultName = nameMatch?.[1] ?? 'my_plan';
     setModal({ type: 'saveAs', defaultName });
   }, [code]);
+
+  // Keep handler refs updated to avoid stale closures in Monaco shortcuts
+  useEffect(() => {
+    handleCompileRef.current = handleCompile;
+  }, [handleCompile]);
+
+  useEffect(() => {
+    handleSaveAsRef.current = handleSaveAs;
+  }, [handleSaveAs]);
+
+  useEffect(() => {
+    handleFormatRef.current = handleFormat;
+  }, [handleFormat]);
 
   const confirmSaveAs = useCallback((name: string) => {
     const newPlan: SavedPlan = {
