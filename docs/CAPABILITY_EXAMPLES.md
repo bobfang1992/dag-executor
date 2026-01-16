@@ -239,6 +239,19 @@ doc = "Runtime request branching based on request fields"
 
 Compile-time effect inference for key writes.
 
+> **⚠️ Design Discussion Note (2026-01-16)**
+>
+> There's an open question whether `key_effects` should be a capability extension or a **core language feature**:
+>
+> - **As capability**: Plan authors opt-in by declaring `cap.rfc.0005...`. If they don't, effect checking is bypassed entirely.
+> - **As core feature**: Effect metadata is always present and validated. No opt-out possible.
+>
+> **Concern**: If key effects are opt-in via capability, a plan author can bypass write validation simply by not requiring the capability. This undermines the governance goal of enforcing dataflow auditing.
+>
+> **Recommendation**: Consider making `key_effects`/`writes_exact` a core IR field (like `schema_version`) rather than an extension. Core language features enforce behavior unconditionally—plan authors cannot bypass the check.
+>
+> **Action**: Discuss with spec owner whether RFC 0005 should be updated to bake this into core language rather than the extension mechanism.
+
 ### TOML Registry Definition (Hypothetical)
 
 ```toml
