@@ -33,14 +33,6 @@ void validate_capability_payload(std::string_view cap_id,
                                   std::string_view scope);
 
 /**
- * Check if a capability has required fields in its schema.
- *
- * Returns true if the capability exists and has required fields.
- * Returns false if capability doesn't exist or has no required fields.
- */
-bool capability_has_required_fields(std::string_view cap_id);
-
-/**
  * Compute capabilities digest for RFC0001.
  *
  * Returns "sha256:<hex>" of canonical JSON, or "" if both fields are
