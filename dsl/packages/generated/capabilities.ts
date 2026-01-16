@@ -29,6 +29,14 @@ export const CAPABILITY_REGISTRY: Record<string, CapabilityMeta> = {
     doc: "Base extensions/capabilities mechanism for IR evolution",
     payloadSchema: {"type":"object","additionalProperties":false},
   },
+  "cap.rfc.0005.key_effects_writes_exact.v1": {
+    id: "cap.rfc.0005.key_effects_writes_exact.v1",
+    rfc: "0005",
+    name: "key_effects_writes_exact",
+    status: "draft",
+    doc: "Strict shape enforcement for branching meta-tasks (RFC0005)",
+    payloadSchema: {"type":"object","additionalProperties":false},
+  },
 };
 
 export const SUPPORTED_CAPABILITIES = new Set(
@@ -37,8 +45,8 @@ export const SUPPORTED_CAPABILITIES = new Set(
     .map(([id]) => id)
 );
 
-export const CAPABILITY_REGISTRY_DIGEST = "470c3bc1e074d48d7a4e7f7807f44201bfddd4c97e09e575c796f197567dacfa";
-export const CAPABILITY_COUNT = 1;
+export const CAPABILITY_REGISTRY_DIGEST = "3537d0e4f5fe759dd852f53a81972534f50d14cb6e6a7772b5bf12cadb81d4c8";
+export const CAPABILITY_COUNT = 2;
 
 // ============================================================
 // Simple JSON Schema validator (subset for capability payloads)

@@ -173,7 +173,7 @@ assert \"task_manifest_digest\" in r
 assert r[\"num_keys\"] == 8
 assert r[\"num_params\"] == 3
 assert r[\"num_features\"] == 2
-assert r[\"num_capabilities\"] == 1
+assert r[\"num_capabilities\"] == 2
 assert r[\"num_tasks\"] == 6
 "'
 wait_all

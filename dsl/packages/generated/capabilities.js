@@ -9,12 +9,20 @@ export const CAPABILITY_REGISTRY = {
         doc: "Base extensions/capabilities mechanism for IR evolution",
         payloadSchema: { "type": "object", "additionalProperties": false },
     },
+    "cap.rfc.0005.key_effects_writes_exact.v1": {
+        id: "cap.rfc.0005.key_effects_writes_exact.v1",
+        rfc: "0005",
+        name: "key_effects_writes_exact",
+        status: "draft",
+        doc: "Strict shape enforcement for branching meta-tasks (RFC0005)",
+        payloadSchema: { "type": "object", "additionalProperties": false },
+    },
 };
 export const SUPPORTED_CAPABILITIES = new Set(Object.entries(CAPABILITY_REGISTRY)
-    .filter(([, meta]) => meta.status !== "blocked")
+    .filter(([, meta]) => meta.status === "implemented" || meta.status === "deprecated")
     .map(([id]) => id));
-export const CAPABILITY_REGISTRY_DIGEST = "470c3bc1e074d48d7a4e7f7807f44201bfddd4c97e09e575c796f197567dacfa";
-export const CAPABILITY_COUNT = 1;
+export const CAPABILITY_REGISTRY_DIGEST = "3537d0e4f5fe759dd852f53a81972534f50d14cb6e6a7772b5bf12cadb81d4c8";
+export const CAPABILITY_COUNT = 2;
 // ============================================================
 // Simple JSON Schema validator (subset for capability payloads)
 // ============================================================
@@ -30,9 +38,12 @@ export function validatePayload(capId, payload) {
         }
         return;
     }
-    // Absent/null payload is OK when schema exists
-    if (payload === undefined || payload === null)
+    // Undefined payload is OK (key omitted), but null is invalid for object schemas
+    if (payload === undefined)
         return;
+    if (payload === null) {
+        throw new Error(`capability '${capId}': payload is null, expected object (use {} or omit key)`);
+    }
     if (schema.type === "object") {
         if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
             throw new Error(`capability '${capId}': payload must be object`);
@@ -69,5 +80,11 @@ function validatePropertyType(capId, key, value, schema) {
     }
     if (schema.type === "number" && typeof value !== "number") {
         throw new Error(`capability '${capId}': '${key}' must be number`);
+    }
+    if (schema.type === "array" && !Array.isArray(value)) {
+        throw new Error(`capability '${capId}': '${key}' must be array`);
+    }
+    if (schema.type === "object" && (typeof value !== "object" || value === null || Array.isArray(value))) {
+        throw new Error(`capability '${capId}': '${key}' must be object`);
     }
 }

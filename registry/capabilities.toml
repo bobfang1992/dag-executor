@@ -29,3 +29,17 @@ payload_schema = '''
   "additionalProperties": false
 }
 '''
+
+[[capability]]
+id = "cap.rfc.0005.key_effects_writes_exact.v1"
+rfc = "0005"
+name = "key_effects_writes_exact"
+status = "draft"
+doc = "Strict shape enforcement for branching meta-tasks (RFC0005)"
+# Empty object only - no payload fields needed for v1
+payload_schema = '''
+{
+  "type": "object",
+  "additionalProperties": false
+}
+'''

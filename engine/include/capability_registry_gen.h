@@ -40,9 +40,9 @@ struct CapabilityMeta {
   PayloadSchema schema;
 };
 
-inline constexpr size_t kCapabilityCount = 1;
+inline constexpr size_t kCapabilityCount = 2;
 inline constexpr std::string_view kCapabilityRegistryDigest =
-    "470c3bc1e074d48d7a4e7f7807f44201bfddd4c97e09e575c796f197567dacfa";
+    "3537d0e4f5fe759dd852f53a81972534f50d14cb6e6a7772b5bf12cadb81d4c8";
 
 inline constexpr std::array<CapabilityMeta, kCapabilityCount>
     kCapabilityRegistry = {{
@@ -51,6 +51,19 @@ inline constexpr std::array<CapabilityMeta, kCapabilityCount>
          "extensions_capabilities",
          CapabilityStatus::Implemented,
          "Base extensions/capabilities mechanism for IR evolution",
+         {.has_schema = true,
+          .additional_properties = false,
+          .allowed_keys = nullptr,
+          .num_allowed_keys = 0,
+          .required_keys = nullptr,
+          .num_required_keys = 0,
+          .property_types = nullptr,
+          .num_property_types = 0}},
+        {"cap.rfc.0005.key_effects_writes_exact.v1",
+         "0005",
+         "key_effects_writes_exact",
+         CapabilityStatus::Draft,
+         "Strict shape enforcement for branching meta-tasks (RFC0005)",
          {.has_schema = true,
           .additional_properties = false,
           .allowed_keys = nullptr,
