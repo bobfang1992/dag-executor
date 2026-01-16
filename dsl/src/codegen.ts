@@ -1050,6 +1050,16 @@ function cppPropertyType(jsonType: string | undefined): string {
   }
 }
 
+// Sanitize capability name for use as C++ identifier
+// Replace non-alphanumeric chars with underscore, prefix with _ if starts with digit
+function cppCapabilityIdent(name: string): string {
+  let ident = name.replace(/[^a-zA-Z0-9]/g, "_");
+  if (/^[0-9]/.test(ident)) {
+    ident = "_" + ident;
+  }
+  return ident;
+}
+
 function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string): string {
   const lines: string[] = [
     "// AUTO-GENERATED - DO NOT EDIT",
@@ -1099,10 +1109,11 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
     const props = cap.payload_schema?.properties;
     const required = cap.payload_schema?.required;
     const propNames = props ? Object.keys(props).sort() : [];
+    const ident = cppCapabilityIdent(cap.name);
 
     // Property names array (for additionalProperties check)
     if (propNames.length > 0) {
-      const varName = `kProps_${cap.name}`;
+      const varName = `kProps_${ident}`;
       lines.push(`inline constexpr std::array<std::string_view, ${propNames.length}> ${varName} = {{`);
       for (const name of propNames) {
         lines.push(`    ${JSON.stringify(name)},`);
@@ -1113,7 +1124,7 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
 
     // Required keys array
     if (required && required.length > 0) {
-      const varName = `kRequired_${cap.name}`;
+      const varName = `kRequired_${ident}`;
       lines.push(`inline constexpr std::array<std::string_view, ${required.length}> ${varName} = {{`);
       for (const name of required) {
         lines.push(`    ${JSON.stringify(name)},`);
@@ -1124,7 +1135,7 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
 
     // Property types array
     if (props && propNames.length > 0) {
-      const varName = `kPropTypes_${cap.name}`;
+      const varName = `kPropTypes_${ident}`;
       lines.push(`inline constexpr std::array<PropertyMeta, ${propNames.length}> ${varName} = {{`);
       for (const name of propNames) {
         const propSchema = props[name];
@@ -1149,10 +1160,11 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
     const propNames = props ? Object.keys(props).sort() : [];
     const numProps = propNames.length;
     const numRequired = required?.length ?? 0;
+    const ident = cppCapabilityIdent(cap.name);
 
-    const propsPtr = numProps > 0 ? `kProps_${cap.name}.data()` : "nullptr";
-    const requiredPtr = numRequired > 0 ? `kRequired_${cap.name}.data()` : "nullptr";
-    const propTypesPtr = numProps > 0 ? `kPropTypes_${cap.name}.data()` : "nullptr";
+    const propsPtr = numProps > 0 ? `kProps_${ident}.data()` : "nullptr";
+    const requiredPtr = numRequired > 0 ? `kRequired_${ident}.data()` : "nullptr";
+    const propTypesPtr = numProps > 0 ? `kPropTypes_${ident}.data()` : "nullptr";
 
     lines.push(`    {${JSON.stringify(cap.id)}, ${JSON.stringify(cap.rfc)}, ${JSON.stringify(cap.name)},`);
     lines.push(`     CapabilityStatus::${cppCapabilityStatus(cap.status)},`);
