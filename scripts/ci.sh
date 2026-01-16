@@ -324,10 +324,10 @@ wait_all
 # Batch 7: QuickJS sandbox + plan store tests (parallel)
 echo "--- Batch 7: Sandbox + plan store ---"
 run_bg "Test 32: Reject evil.plan.ts" bash -c '
-if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/evil.plan.ts --out /tmp/ci-evil 2>/dev/null; then exit 1; fi
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/evil.plan.ts --out /tmp/ci-evil-32 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 33: Reject evil_proto.plan.ts" bash -c '
-if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/evil_proto.plan.ts --out /tmp/ci-evil 2>/dev/null; then exit 1; fi
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/evil_proto.plan.ts --out /tmp/ci-evil-33 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 34: --plan_name" bash -c '
 response=$(echo "{\"request_id\": \"x\"}" | engine/bin/rankd --plan_name reels_plan_a)
@@ -357,21 +357,22 @@ assert \"regex_plan\" in names
 wait_all
 
 # Batch 8: RFC0001 capabilities tests (parallel)
+# Use direct CLI invocation to avoid pnpm lock contention
 echo "--- Batch 8: RFC0001 capabilities ---"
 run_bg "Test 38: Reject name_mismatch" bash -c '
-pnpm run dslc build test/fixtures/plans/name_mismatch.plan.ts --out /tmp/ci-mismatch 2>&1 | grep -q "doesn'\''t match filename"
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/name_mismatch.plan.ts --out /tmp/ci-mismatch 2>&1 | grep -q "doesn'\''t match filename"
 '
 run_bg "Test 39: Reject bad_caps_unsorted" bash -c '
-pnpm run dslc build test/fixtures/plans/bad_caps_unsorted.plan.ts --out /tmp/ci-caps 2>&1 | grep -q "must be sorted and unique"
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_caps_unsorted.plan.ts --out /tmp/ci-caps 2>&1 | grep -q "must be sorted and unique"
 '
 run_bg "Test 40: Reject bad_ext_key" bash -c '
-pnpm run dslc build test/fixtures/plans/bad_ext_key_not_required.plan.ts --out /tmp/ci-ext 2>&1 | grep -q "must appear in capabilities_required"
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_ext_key_not_required.plan.ts --out /tmp/ci-ext 2>&1 | grep -q "must appear in capabilities_required"
 '
 run_bg "Test 41: Reject bad_node_ext" bash -c '
-pnpm run dslc build test/fixtures/plans/bad_node_ext_not_declared.plan.ts --out /tmp/ci-node 2>&1 | grep -q "requires plan capability"
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_node_ext_not_declared.plan.ts --out /tmp/ci-node 2>&1 | grep -q "requires plan capability"
 '
 run_bg "Test 42: valid_capabilities" bash -c '
-pnpm run dslc build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/ci-valid-caps
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/ci-valid-caps
 python3 -c "
 import json
 with open(\"/tmp/ci-valid-caps/valid_capabilities.plan.json\") as f:
@@ -383,11 +384,12 @@ assert plan[\"nodes\"][0][\"extensions\"][\"cap.debug\"][\"node_debug\"] == True
 wait_all
 
 # Batch 9: Compiler parity tests (parallel)
+# Use direct CLI invocation to avoid pnpm lock contention
 echo "--- Batch 9: Compiler parity ---"
 run_bg "Test 43: Parity (valid_capabilities)" bash -c '
 mkdir -p /tmp/parity-test/qjs /tmp/parity-test/node
-pnpm run dslc build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/qjs
-pnpm run plan:build:node test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/node
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/qjs
+tsx dsl/packages/compiler-node/src/cli.ts test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/node
 python3 -c "
 import json
 with open(\"/tmp/parity-test/qjs/valid_capabilities.plan.json\") as f:
@@ -402,8 +404,8 @@ assert qjs == node, \"Compiler outputs differ\"
 run_bg "Test 44: Parity (multiple plans)" bash -c '
 mkdir -p /tmp/parity-multi/qjs /tmp/parity-multi/node
 for plan in plans/reels_plan_a.plan.ts plans/concat_plan.plan.ts plans/regex_plan.plan.ts; do
-    pnpm run dslc build "$plan" --out /tmp/parity-multi/qjs
-    pnpm run plan:build:node "$plan" --out /tmp/parity-multi/node
+    node dsl/packages/compiler/dist/cli.js build "$plan" --out /tmp/parity-multi/qjs
+    tsx dsl/packages/compiler-node/src/cli.ts "$plan" --out /tmp/parity-multi/node
 done
 python3 -c "
 import json
@@ -458,10 +460,11 @@ fi
 wait_all
 
 # Batch 11: capabilities_digest parity tests (parallel)
+# Use direct CLI invocation to avoid pnpm lock contention
 echo "--- Batch 11: capabilities_digest parity ---"
 run_bg "Test 50: Digest parity (with caps)" bash -c '
-# Compile plan with TS
-pnpm run dslc build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/ci-digest-parity >/dev/null 2>&1
+# Compile plan with dslc (direct invocation)
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/ci-digest-parity >/dev/null 2>&1
 
 # Get C++ digest
 CPP_DIGEST=$(engine/bin/rankd --print-plan-info --plan /tmp/ci-digest-parity/valid_capabilities.plan.json | python3 -c "import json,sys; print(json.load(sys.stdin)[\"capabilities_digest\"])")
