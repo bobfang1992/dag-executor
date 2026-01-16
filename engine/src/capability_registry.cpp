@@ -35,9 +35,18 @@ void validate_capability_payload(std::string_view cap_id,
         payload.type_name());
   }
 
-  // For now, we accept any object payload without validating contents.
-  // Individual capabilities can add stricter validation as needed.
-  // The RFC0001 base capability has no required payload fields.
+  // Capability-specific payload validation
+  // The base RFC0001 capability requires empty payload (fail-closed)
+  if (cap_id == "cap.rfc.0001.extensions_capabilities.v1") {
+    if (!payload.empty()) {
+      throw std::runtime_error(
+          std::string("capability '") + std::string(cap_id) + "' at " +
+          std::string(scope) +
+          ": payload must be empty object {}, got object with " +
+          std::to_string(payload.size()) + " field(s)");
+    }
+  }
+  // Future capabilities can add their own payload schemas here
 }
 
 } // namespace rankd

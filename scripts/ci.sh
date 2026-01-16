@@ -447,6 +447,13 @@ else
     exit 1
 fi
 '
+run_bg "Test 49: Reject non-empty payload for base capability" bash -c '
+if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_nonempty_payload.plan.json 2>&1 | grep -q "payload must be empty"; then
+    exit 0
+else
+    exit 1
+fi
+'
 wait_all
 
 echo ""
