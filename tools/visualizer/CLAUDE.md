@@ -15,11 +15,16 @@ Interactive DAG visualization tool for `*.plan.json` files.
 
 ```bash
 # Development
-pnpm run visualizer:dev      # Start dev server (http://localhost:5173)
+pnpm run visualizer:dev      # Start dev server (http://localhost:5175)
 
 # Build
 pnpm run visualizer:build    # Production build → tools/visualizer/dist/
 pnpm run visualizer:preview  # Preview production build
+
+# Testing
+pnpm -C tools/visualizer run test          # Run Playwright e2e tests
+pnpm -C tools/visualizer run test:ui       # Run tests with Playwright UI
+pnpm -C tools/visualizer run test:headed   # Run tests in headed browser
 ```
 
 ## Implementation Phases
@@ -57,7 +62,30 @@ pnpm run visualizer:preview  # Preview production build
 - Clickable title to go back
 - Fit/Reset view buttons
 
-### Step 01: Fragment Support (Next) 🔲
+### Step 01: Live Plan Editor ✅
+
+**Phase 1: Browser Compiler** ✅
+- QuickJS WASM compilation in browser (no server required)
+- esbuild-wasm for TypeScript bundling
+- Embedded runtime/generated source via Vite virtual modules
+
+**Phase 2: Monaco Editor** ✅
+- Full TypeScript editor with syntax highlighting
+- DSL type definitions for intellisense
+- Auto-complete for `definePlan`, `Key`, `P`, etc.
+
+**Phase 3: Persistence & Sharing** ✅
+- Auto-save to localStorage (debounced)
+- URL hash encoding for shareable links
+- Saved plans management (save as, rename, delete)
+
+**Phase 4: Polish** ✅
+- Resizable editor panel (draggable divider)
+- Keyboard shortcuts (⌘+Enter compile, ⌘+S save, ⌘+Shift+F format)
+- Reusable UI components (Button, Dropdown, Modal)
+- E2E tests with Playwright
+
+### Step 02: Fragment Support (Next) 🔲
 
 - Detect fragment boundaries in plan
 - Render fragments as collapsible supernodes
@@ -65,15 +93,14 @@ pnpm run visualizer:preview  # Preview production build
 - Auto-collapse when visible nodes > threshold
 - LRU eviction for expanded fragments
 
-### Step 02: Enhanced UX 🔲
+### Step 03: Enhanced UX 🔲
 
 - Keyboard shortcuts (Escape=deselect, +/-=zoom, F=fit)
-- localStorage for view preferences
 - Minimap for large graphs
 - Search/filter nodes
 - Export as PNG/SVG
 
-### Step 03: Production 🔲
+### Step 04: Production 🔲
 
 - Production build optimization
 - Deploy to GitHub Pages or similar
@@ -85,21 +112,29 @@ pnpm run visualizer:preview  # Preview production build
 tools/visualizer/
 ├── src/
 │   ├── main.tsx              # Entry point
-│   ├── App.tsx               # Layout: header + source panel + canvas + details
+│   ├── App.tsx               # Layout: header + source/editor panel + canvas + details
 │   ├── theme.ts              # US Graphics color palette
 │   ├── types.ts              # VisNode, VisEdge, PlanJson interfaces
 │   ├── components/
 │   │   ├── Canvas.tsx        # PixiJS canvas with pan/zoom
 │   │   ├── DetailsPanel.tsx  # Node details + expr/pred formatting
+│   │   ├── Dropdown.tsx      # Custom styled dropdown
+│   │   ├── EditorPanel.tsx   # Monaco editor with live compilation
+│   │   ├── Modal.tsx         # PromptModal and ConfirmModal
 │   │   ├── PlanSelector.tsx  # Plan list from index.json + drag-drop
 │   │   ├── SourcePanel.tsx   # Original .plan.ts source viewer
-│   │   └── Toolbar.tsx       # Dock-style toolbar
+│   │   ├── Toolbar.tsx       # Dock-style toolbar
+│   │   └── ui/
+│   │       └── Button.tsx    # Reusable button component
 │   ├── layout/
 │   │   └── dagre-layout.ts   # DAG layout using dagre
 │   ├── parser/
 │   │   └── plan-parser.ts    # plan.json → VisGraph + node color logic
 │   └── state/
 │       └── store.ts          # Zustand store + browser history
+├── e2e/
+│   └── editor.spec.ts        # Playwright e2e tests
+├── playwright.config.ts      # Playwright configuration
 ├── vite.config.ts            # Vite config + source file middleware
 └── index.html
 ```
@@ -147,6 +182,16 @@ tools/visualizer/
 - macOS-style floating dock at bottom center
 - Blur backdrop effect
 - Buttons: Source toggle, Fit, Back
+
+### Live Plan Editor (Step 01)
+- Click "New Plan" to open editor panel
+- Monaco editor with TypeScript support and DSL intellisense
+- Click "Compile & Visualize" or press ⌘+Enter to compile
+- Plan compiles in-browser using QuickJS WASM (no server required)
+- Save plans to localStorage with "Save As" (⌘+S)
+- Share plans via URL hash encoding
+- Manage saved plans: rename, delete, switch between them
+- Resizable editor panel (drag the divider)
 
 ## Data Flow
 

@@ -144,6 +144,7 @@ export default function Dropdown({ options, value, onChange, placeholder = 'Sele
     <div ref={containerRef} style={styles.container}>
       <button
         type="button"
+        data-testid="dropdown-trigger"
         style={{
           ...styles.trigger,
           ...(isOpen ? styles.triggerOpen : {}),

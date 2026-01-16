@@ -20,6 +20,14 @@ export { bundlePlanCore, executePlan };
 /**
  * Options for compiling a plan.
  */
+/**
+ * Minimal esbuild interface - supports both esbuild and esbuild-wasm.
+ * We only use the build() method, so we type just what we need.
+ */
+export interface EsbuildLike {
+  build(options: esbuildTypes.BuildOptions): Promise<esbuildTypes.BuildResult>;
+}
+
 export interface CompileOptions {
   /** The plan TypeScript source code */
   planSource: string;
@@ -30,7 +38,7 @@ export interface CompileOptions {
   /** Source code for @ranking-dsl/generated package */
   generatedSource: string;
   /** esbuild instance (esbuild for Node, esbuild-wasm for browser) */
-  esbuild: typeof esbuildTypes;
+  esbuild: EsbuildLike;
   /** Optional: Tool version for built_by metadata */
   toolVersion?: string;
 }
