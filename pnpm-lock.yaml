@@ -15,21 +15,9 @@ importers:
         specifier: workspace:*
         version: link:dsl/packages/runtime
     devDependencies:
-      '@ranking-dsl/ts-plugin':
-        specifier: workspace:*
-        version: link:dsl/packages/ts-plugin
-      eslint:
-        specifier: ^9.0.0
-        version: 9.39.2
       tsx:
         specifier: ^4.6.0
         version: 4.21.0
-      typescript:
-        specifier: ^5.3.0
-        version: 5.9.3
-      typescript-eslint:
-        specifier: ^8.0.0
-        version: 8.53.0(eslint@9.39.2)(typescript@5.9.3)
 
   dsl:
     devDependencies:
@@ -69,25 +57,37 @@ importers:
       quickjs-emscripten:
         specifier: ^0.29.0
         version: 0.29.2
-      typescript:
-        specifier: ^5.3.0
-        version: 5.9.3
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
         version: 20.19.29
-
-  dsl/packages/eslint-plugin:
-    dependencies:
-      eslint:
-        specifier: '>=8.0.0'
-        version: 9.39.2
-    devDependencies:
-      '@types/eslint':
-        specifier: ^8.56.0
-        version: 8.56.12
+      esbuild-wasm:
+        specifier: ^0.19.0
+        version: 0.19.12
       typescript:
-        specifier: ^5.0.0
+        specifier: ^5.3.0
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.0
+        version: 6.4.1(@types/node@20.19.29)(tsx@4.21.0)
+
+  dsl/packages/compiler-node:
+    dependencies:
+      '@ranking-dsl/generated':
+        specifier: workspace:*
+        version: link:../generated
+      '@ranking-dsl/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+    devDependencies:
+      '@types/node':
+        specifier: ^20.10.0
+        version: 20.19.29
+      tsx:
+        specifier: ^4.6.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.3.0
         version: 5.9.3
 
   dsl/packages/generated:
@@ -109,27 +109,32 @@ importers:
         specifier: ^5.3.0
         version: 5.9.3
 
-  dsl/packages/ts-plugin:
-    dependencies:
-      typescript:
-        specifier: ^5.3.0
-        version: 5.9.3
-    devDependencies:
-      '@types/node':
-        specifier: ^20.10.0
-        version: 20.19.29
-
   tools/visualizer:
     dependencies:
+      '@monaco-editor/react':
+        specifier: ^4.6.0
+        version: 4.7.0(monaco-editor@0.45.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@pixi/react':
         specifier: ^8.0.0-beta.8
         version: 8.0.5(@types/react@18.3.27)(pixi.js@8.15.0)(react@18.3.1)
+      '@ranking-dsl/compiler':
+        specifier: workspace:*
+        version: link:../../dsl/packages/compiler
       dagre:
         specifier: ^0.8.5
         version: 0.8.5
+      esbuild-wasm:
+        specifier: ^0.19.0
+        version: 0.19.12
+      monaco-editor:
+        specifier: ^0.45.0
+        version: 0.45.0
       pixi.js:
         specifier: ^8.6.6
         version: 8.15.0
+      quickjs-emscripten:
+        specifier: ^0.29.0
+        version: 0.29.2
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -801,6 +806,16 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
+  '@monaco-editor/loader@1.7.0':
+    resolution: {integrity: sha512-gIwR1HrJrrx+vfyOhYmCZ0/JcWqG5kbfG7+d3f/C1LXk2EvzAbHSg3MQ5lO2sMlo9izoAZ04shohfKLVT6crVA==}
+
+  '@monaco-editor/react@4.7.0':
+    resolution: {integrity: sha512-cyzXQCtO47ydzxpQtCGSQGOC8Gk3ZUeBXFAxD+CWXYFo5OqZyZUonFl0DwUlTyAfRHntBfw2p3w4s9R6oe1eCA==}
+    peerDependencies:
+      monaco-editor: '>= 0.25.0 < 1'
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
   '@pixi/colord@2.9.6':
     resolution: {integrity: sha512-nezytU2pw587fQstUu1AsJZDVEynjskwOL+kibwcdxsMBFqPsFFNA7xl0ii/gXuDi6M0xj3mfRJj8pBSc2jCfA==}
 
@@ -963,9 +978,6 @@ packages:
 
   '@types/earcut@3.0.0':
     resolution: {integrity: sha512-k/9fOUGO39yd2sCjrbAJvGDEQvRwRnQIZlBz43roGwUZo5SHAmyVvSFyaVVZkicRVCaDXPKlbxrUcBuJoSWunQ==}
-
-  '@types/eslint@8.56.12':
-    resolution: {integrity: sha512-03ruubjWyOHlmljCVoxSuNDdmfZDzsrrz0P2LeJsOXr+ZwFQ+0yQIwNCwt/GYhV7Z31fgtXJTAEs+FYlEL851g==}
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
@@ -1183,6 +1195,11 @@ packages:
 
   electron-to-chromium@1.5.267:
     resolution: {integrity: sha512-0Drusm6MVRXSOJpGbaSVgcQsuB4hEkMpHXaVstcPmhu5LIedxs1xNK/nIxmQIU/RPC0+1/o0AVZfBTkTNJOdUw==}
+
+  esbuild-wasm@0.19.12:
+    resolution: {integrity: sha512-Zmc4hk6FibJZBcTx5/8K/4jT3/oG1vkGTEeKJUQFCUQKimD6Q7+adp/bdVQyYJFolMKaXkQnVZdV4O5ZaTYmyQ==}
+    engines: {node: '>=12'}
+    hasBin: true
 
   esbuild@0.19.12:
     resolution: {integrity: sha512-aARqgq8roFBj054KvQr5f1sFu0D65G+miZRCuJyJ0G13Zwx7vRar5Zhn2tkQNzIXcBrNVsv/8stehpj+GAjgbg==}
@@ -1449,6 +1466,9 @@ packages:
     resolution: {integrity: sha512-G6T0ZX48xgozx7587koeX9Ys2NYy6Gmv//P89sEte9V9whIapMNF4idKxnW2QtCcLiTWlb/wfCabAtAFWhhBow==}
     engines: {node: '>=16 || 14 >=14.17'}
 
+  monaco-editor@0.45.0:
+    resolution: {integrity: sha512-mjv1G1ZzfEE3k9HZN0dQ2olMdwIfaeAAjFiwNprLfYNRSz7ctv9XuCT7gPtBGrMUeV1/iZzYKj17Khu1hxoHOA==}
+
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
@@ -1608,6 +1628,9 @@ packages:
 
   space-separated-tokens@2.0.2:
     resolution: {integrity: sha512-PEGlAwrG8yXGXRjW32fGbg66JAlOAwbObuqVoJpv/mRgoWDQfgH1wDPvtzWyUSNAXBGSk8h755YDbbcEy3SH2Q==}
+
+  state-local@1.0.7:
+    resolution: {integrity: sha512-HTEHMNieakEnoe33shBYcZ7NX83ACUjCu8c40iOGEZsngj9zRnkqS9j1pqQPXwobB0ZcVTk27REb7COQ0UR59w==}
 
   strip-json-comments@3.1.1:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
@@ -2175,6 +2198,17 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@monaco-editor/loader@1.7.0':
+    dependencies:
+      state-local: 1.0.7
+
+  '@monaco-editor/react@4.7.0(monaco-editor@0.45.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@monaco-editor/loader': 1.7.0
+      monaco-editor: 0.45.0
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+
   '@pixi/colord@2.9.6': {}
 
   '@pixi/react@8.0.5(@types/react@18.3.27)(pixi.js@8.15.0)(react@18.3.1)':
@@ -2293,11 +2327,6 @@ snapshots:
   '@types/dagre@0.7.53': {}
 
   '@types/earcut@3.0.0': {}
-
-  '@types/eslint@8.56.12':
-    dependencies:
-      '@types/estree': 1.0.8
-      '@types/json-schema': 7.0.15
 
   '@types/estree@1.0.8': {}
 
@@ -2536,6 +2565,8 @@ snapshots:
   earcut@3.0.2: {}
 
   electron-to-chromium@1.5.267: {}
+
+  esbuild-wasm@0.19.12: {}
 
   esbuild@0.19.12:
     optionalDependencies:
@@ -2864,6 +2895,8 @@ snapshots:
     dependencies:
       brace-expansion: 2.0.2
 
+  monaco-editor@0.45.0: {}
+
   ms@2.1.3: {}
 
   nanoid@3.3.11: {}
@@ -3049,6 +3082,8 @@ snapshots:
   source-map-js@1.2.1: {}
 
   space-separated-tokens@2.0.2: {}
+
+  state-local@1.0.7: {}
 
   strip-json-comments@3.1.1: {}
 
