@@ -11,19 +11,23 @@ let quickJSModulePromise: Promise<QuickJSWASMModule> | null = null;
 
 async function getQuickJS() {
   if (!quickJSModulePromise) {
-    // Detect browser environment
-    const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
+    // Detect Node.js via process.versions.node (works in all Node environments)
+    // This is more robust than checking window/document which are undefined in Web Workers
+    const isNode = typeof process !== 'undefined' &&
+                   typeof process.versions !== 'undefined' &&
+                   typeof process.versions.node !== 'undefined';
 
-    if (isBrowser) {
-      // Use singlefile variant for browser (embeds WASM inline, no fetch needed)
+    if (isNode) {
+      // Use wasmfile variant for Node.js (more efficient, loads from disk)
+      quickJSModulePromise = newQuickJSWASMModule(RELEASE_SYNC);
+    } else {
+      // Use singlefile variant for browser/worker (embeds WASM inline, no fetch needed)
+      // Works in: main thread, Web Workers, Service Workers
       // Dynamic import to avoid bundling both variants
       const { default: browserVariant } = await import(
         /* @vite-ignore */ '@jitl/quickjs-singlefile-browser-release-sync'
       );
       quickJSModulePromise = newQuickJSWASMModule(browserVariant);
-    } else {
-      // Use wasmfile variant for Node.js (more efficient, loads from disk)
-      quickJSModulePromise = newQuickJSWASMModule(RELEASE_SYNC);
     }
   }
   return quickJSModulePromise;
