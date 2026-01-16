@@ -424,7 +424,13 @@ export default function EditorPanel() {
 
       if (result.success && result.artifact) {
         // Cast through unknown since compiler returns Record<string, unknown>
-        loadPlan(result.artifact as unknown as import('../types').PlanJson, `${planName}.plan.ts (live)`);
+        // Use skipHistory to avoid pushing ?plan= for live editor plans
+        // (they're not in the index, so refresh would fail to find them)
+        loadPlan(
+          result.artifact as unknown as import('../types').PlanJson,
+          `${planName}.plan.ts (live)`,
+          { skipHistory: true }
+        );
         setStatus('success');
       } else {
         setError(`${result.phase}: ${result.error}`);
