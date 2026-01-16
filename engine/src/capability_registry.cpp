@@ -39,6 +39,13 @@ static const CapabilityMeta *find_capability_meta(std::string_view cap_id) {
   return nullptr;
 }
 
+bool capability_has_required_fields(std::string_view cap_id) {
+  const auto *meta = find_capability_meta(cap_id);
+  if (!meta)
+    return false;
+  return meta->schema.has_schema && meta->schema.num_required_keys > 0;
+}
+
 void validate_capability_payload(std::string_view cap_id,
                                   const nlohmann::json &payload,
                                   std::string_view scope) {

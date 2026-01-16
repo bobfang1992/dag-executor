@@ -5,7 +5,7 @@
  * between compilers. Do NOT add validation directly to compiler CLIs.
  */
 
-import { validatePayload, SUPPORTED_CAPABILITIES } from "@ranking-dsl/generated";
+import { validatePayload, SUPPORTED_CAPABILITIES, CAPABILITY_REGISTRY } from "@ranking-dsl/generated";
 import {
   validateCapabilitiesAndExtensions,
   validateNodeExtensions,
@@ -143,9 +143,21 @@ export function validateArtifact(artifact: unknown, planFileName: string): void 
   );
 
   // Validate extension payloads against their schemas
-  if (obj.extensions && typeof obj.extensions === "object") {
-    for (const [capId, payload] of Object.entries(obj.extensions as Record<string, unknown>)) {
-      validatePayload(capId, payload);
+  const extensions = (obj.extensions ?? {}) as Record<string, unknown>;
+  for (const [capId, payload] of Object.entries(extensions)) {
+    validatePayload(capId, payload);
+  }
+
+  // Ensure capabilities with required fields have extensions entries
+  const capsRequired = (obj.capabilities_required ?? []) as string[];
+  for (const capId of capsRequired) {
+    const meta = CAPABILITY_REGISTRY[capId];
+    if (meta?.payloadSchema?.required && meta.payloadSchema.required.length > 0) {
+      if (!(capId in extensions)) {
+        throw new Error(
+          `capability '${capId}' has required fields but no extensions entry`
+        );
+      }
     }
   }
 

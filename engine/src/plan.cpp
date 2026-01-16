@@ -369,6 +369,16 @@ Plan parse_plan(const std::string &path) {
     }
   }
 
+  // Ensure capabilities with required fields have extensions entries
+  for (const auto &cap_id : plan.capabilities_required) {
+    if (capability_has_required_fields(cap_id)) {
+      if (!plan.extensions.contains(cap_id)) {
+        throw std::runtime_error("capability '" + cap_id +
+                                 "' has required fields but no extensions entry");
+      }
+    }
+  }
+
   // RFC0001: node.extensions (already parsed above, now validate)
   for (size_t i = 0; i < plan.nodes.size(); ++i) {
     auto &node = plan.nodes[i];
