@@ -5,8 +5,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # Create temp directory for parallel job outputs
-TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
+# Note: Don't use TMPDIR as variable name - it's a system env var on macOS
+CI_TEMP=$(mktemp -d)
+trap "rm -rf $CI_TEMP" EXIT
 
 # Track background job PIDs and their descriptions
 declare -a PIDS=()
@@ -15,7 +16,7 @@ declare -a DESCRIPTIONS=()
 # Run a command in background, capturing output
 run_bg() {
     local desc="$1"
-    local outfile="$TMPDIR/${#PIDS[@]}.out"
+    local outfile="$CI_TEMP/${#PIDS[@]}.out"
     shift
     "$@" > "$outfile" 2>&1 &
     PIDS+=($!)
@@ -31,7 +32,7 @@ wait_all() {
         else
             echo "✗ ${DESCRIPTIONS[$i]} FAILED"
             echo "--- Output ---"
-            cat "$TMPDIR/$i.out"
+            cat "$CI_TEMP/$i.out"
             echo "--- End ---"
             failed=1
         fi
@@ -71,7 +72,7 @@ echo "=== Phase 5: Integration tests ==="
 # Helper to run a test and check result
 run_test() {
     local name="$1"
-    local outfile="$TMPDIR/test_${name//[^a-zA-Z0-9]/_}.out"
+    local outfile="$CI_TEMP/test_${name//[^a-zA-Z0-9]/_}.out"
     shift
     if "$@" > "$outfile" 2>&1; then
         echo "✓ $name"
