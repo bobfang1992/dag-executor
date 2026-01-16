@@ -45,6 +45,12 @@ importers:
 
   dsl/packages/compiler:
     dependencies:
+      '@jitl/quickjs-singlefile-browser-release-sync':
+        specifier: 0.29.2
+        version: 0.29.2
+      '@jitl/quickjs-wasmfile-release-sync':
+        specifier: 0.29.2
+        version: 0.29.2
       '@ranking-dsl/generated':
         specifier: workspace:*
         version: link:../generated
@@ -777,6 +783,9 @@ packages:
 
   '@jitl/quickjs-ffi-types@0.29.2':
     resolution: {integrity: sha512-069uQTiEla2PphXg6UpyyJ4QXHkTj3S9TeXgaMCd8NDYz3ODBw5U/rkg6fhuU8SMpoDrWjEzybmV5Mi2Pafb5w==}
+
+  '@jitl/quickjs-singlefile-browser-release-sync@0.29.2':
+    resolution: {integrity: sha512-FLETOame9PaarI9EblrxDPeQFM3gha33roUspNpuQ9f7iYVg4XNaO/L00bsihySqi+PGPvVzAUccMJ09ugyV7w==}
 
   '@jitl/quickjs-wasmfile-debug-asyncify@0.29.2':
     resolution: {integrity: sha512-YdRw2414pFkxzyyoJGv81Grbo9THp/5athDMKipaSBNNQvFE9FGRrgE9tt2DT2mhNnBx1kamtOGj0dX84Yy9bg==}
@@ -2162,6 +2171,10 @@ snapshots:
   '@iarna/toml@2.2.5': {}
 
   '@jitl/quickjs-ffi-types@0.29.2': {}
+
+  '@jitl/quickjs-singlefile-browser-release-sync@0.29.2':
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.29.2
 
   '@jitl/quickjs-wasmfile-debug-asyncify@0.29.2':
     dependencies:

@@ -21,6 +21,9 @@ export type { CompileResult, CompileSuccess, CompileFailure } from "./core/index
 let initialized = false;
 let initPromise: Promise<void> | null = null;
 
+// Use CDN for WASM files - more reliable than trying to serve from node_modules
+const ESBUILD_WASM_URL = "https://cdn.jsdelivr.net/npm/esbuild-wasm@0.19.12/esbuild.wasm";
+
 /**
  * Initialize the compiler (loads WASM modules).
  * Call this early to avoid delay on first compile.
@@ -34,10 +37,9 @@ export async function initCompiler(): Promise<void> {
   }
 
   initPromise = (async () => {
-    // Initialize esbuild-wasm
-    // The wasmURL should be configured by the consuming application
+    // Initialize esbuild-wasm with CDN URL
     await esbuild.initialize({
-      wasmURL: "/esbuild.wasm",
+      wasmURL: ESBUILD_WASM_URL,
     });
     initialized = true;
   })();
