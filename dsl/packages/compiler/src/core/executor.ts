@@ -4,7 +4,30 @@
  * This module is browser-compatible (uses quickjs-emscripten which is WASM-based).
  */
 
-import { getQuickJS } from "quickjs-emscripten";
+import { newQuickJSWASMModule, RELEASE_SYNC, type QuickJSWASMModule } from "quickjs-emscripten";
+
+// Cache the module to avoid re-initializing
+let quickJSModulePromise: Promise<QuickJSWASMModule> | null = null;
+
+async function getQuickJS() {
+  if (!quickJSModulePromise) {
+    // Detect browser environment
+    const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
+
+    if (isBrowser) {
+      // Use singlefile variant for browser (embeds WASM inline, no fetch needed)
+      // Dynamic import to avoid bundling both variants
+      const { default: browserVariant } = await import(
+        /* @vite-ignore */ '@jitl/quickjs-singlefile-browser-release-sync'
+      );
+      quickJSModulePromise = newQuickJSWASMModule(browserVariant);
+    } else {
+      // Use wasmfile variant for Node.js (more efficient, loads from disk)
+      quickJSModulePromise = newQuickJSWASMModule(RELEASE_SYNC);
+    }
+  }
+  return quickJSModulePromise;
+}
 
 export interface ExecuteOptions {
   code: string;

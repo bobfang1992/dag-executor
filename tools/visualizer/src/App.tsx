@@ -70,24 +70,38 @@ export default function App() {
 
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [sourceWidth, setSourceWidth] = useState(50); // percentage
-  const isDraggingRef = useRef(false);
+  const [editorWidth, setEditorWidth] = useState(50); // percentage for edit mode
+  const isDraggingRef = useRef<'source' | 'editor' | false>(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const editContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleSourceDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    isDraggingRef.current = true;
+    isDraggingRef.current = 'source';
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  const handleEditorDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = 'editor';
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   }, []);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current || !containerRef.current) return;
+      if (!isDraggingRef.current) return;
 
-      const rect = containerRef.current.getBoundingClientRect();
-      const newWidth = ((e.clientX - rect.left) / rect.width) * 100;
-      // Clamp between 20% and 80%
-      setSourceWidth(Math.max(20, Math.min(80, newWidth)));
+      if (isDraggingRef.current === 'source' && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const newWidth = ((e.clientX - rect.left) / rect.width) * 100;
+        setSourceWidth(Math.max(20, Math.min(80, newWidth)));
+      } else if (isDraggingRef.current === 'editor' && editContainerRef.current) {
+        const rect = editContainerRef.current.getBoundingClientRect();
+        const newWidth = ((e.clientX - rect.left) / rect.width) * 100;
+        setEditorWidth(Math.max(25, Math.min(75, newWidth)));
+      }
     };
 
     const handleMouseUp = () => {
@@ -139,10 +153,23 @@ export default function App() {
       <main style={styles.main}>
         {mode === 'edit' ? (
           // Edit mode: Editor on left, Canvas on right
-          <>
-            <div style={{ width: '50%', height: '100%', borderRight: `1px solid ${dracula.border}` }}>
+          <div ref={editContainerRef} style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+            <div style={{ width: `${editorWidth}%`, height: '100%', flexShrink: 0, overflow: 'hidden' }}>
               <EditorPanel />
             </div>
+            <div
+              style={{
+                width: '6px',
+                height: '100%',
+                background: dracula.border,
+                cursor: 'col-resize',
+                flexShrink: 0,
+                transition: 'background 0.2s',
+              }}
+              onMouseDown={handleEditorDividerMouseDown}
+              onMouseEnter={(e) => (e.currentTarget.style.background = dracula.purple)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = dracula.border)}
+            />
             <div style={{ flex: 1, position: 'relative', minWidth: 0, overflow: 'hidden' }}>
               {planJson ? (
                 <>
@@ -156,7 +183,7 @@ export default function App() {
               )}
             </div>
             <DetailsPanel />
-          </>
+          </div>
         ) : (
           // View mode: Original layout
           <>
@@ -178,7 +205,7 @@ export default function App() {
                             flexShrink: 0,
                             transition: 'background 0.2s',
                           }}
-                          onMouseDown={handleDividerMouseDown}
+                          onMouseDown={handleSourceDividerMouseDown}
                           onMouseEnter={(e) => (e.currentTarget.style.background = dracula.purple)}
                           onMouseLeave={(e) => (e.currentTarget.style.background = dracula.border)}
                         />
