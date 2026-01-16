@@ -23,9 +23,9 @@ async function getQuickJS() {
     } else {
       // Use singlefile variant for browser/worker (embeds WASM inline, no fetch needed)
       // Works in: main thread, Web Workers, Service Workers
-      // Dynamic import to avoid bundling both variants
+      // Dynamic import - Vite will bundle this for browser builds
       const { default: browserVariant } = await import(
-        /* @vite-ignore */ '@jitl/quickjs-singlefile-browser-release-sync'
+        '@jitl/quickjs-singlefile-browser-release-sync'
       );
       quickJSModulePromise = newQuickJSWASMModule(browserVariant);
     }
