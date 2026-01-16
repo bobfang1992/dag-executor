@@ -23,6 +23,7 @@ public:
         .writes = {},
         .default_budget = {.timeout_ms = 50},
         .output_pattern = OutputPattern::StableFilter,
+        .writes_effect = EffectKeys{}, // No writes
     };
   }
 

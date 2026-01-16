@@ -25,6 +25,7 @@ public:
         .writes = {},
         .default_budget = {.timeout_ms = 50},
         .output_pattern = OutputPattern::UnaryPreserveView,
+        .writes_effect = EffectFromParam{"out_key"},
     };
   }
 

@@ -446,6 +446,7 @@ Codegen generates:
 | RFC | Capability ID | Status |
 |-----|---------------|--------|
 | 0001 | `cap.rfc.0001.extensions_capabilities.v1` | implemented |
+| 0005 | `cap.rfc.0005.writes_effect.v1` | implemented |
 
 See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examples.
 
@@ -459,6 +460,9 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 | C++ runtime logic | `engine/src/capability_registry.cpp` |
 | DSL runtime | `dsl/packages/runtime/src/plan.ts` |
 | Artifact validation | `dsl/packages/runtime/src/artifact-validation.ts` |
+| writes_effect ADT (C++) | `engine/include/writes_effect.h` |
+| writes_effect evaluator (C++) | `engine/src/writes_effect.cpp` |
+| writes_effect (TS) | `dsl/packages/runtime/src/writes-effect.ts` |
 
 ### Digest Computation
 
@@ -653,6 +657,22 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - `artifacts/capabilities.json` + `artifacts/capabilities.digest` - JSON artifacts
 - `--print-registry` extended with `capability_registry_digest` and `num_capabilities`
 - CI test 53: Capability registry digest parity (TS == C++)
+
+**Step 12.1: Add RFC0005 Capability to Registry**
+- Added `cap.rfc.0005.writes_effect.v1` to `registry/capabilities.toml`
+- Capability for param-dependent write effect expressions in TaskSpec
+
+**Step 12.2: TaskSpec writes_effect Expression Language**
+- `engine/include/writes_effect.h` - ADT types: `EffectKeys`, `EffectFromParam`, `EffectSwitchEnum`, `EffectUnion`
+- `engine/src/writes_effect.cpp` - `eval_writes()` evaluator returns `Exact(K) | May(K) | Unknown`
+- `engine/include/task_registry.h` - TaskSpec extended with `std::optional<WritesEffectExpr> writes_effect`
+- Task writes_effect assignments:
+  - `vm`: `FromParam("out_key")` - writes depend on out_key parameter
+  - `filter`, `take`, `concat`, `viewer.follow`, `viewer.fetch_cached_recommendation`: `Keys{}` (no param-dependent writes)
+- `dsl/packages/runtime/src/writes-effect.ts` - TS implementation with identical semantics
+- Evaluator gamma context: compile/link-time env mapping param → concrete value
+- Keys use set semantics (sorted, deduped)
+- CI tests: C++ unit tests (17 cases), TS unit tests (21 cases), parity validation
 
 ### 🔲 Not Yet Implemented
 

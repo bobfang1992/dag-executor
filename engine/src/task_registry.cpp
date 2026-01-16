@@ -1,5 +1,6 @@
 #include "task_registry.h"
 #include "sha256.h"
+#include "writes_effect.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -283,6 +284,12 @@ std::string TaskRegistry::compute_manifest_digest() const {
 
     // Add output_pattern for deterministic manifest
     task_json["output_pattern"] = outputPatternToString(spec.output_pattern);
+
+    // Add writes_effect if present (RFC0005)
+    if (spec.writes_effect) {
+      task_json["writes_effect"] =
+          nlohmann::json::parse(serialize_writes_effect(*spec.writes_effect));
+    }
 
     tasks_json.push_back(task_json);
   }

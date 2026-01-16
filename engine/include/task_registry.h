@@ -3,8 +3,10 @@
 #include "key_registry.h"
 #include "output_contract.h"
 #include "rowset.h"
+#include "writes_effect.h"
 #include <functional>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <variant>
@@ -51,6 +53,7 @@ struct TaskSpec {
   std::vector<KeyId> writes;
   DefaultBudget default_budget;
   OutputPattern output_pattern; // Required output shape contract
+  std::optional<WritesEffectExpr> writes_effect; // RFC0005: param-dependent writes
 };
 
 // Validated parameters - stored after validation so run functions don't

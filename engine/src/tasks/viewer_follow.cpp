@@ -20,6 +20,7 @@ public:
         .writes = {},
         .default_budget = {.timeout_ms = 100},
         .output_pattern = OutputPattern::SourceFanoutDense,
+        .writes_effect = EffectKeys{}, // Source task, no column writes
     };
   }
 

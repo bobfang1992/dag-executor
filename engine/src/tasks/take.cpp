@@ -20,6 +20,7 @@ public:
         .writes = {},
         .default_budget = {.timeout_ms = 10},
         .output_pattern = OutputPattern::PrefixOfInput,
+        .writes_effect = EffectKeys{}, // No writes
     };
   }
 
