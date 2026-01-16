@@ -34,7 +34,7 @@ export default defineConfig({
   plugins: [react(), servePlanSources()],
   publicDir: path.resolve(__dirname, '../../artifacts'),
   server: {
-    port: 5173,
+    port: 5175,
     open: true,
   },
   build: {

@@ -52,7 +52,14 @@ function encodeForUrl(code: string): string {
   try {
     // Use TextEncoder for proper UTF-8 handling, then base64
     const bytes = new TextEncoder().encode(code);
-    const binary = String.fromCharCode(...bytes);
+    // Build binary string in chunks to avoid stack overflow on large plans
+    // (String.fromCharCode(...bytes) throws for arrays > ~60k elements)
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode.apply(null, Array.from(chunk));
+    }
     // Use encodeURIComponent to make base64 URL-safe (handles +, /, = characters)
     return encodeURIComponent(btoa(binary));
   } catch {
