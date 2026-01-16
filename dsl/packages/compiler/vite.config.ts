@@ -97,6 +97,8 @@ export default defineConfig({
       output: {
         // Preserve export names
         exports: "named",
+        // Put WASM assets in assets/ subdirectory
+        assetFileNames: "assets/[name]-[hash][extname]",
       },
     },
 
@@ -111,6 +113,9 @@ export default defineConfig({
 
     // Don't minify for easier debugging (can change for production)
     minify: false,
+
+    // Don't inline large assets like WASM files
+    assetsInlineLimit: 0,
   },
 
   // Ensure we can use top-level await
