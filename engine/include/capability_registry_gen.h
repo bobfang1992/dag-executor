@@ -9,7 +9,7 @@
 namespace rankd {
 
 enum class CapabilityStatus { Implemented, Draft, Deprecated, Blocked };
-enum class PropertyType { Boolean, String, Number, Unknown };
+enum class PropertyType { Boolean, String, Number, Array, Object, Unknown };
 
 // Property metadata for type checking
 struct PropertyMeta {

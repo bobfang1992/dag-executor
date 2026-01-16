@@ -58,9 +58,15 @@ void validate_capability_payload(std::string_view cap_id,
     return;
   }
 
-  // Absent payload is always OK when schema exists
-  if (payload.is_null())
+  // Absent payload is OK only if no required fields
+  if (payload.is_null()) {
+    if (schema.num_required_keys > 0) {
+      throw std::runtime_error(
+          std::string("capability '") + std::string(cap_id) + "' at " +
+          std::string(scope) + ": payload is null but has required fields");
+    }
     return;
+  }
 
   if (!payload.is_object()) {
     throw std::runtime_error(
@@ -127,6 +133,20 @@ void validate_capability_payload(std::string_view cap_id,
         throw std::runtime_error(
             std::string("capability '") + std::string(cap_id) + "' at " +
             std::string(scope) + ": '" + prop_name + "' must be number");
+      }
+      break;
+    case PropertyType::Array:
+      if (!value.is_array()) {
+        throw std::runtime_error(
+            std::string("capability '") + std::string(cap_id) + "' at " +
+            std::string(scope) + ": '" + prop_name + "' must be array");
+      }
+      break;
+    case PropertyType::Object:
+      if (!value.is_object()) {
+        throw std::runtime_error(
+            std::string("capability '") + std::string(cap_id) + "' at " +
+            std::string(scope) + ": '" + prop_name + "' must be object");
       }
       break;
     case PropertyType::Unknown:

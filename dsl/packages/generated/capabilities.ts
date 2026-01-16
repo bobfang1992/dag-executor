@@ -58,8 +58,13 @@ export function validatePayload(capId: string, payload: unknown): void {
     return;
   }
 
-  // Absent/null payload is OK when schema exists
-  if (payload === undefined || payload === null) return;
+  // Absent/null payload is OK only if no required fields
+  if (payload === undefined || payload === null) {
+    if (schema.required && schema.required.length > 0) {
+      throw new Error(`capability '${capId}': payload is null but has required fields`);
+    }
+    return;
+  }
 
   if (schema.type === "object") {
     if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
@@ -103,5 +108,11 @@ function validatePropertyType(
   }
   if (schema.type === "number" && typeof value !== "number") {
     throw new Error(`capability '${capId}': '${key}' must be number`);
+  }
+  if (schema.type === "array" && !Array.isArray(value)) {
+    throw new Error(`capability '${capId}': '${key}' must be array`);
+  }
+  if (schema.type === "object" && (typeof value !== "object" || value === null || Array.isArray(value))) {
+    throw new Error(`capability '${capId}': '${key}' must be object`);
   }
 }

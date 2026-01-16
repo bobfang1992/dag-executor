@@ -980,8 +980,13 @@ function generateCapabilitiesTs(capabilities: CapabilityEntry[], digest: string)
   lines.push("    return;");
   lines.push("  }");
   lines.push("");
-  lines.push("  // Absent/null payload is OK when schema exists");
-  lines.push("  if (payload === undefined || payload === null) return;");
+  lines.push("  // Absent/null payload is OK only if no required fields");
+  lines.push("  if (payload === undefined || payload === null) {");
+  lines.push("    if (schema.required && schema.required.length > 0) {");
+  lines.push("      throw new Error(`capability '${capId}': payload is null but has required fields`);");
+  lines.push("    }");
+  lines.push("    return;");
+  lines.push("  }");
   lines.push("");
   lines.push('  if (schema.type === "object") {');
   lines.push("    if (typeof payload !== \"object\" || payload === null || Array.isArray(payload)) {");
@@ -1026,6 +1031,12 @@ function generateCapabilitiesTs(capabilities: CapabilityEntry[], digest: string)
   lines.push('  if (schema.type === "number" && typeof value !== "number") {');
   lines.push("    throw new Error(`capability '${capId}': '${key}' must be number`);");
   lines.push("  }");
+  lines.push('  if (schema.type === "array" && !Array.isArray(value)) {');
+  lines.push("    throw new Error(`capability '${capId}': '${key}' must be array`);");
+  lines.push("  }");
+  lines.push('  if (schema.type === "object" && (typeof value !== "object" || value === null || Array.isArray(value))) {');
+  lines.push("    throw new Error(`capability '${capId}': '${key}' must be object`);");
+  lines.push("  }");
   lines.push("}");
   lines.push("");
 
@@ -1046,6 +1057,8 @@ function cppPropertyType(jsonType: string | undefined): string {
     case "boolean": return "Boolean";
     case "string": return "String";
     case "number": return "Number";
+    case "array": return "Array";
+    case "object": return "Object";
     default: return "Unknown";
   }
 }
@@ -1074,7 +1087,7 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
     "namespace rankd {",
     "",
     "enum class CapabilityStatus { Implemented, Draft, Deprecated, Blocked };",
-    "enum class PropertyType { Boolean, String, Number, Unknown };",
+    "enum class PropertyType { Boolean, String, Number, Array, Object, Unknown };",
     "",
     "// Property metadata for type checking",
     "struct PropertyMeta {",
