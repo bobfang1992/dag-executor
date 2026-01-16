@@ -240,6 +240,24 @@ After running `pnpm -C dsl run gen`:
 - Extensions may include `eviction_policy` (optional)
 - No other fields allowed (`additionalProperties: false`)
 
+## Known Limitations
+
+### Payload presence not enforced (2026-01-16)
+
+If a capability schema has `required` fields, validation only checks those fields when a payload IS provided (at plan or node level). A plan can list the capability in `capabilities_required` with no payload anywhere and still pass validation.
+
+**Example of fail-open behavior:**
+```json
+{
+  "capabilities_required": ["cap.rfc.0007.feature_caching.v1"],
+  "extensions": {},
+  "nodes": [{"extensions": {}}]
+}
+```
+This passes validation even though `feature_caching` requires `default_ttl_seconds`. The capability would fail at runtime if it needs configuration.
+
+**Future work:** Consider adding explicit `payload_required: true` metadata to capabilities that must have a payload somewhere (plan or node level).
+
 ## See Also
 
 - [CAPABILITY_EXAMPLES.md](CAPABILITY_EXAMPLES.md) - Examples for each RFC capability
