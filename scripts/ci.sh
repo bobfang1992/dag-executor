@@ -520,16 +520,17 @@ fi
 
 run_bg "Test 52: Index has capabilities_digest" bash -c '
 # Check that index.json has capabilities_digest field for all plans
-python3 -c "
+python3 << "PYEOF"
 import json
-with open(\"artifacts/plans/index.json\") as f:
+with open("artifacts/plans/index.json") as f:
     index = json.load(f)
-for plan in index[\"plans\"]:
-    if \"capabilities_digest\" not in plan:
-        print(f\"Missing capabilities_digest in plan: {plan[\"name\"]}\")
+for plan in index["plans"]:
+    if "capabilities_digest" not in plan:
+        print("Missing capabilities_digest in plan:", plan["name"])
         exit(1)
-print(\"All plans have capabilities_digest field\")
-"'
+print("All plans have capabilities_digest field")
+PYEOF
+'
 wait_all
 
 echo ""

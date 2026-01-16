@@ -21,24 +21,30 @@ FetchContent_Declare(
 )
 
 FetchContent_Declare(
-  Catch2
-  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG v3.5.2
-)
-
-FetchContent_Declare(
   re2
   GIT_REPOSITORY https://github.com/google/re2.git
   GIT_TAG 2022-04-01
 )
 
-# Disable Catch2's own tests
-set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-
 # Disable RE2 tests
 set(RE2_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(json cli11 Catch2 re2)
+# Try to find system Catch2 first (faster CI builds)
+find_package(Catch2 3 QUIET)
+if(NOT Catch2_FOUND)
+  message(STATUS "System Catch2 not found, fetching from GitHub...")
+  FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG v3.5.2
+  )
+  # Disable Catch2's own tests when building from source
+  set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(json cli11 Catch2 re2)
+else()
+  message(STATUS "Using system Catch2")
+  FetchContent_MakeAvailable(json cli11 re2)
+endif()
 
 # Task source files (self-registering via static TaskRegistrar)
 set(TASK_SOURCES
