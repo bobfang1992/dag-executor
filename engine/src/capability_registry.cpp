@@ -88,6 +88,52 @@ void validate_capability_payload(std::string_view cap_id,
       }
     }
   }
+
+  // Check required properties
+  for (size_t i = 0; i < schema.num_required_keys; ++i) {
+    const std::string required_key(schema.required_keys[i]);
+    if (!payload.contains(required_key)) {
+      throw std::runtime_error(std::string("capability '") +
+                                std::string(cap_id) + "' at " +
+                                std::string(scope) + ": missing required '" +
+                                required_key + "'");
+    }
+  }
+
+  // Type-check properties
+  for (size_t i = 0; i < schema.num_property_types; ++i) {
+    const std::string prop_name(schema.property_types[i].name);
+    if (!payload.contains(prop_name)) {
+      continue; // Property not present, skip type check
+    }
+    const auto &value = payload.at(prop_name);
+    switch (schema.property_types[i].type) {
+    case PropertyType::Boolean:
+      if (!value.is_boolean()) {
+        throw std::runtime_error(
+            std::string("capability '") + std::string(cap_id) + "' at " +
+            std::string(scope) + ": '" + prop_name + "' must be boolean");
+      }
+      break;
+    case PropertyType::String:
+      if (!value.is_string()) {
+        throw std::runtime_error(
+            std::string("capability '") + std::string(cap_id) + "' at " +
+            std::string(scope) + ": '" + prop_name + "' must be string");
+      }
+      break;
+    case PropertyType::Number:
+      if (!value.is_number()) {
+        throw std::runtime_error(
+            std::string("capability '") + std::string(cap_id) + "' at " +
+            std::string(scope) + ": '" + prop_name + "' must be number");
+      }
+      break;
+    case PropertyType::Unknown:
+      // Unknown type, skip validation
+      break;
+    }
+  }
 }
 
 // Helper: produce canonical JSON string with sorted keys (no whitespace)

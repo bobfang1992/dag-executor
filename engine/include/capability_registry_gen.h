@@ -9,6 +9,13 @@
 namespace rankd {
 
 enum class CapabilityStatus { Implemented, Draft, Deprecated, Blocked };
+enum class PropertyType { Boolean, String, Number, Unknown };
+
+// Property metadata for type checking
+struct PropertyMeta {
+  std::string_view name;
+  PropertyType type;
+};
 
 // Simple schema representation (subset of JSON Schema)
 struct PayloadSchema {
@@ -17,6 +24,11 @@ struct PayloadSchema {
   const std::string_view
       *allowed_keys;       // pointer to array of allowed property names
   size_t num_allowed_keys; // number of allowed properties
+  const std::string_view
+      *required_keys;       // pointer to array of required property names
+  size_t num_required_keys; // number of required properties
+  const PropertyMeta *property_types; // pointer to array of property type info
+  size_t num_property_types;          // number of property type entries
 };
 
 struct CapabilityMeta {
@@ -42,7 +54,11 @@ inline constexpr std::array<CapabilityMeta, kCapabilityCount>
          {.has_schema = true,
           .additional_properties = false,
           .allowed_keys = nullptr,
-          .num_allowed_keys = 0}},
+          .num_allowed_keys = 0,
+          .required_keys = nullptr,
+          .num_required_keys = 0,
+          .property_types = nullptr,
+          .num_property_types = 0}},
     }};
 
 } // namespace rankd

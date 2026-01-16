@@ -1041,6 +1041,15 @@ function cppCapabilityStatus(s: CapabilityStatus): string {
   }
 }
 
+function cppPropertyType(jsonType: string | undefined): string {
+  switch (jsonType) {
+    case "boolean": return "Boolean";
+    case "string": return "String";
+    case "number": return "Number";
+    default: return "Unknown";
+  }
+}
+
 function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string): string {
   const lines: string[] = [
     "// AUTO-GENERATED - DO NOT EDIT",
@@ -1054,13 +1063,24 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
     "namespace rankd {",
     "",
     "enum class CapabilityStatus { Implemented, Draft, Deprecated, Blocked };",
+    "enum class PropertyType { Boolean, String, Number, Unknown };",
+    "",
+    "// Property metadata for type checking",
+    "struct PropertyMeta {",
+    "  std::string_view name;",
+    "  PropertyType type;",
+    "};",
     "",
     "// Simple schema representation (subset of JSON Schema)",
     "struct PayloadSchema {",
-    "  bool has_schema;                        // false = no payload allowed",
-    "  bool additional_properties;             // true = allow extra keys",
-    "  const std::string_view* allowed_keys;   // pointer to array of allowed property names",
-    "  size_t num_allowed_keys;                // number of allowed properties",
+    "  bool has_schema;                          // false = no payload allowed",
+    "  bool additional_properties;               // true = allow extra keys",
+    "  const std::string_view* allowed_keys;     // pointer to array of allowed property names",
+    "  size_t num_allowed_keys;                  // number of allowed properties",
+    "  const std::string_view* required_keys;    // pointer to array of required property names",
+    "  size_t num_required_keys;                 // number of required properties",
+    "  const PropertyMeta* property_types;       // pointer to array of property type info",
+    "  size_t num_property_types;                // number of property type entries",
     "};",
     "",
     "struct CapabilityMeta {",
@@ -1074,15 +1094,42 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
     "",
   ];
 
-  // Generate property arrays for each capability that has properties
+  // Generate arrays for each capability
   for (const cap of capabilities) {
     const props = cap.payload_schema?.properties;
-    if (props && Object.keys(props).length > 0) {
-      const propNames = Object.keys(props).sort();
+    const required = cap.payload_schema?.required;
+    const propNames = props ? Object.keys(props).sort() : [];
+
+    // Property names array (for additionalProperties check)
+    if (propNames.length > 0) {
       const varName = `kProps_${cap.name}`;
       lines.push(`inline constexpr std::array<std::string_view, ${propNames.length}> ${varName} = {{`);
       for (const name of propNames) {
         lines.push(`    ${JSON.stringify(name)},`);
+      }
+      lines.push("}};");
+      lines.push("");
+    }
+
+    // Required keys array
+    if (required && required.length > 0) {
+      const varName = `kRequired_${cap.name}`;
+      lines.push(`inline constexpr std::array<std::string_view, ${required.length}> ${varName} = {{`);
+      for (const name of required) {
+        lines.push(`    ${JSON.stringify(name)},`);
+      }
+      lines.push("}};");
+      lines.push("");
+    }
+
+    // Property types array
+    if (props && propNames.length > 0) {
+      const varName = `kPropTypes_${cap.name}`;
+      lines.push(`inline constexpr std::array<PropertyMeta, ${propNames.length}> ${varName} = {{`);
+      for (const name of propNames) {
+        const propSchema = props[name];
+        const propType = cppPropertyType(propSchema?.type);
+        lines.push(`    {${JSON.stringify(name)}, PropertyType::${propType}},`);
       }
       lines.push("}};");
       lines.push("");
@@ -1098,14 +1145,26 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
     const hasSchema = cap.payload_schema !== null;
     const additionalProps = cap.payload_schema?.additionalProperties !== false;
     const props = cap.payload_schema?.properties;
+    const required = cap.payload_schema?.required;
     const propNames = props ? Object.keys(props).sort() : [];
     const numProps = propNames.length;
+    const numRequired = required?.length ?? 0;
+
     const propsPtr = numProps > 0 ? `kProps_${cap.name}.data()` : "nullptr";
+    const requiredPtr = numRequired > 0 ? `kRequired_${cap.name}.data()` : "nullptr";
+    const propTypesPtr = numProps > 0 ? `kPropTypes_${cap.name}.data()` : "nullptr";
 
     lines.push(`    {${JSON.stringify(cap.id)}, ${JSON.stringify(cap.rfc)}, ${JSON.stringify(cap.name)},`);
     lines.push(`     CapabilityStatus::${cppCapabilityStatus(cap.status)},`);
     lines.push(`     ${JSON.stringify(cap.doc)},`);
-    lines.push(`     {.has_schema = ${hasSchema}, .additional_properties = ${additionalProps}, .allowed_keys = ${propsPtr}, .num_allowed_keys = ${numProps}}},`);
+    lines.push(`     {.has_schema = ${hasSchema},`);
+    lines.push(`      .additional_properties = ${additionalProps},`);
+    lines.push(`      .allowed_keys = ${propsPtr},`);
+    lines.push(`      .num_allowed_keys = ${numProps},`);
+    lines.push(`      .required_keys = ${requiredPtr},`);
+    lines.push(`      .num_required_keys = ${numRequired},`);
+    lines.push(`      .property_types = ${propTypesPtr},`);
+    lines.push(`      .num_property_types = ${numProps}}},`);
   }
 
   lines.push("}};");
