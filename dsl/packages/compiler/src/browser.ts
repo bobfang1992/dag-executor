@@ -33,20 +33,39 @@ import generatedSource from "virtual:generated-source";
 // esbuild-wasm instance (initialized lazily)
 let esbuildWasm: EsbuildLike | null = null;
 
+// Default CDN URL for esbuild WASM (fallback when no local WASM provided)
+const DEFAULT_ESBUILD_WASM_URL =
+  "https://unpkg.com/esbuild-wasm@0.19.12/esbuild.wasm";
+
+/**
+ * Options for initializing the browser compiler.
+ */
+export interface InitCompilerOptions {
+  /**
+   * URL to the esbuild.wasm file.
+   * If not provided, falls back to CDN (unpkg.com).
+   * For offline/CSP-restricted environments, bundle the WASM and provide the URL:
+   *   import wasmUrl from 'esbuild-wasm/esbuild.wasm?url';
+   *   await initCompiler({ wasmURL: wasmUrl });
+   */
+  wasmURL?: string;
+}
+
 /**
  * Initialize the browser compiler.
  * Must be called before compilePlan().
+ *
+ * @param options - Optional configuration including wasmURL for offline support
  */
-export async function initCompiler(): Promise<void> {
+export async function initCompiler(options?: InitCompilerOptions): Promise<void> {
   if (esbuildWasm) return; // Already initialized
 
   // Dynamic import to avoid bundling issues
   const esbuild = await import("esbuild-wasm");
 
-  // Initialize esbuild-wasm
-  // In browser, we need to use wasmURL or wasmModule
+  // Initialize esbuild-wasm with provided or default WASM URL
   await esbuild.initialize({
-    wasmURL: "https://unpkg.com/esbuild-wasm@0.19.12/esbuild.wasm",
+    wasmURL: options?.wasmURL ?? DEFAULT_ESBUILD_WASM_URL,
   });
 
   // esbuild-wasm's build() is compatible with our EsbuildLike interface

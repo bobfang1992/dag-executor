@@ -6,6 +6,10 @@ import { dracula } from '../theme';
 import { PromptModal, ConfirmModal } from './Modal';
 import Dropdown from './Dropdown';
 
+// Import esbuild WASM for local bundling (no CDN dependency)
+// @ts-ignore - Vite handles ?url imports
+import esbuildWasmUrl from 'esbuild-wasm/esbuild.wasm?url';
+
 const STORAGE_KEY = 'visualizer:editor:code';
 const SAVED_PLANS_KEY = 'visualizer:saved-plans';
 
@@ -348,7 +352,8 @@ export default function EditorPanel() {
         setStatus('compiling');
         // Dynamic import to avoid bundling issues
         const compiler = await import('@ranking-dsl/compiler/browser');
-        await compiler.initCompiler();
+        // Use locally bundled WASM (no CDN dependency)
+        await compiler.initCompiler({ wasmURL: esbuildWasmUrl });
         compilerRef.current = {
           compilePlan: compiler.compilePlan,
         };
