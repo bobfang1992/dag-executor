@@ -239,18 +239,22 @@ doc = "Runtime request branching based on request fields"
 
 Compile-time effect inference for key writes.
 
-> **⚠️ Design Discussion Note (2026-01-16)**
+> **✅ Design Resolution (2026-01-16)**
 >
-> There's an open question whether `key_effects` should be a capability extension or a **core language feature**:
+> RFC 0005 now separates two concerns:
 >
-> - **As capability**: Plan authors opt-in by declaring `cap.rfc.0005...`. If they don't, effect checking is bypassed entirely.
-> - **As core feature**: Effect metadata is always present and validated. No opt-out possible.
+> **A) Core language metadata (no capability needed)**
+> - `key_effects` field in Plan/Fragment artifacts (like `expr_table`, `pred_table`)
+> - Effect inference: `Exact(K) | May(K) | Unknown`
+> - Always emitted by compiler, universally available for tooling
 >
-> **Concern**: If key effects are opt-in via capability, a plan author can bypass write validation simply by not requiring the capability. This undermines the governance goal of enforcing dataflow auditing.
+> **B) Capability-gated strict enforcement**
+> - `cap.rfc.0005.key_effects_writes_exact.v1` gates strict validation
+> - Required for meta-tasks with branching (`timeout_wrapper`, `if_request`)
+> - Enforces `writes_exact(branch_a) == writes_exact(branch_b)`
+> - Compiler auto-adds capability when lowering strict-shape constructs
 >
-> **Recommendation**: Consider making `key_effects`/`writes_exact` a core IR field (like `schema_version`) rather than an extension. Core language features enforce behavior unconditionally—plan authors cannot bypass the check.
->
-> **Action**: Discuss with spec owner whether RFC 0005 should be updated to bake this into core language rather than the extension mechanism.
+> This design ensures effect metadata is always present (core) while strict enforcement remains opt-in (capability). Plans cannot bypass validation—if they use strict-shape meta-tasks, the compiler forces the capability requirement.
 
 ### TOML Registry Definition (Hypothetical)
 
