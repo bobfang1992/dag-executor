@@ -190,6 +190,10 @@ function runCommand(
 /**
  * Stable stringify for computing deterministic digest.
  * No whitespace, stable key ordering.
+ *
+ * NOTE: Float formatting may differ between JS (JSON.stringify) and C++ (nlohmann::json::dump)
+ * for edge cases. Current capability payloads don't use floats. If floats are needed in the
+ * future, implement JCS or align formatting with C++ implementation.
  */
 function stableStringifyForDigest(obj: unknown): string {
   if (obj === null || typeof obj !== "object") {

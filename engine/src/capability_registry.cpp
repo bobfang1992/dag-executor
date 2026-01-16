@@ -53,6 +53,9 @@ void validate_capability_payload(std::string_view cap_id,
 }
 
 // Helper: produce canonical JSON string with sorted keys (no whitespace)
+// NOTE: Float formatting may differ between C++ (j.dump()) and JS (JSON.stringify)
+// for edge cases like 1.0 vs "1" or scientific notation. Current capability payloads
+// don't use floats. If floats are needed in the future, implement JCS or align formatting.
 static std::string canonical_json_string(const nlohmann::json &j) {
   if (j.is_null()) {
     return "null";
