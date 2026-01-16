@@ -14,6 +14,9 @@ struct Node {
   std::string op;
   std::vector<std::string> inputs;
   nlohmann::json params;
+
+  // RFC0001: node-level extensions (keys must be in plan.capabilities_required)
+  nlohmann::json extensions;
 };
 
 // ExprNode: recursive expression tree (for vm expressions)
@@ -89,6 +92,10 @@ struct Plan {
 
   // pred_table: pred_id -> PredNode tree
   std::unordered_map<std::string, PredNodePtr> pred_table;
+
+  // RFC0001: capabilities and extensions
+  std::vector<std::string> capabilities_required;  // must be sorted + unique
+  nlohmann::json extensions;  // object, keys must be subset of capabilities_required
 };
 
 // Parse plan from JSON file. Throws std::runtime_error on parse failure.

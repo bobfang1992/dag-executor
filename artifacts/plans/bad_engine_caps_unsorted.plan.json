@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "plan_name": "bad_engine_caps_unsorted",
+  "capabilities_required": ["cap.z", "cap.a"],
+  "nodes": [
+    {
+      "node_id": "n0",
+      "op": "viewer.follow",
+      "inputs": [],
+      "params": { "fanout": 10, "trace": null }
+    }
+  ],
+  "outputs": ["n0"]
+}
