@@ -1050,10 +1050,11 @@ function cppPropertyType(jsonType: string | undefined): string {
   }
 }
 
-// Sanitize capability name for use as C++ identifier
+// Sanitize capability id for use as C++ identifier
+// Uses full id (including version) to ensure uniqueness across versions
 // Replace non-alphanumeric chars with underscore, prefix with _ if starts with digit
-function cppCapabilityIdent(name: string): string {
-  let ident = name.replace(/[^a-zA-Z0-9]/g, "_");
+function cppCapabilityIdent(id: string): string {
+  let ident = id.replace(/[^a-zA-Z0-9]/g, "_");
   if (/^[0-9]/.test(ident)) {
     ident = "_" + ident;
   }
@@ -1109,7 +1110,7 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
     const props = cap.payload_schema?.properties;
     const required = cap.payload_schema?.required;
     const propNames = props ? Object.keys(props).sort() : [];
-    const ident = cppCapabilityIdent(cap.name);
+    const ident = cppCapabilityIdent(cap.id);
 
     // Property names array (for additionalProperties check)
     if (propNames.length > 0) {
@@ -1160,7 +1161,7 @@ function generateCapabilitiesH(capabilities: CapabilityEntry[], digest: string):
     const propNames = props ? Object.keys(props).sort() : [];
     const numProps = propNames.length;
     const numRequired = required?.length ?? 0;
-    const ident = cppCapabilityIdent(cap.name);
+    const ident = cppCapabilityIdent(cap.id);
 
     const propsPtr = numProps > 0 ? `kProps_${ident}.data()` : "nullptr";
     const requiredPtr = numRequired > 0 ? `kRequired_${ident}.data()` : "nullptr";
