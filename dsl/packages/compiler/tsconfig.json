@@ -8,6 +8,10 @@
     "composite": true
   },
   "include": ["src/**/*.ts"],
+  "exclude": [
+    "src/browser.ts",
+    "src/virtual-modules.d.ts"
+  ],
   "references": [
     { "path": "../runtime" },
     { "path": "../generated" }

@@ -3,6 +3,10 @@ import { useStore } from '../state/store';
 import type { PlanJson } from '../types';
 import { dracula } from '../theme';
 
+interface PlanSelectorProps {
+  onCreateNew?: () => void;
+}
+
 const styles: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex',
@@ -17,13 +21,55 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     fontSize: '24px',
     fontWeight: 600,
-    marginBottom: '24px',
+    marginBottom: '8px',
     color: dracula.foreground,
   },
   subtitle: {
     fontSize: '14px',
     color: dracula.comment,
-    marginBottom: '20px',
+    marginBottom: '24px',
+  },
+  optionsRow: {
+    display: 'flex',
+    gap: '24px',
+    marginBottom: '32px',
+    width: '100%',
+    maxWidth: '600px',
+  },
+  optionCard: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: '24px',
+    background: dracula.currentLine,
+    border: `1px solid ${dracula.border}`,
+    borderRadius: '12px',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+  },
+  optionIcon: {
+    fontSize: '32px',
+    marginBottom: '12px',
+  },
+  optionTitle: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: dracula.foreground,
+    marginBottom: '4px',
+  },
+  optionDesc: {
+    fontSize: '12px',
+    color: dracula.comment,
+    textAlign: 'center',
+  },
+  sectionTitle: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: dracula.comment,
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginBottom: '12px',
   },
   planList: {
     display: 'flex',
@@ -109,7 +155,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 };
 
-export default function PlanSelector() {
+export default function PlanSelector({ onCreateNew }: PlanSelectorProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -201,7 +247,42 @@ export default function PlanSelector() {
   return (
     <div style={styles.container}>
       <div style={styles.title}>Plan Visualizer</div>
-      <div style={styles.subtitle}>Select a plan to visualize</div>
+      <div style={styles.subtitle}>Explore and create ranking plans</div>
+
+      {/* Two main options */}
+      <div style={styles.optionsRow}>
+        <div
+          style={styles.optionCard}
+          onClick={onCreateNew}
+          onMouseOver={(e) => {
+            e.currentTarget.style.borderColor = dracula.green;
+            e.currentTarget.style.background = dracula.selected;
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.borderColor = dracula.border;
+            e.currentTarget.style.background = dracula.currentLine;
+          }}
+        >
+          <span style={styles.optionIcon}>✨</span>
+          <span style={styles.optionTitle}>Create New Plan</span>
+          <span style={styles.optionDesc}>
+            Write TypeScript code and see<br />the DAG update in real-time
+          </span>
+        </div>
+
+        <div
+          style={{ ...styles.optionCard, cursor: 'default', opacity: 0.7 }}
+        >
+          <span style={styles.optionIcon}>📂</span>
+          <span style={styles.optionTitle}>Browse Existing</span>
+          <span style={styles.optionDesc}>
+            Select a plan from below<br />or drop a JSON file
+          </span>
+        </div>
+      </div>
+
+      {/* Existing plans section */}
+      <div style={styles.sectionTitle}>Available Plans</div>
 
       {indexLoading ? (
         <div style={styles.loading}>Loading plans...</div>
