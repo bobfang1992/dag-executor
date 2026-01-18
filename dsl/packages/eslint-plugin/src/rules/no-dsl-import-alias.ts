@@ -11,12 +11,13 @@
 import type { Rule } from "eslint";
 
 const RESTRICTED_IDENTIFIERS = ["Key", "P", "coalesce"];
+const DSL_PACKAGES = ["@ranking-dsl/runtime", "@ranking-dsl/generated"];
 
 const rule: Rule.RuleModule = {
   meta: {
     type: "problem",
     docs: {
-      description: "Disallow aliasing Key, P, or coalesce from @ranking-dsl/runtime",
+      description: "Disallow aliasing Key, P, or coalesce from @ranking-dsl packages",
       recommended: true,
     },
     messages: {
@@ -28,8 +29,9 @@ const rule: Rule.RuleModule = {
   create(context) {
     return {
       ImportDeclaration(node) {
-        // Only check @ranking-dsl/runtime imports
-        if (node.source.value !== "@ranking-dsl/runtime") {
+        // Only check @ranking-dsl package imports
+        const source = String(node.source.value);
+        if (!DSL_PACKAGES.some((pkg) => source === pkg || source.startsWith(pkg + "/"))) {
           return;
         }
 

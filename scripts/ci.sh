@@ -804,6 +804,25 @@ node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_import.plan
 }
 exit 0
 '
+
+run_bg "Test 62: ESLint catches aliased imports" bash -c '
+# Run ESLint on bad_alias.plan.ts - should report error for aliased Key
+ESLINT_OUTPUT=$(./node_modules/.bin/eslint test/fixtures/plans/bad_alias.plan.ts --config eslint.config.js 2>&1 || true)
+
+# Should report no-dsl-import-alias error
+if echo "$ESLINT_OUTPUT" | grep -q "no-dsl-import-alias"; then
+    exit 0
+else
+    echo "Expected ESLint to catch aliased import (Key as JK)"
+    echo "Output: $ESLINT_OUTPUT"
+    exit 1
+fi
+'
+
+run_bg "Test 63: Production plans pass ESLint" bash -c '
+# Run ESLint on production plan files - should all pass
+./node_modules/.bin/eslint "plans/**/*.plan.ts" "examples/plans/**/*.plan.ts" --config eslint.config.js 2>&1
+'
 wait_all
 
 echo ""

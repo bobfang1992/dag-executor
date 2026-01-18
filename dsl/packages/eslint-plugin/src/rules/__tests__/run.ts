@@ -92,6 +92,27 @@ test("no-dsl-import-alias: allows aliased non-restricted identifiers", () => {
   );
 });
 
+test("no-dsl-import-alias: rejects aliased Key from @ranking-dsl/generated", () => {
+  assertHasError(
+    `import { Key as JK } from "@ranking-dsl/generated";`,
+    "@ranking-dsl/no-dsl-import-alias"
+  );
+});
+
+test("no-dsl-import-alias: rejects aliased P from @ranking-dsl/generated", () => {
+  assertHasError(
+    `import { P as Params } from "@ranking-dsl/generated";`,
+    "@ranking-dsl/no-dsl-import-alias"
+  );
+});
+
+test("no-dsl-import-alias: allows non-aliased from @ranking-dsl/generated", () => {
+  assertNoError(
+    `import { Key, P } from "@ranking-dsl/generated";`,
+    "@ranking-dsl/no-dsl-import-alias"
+  );
+});
+
 // Tests for inline-expr-only
 test("inline-expr-only: allows inline expression", () => {
   assertNoError(
