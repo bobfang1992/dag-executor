@@ -3,11 +3,13 @@
  */
 
 import * as esbuild from "esbuild";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 
 export interface BundleOptions {
   entryPoint: string;
   repoRoot: string;
+  /** Optional virtual entry contents to use instead of reading from file */
+  virtualEntry?: { contents: string };
 }
 
 export interface BundleResult {
@@ -24,8 +26,8 @@ export async function bundlePlan(
 ): Promise<BundleResult> {
   const warnings: string[] = [];
 
-  const result = await esbuild.build({
-    entryPoints: [options.entryPoint],
+  // Base build options
+  const buildOptions: esbuild.BuildOptions = {
     bundle: true,
     format: "iife",
     platform: "neutral", // Avoid Node builtins
@@ -48,7 +50,21 @@ export async function bundlePlan(
         "dsl/packages/generated/index.ts"
       ),
     },
-  });
+  };
+
+  // Use stdin with virtual contents or file entry point
+  if (options.virtualEntry) {
+    buildOptions.stdin = {
+      contents: options.virtualEntry.contents,
+      sourcefile: options.entryPoint,
+      resolveDir: dirname(options.entryPoint),
+      loader: "ts",
+    };
+  } else {
+    buildOptions.entryPoints = [options.entryPoint];
+  }
+
+  const result = await esbuild.build(buildOptions);
 
   // Collect warnings
   if (result.warnings.length > 0) {
@@ -69,9 +85,9 @@ export async function bundlePlan(
     );
   }
 
-  if (result.outputFiles.length !== 1) {
+  if (!result.outputFiles || result.outputFiles.length !== 1) {
     throw new Error(
-      `Expected exactly one output file, got ${result.outputFiles.length}`
+      `Expected exactly one output file, got ${result.outputFiles?.length ?? 0}`
     );
   }
 

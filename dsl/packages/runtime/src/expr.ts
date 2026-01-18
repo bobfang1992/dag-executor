@@ -21,6 +21,15 @@ export type ExprNode =
   | { op: "coalesce"; a: ExprNode; b: ExprNode };
 
 /**
+ * StaticExprToken - placeholder for AST-extracted expressions.
+ * The compiler replaces natural expressions with { __expr_id: N } and
+ * then post-processes to merge them into the expr_table.
+ */
+export interface StaticExprToken {
+  __expr_id: number;
+}
+
+/**
  * Expression builder API.
  */
 export const E = {
@@ -75,3 +84,23 @@ export const E = {
     return { op: "coalesce", a, b };
   },
 };
+
+/**
+ * Standalone coalesce function for natural expression syntax.
+ *
+ * Usage in vm():
+ *   c.vm(Key.final_score, Key.id * coalesce(P.weight, 0.2))
+ *
+ * This function is recognized by the AST extractor and compiled to ExprIR
+ * at compile time. It should never be called at runtime for valid plans.
+ * If called at runtime, it means the plan was not properly compiled.
+ *
+ * For builder-style usage, use E.coalesce() instead.
+ */
+export function coalesce(_a: unknown, _b: unknown): never {
+  throw new Error(
+    "coalesce() should only be used in vm() natural expressions. " +
+    "The compiler extracts these at compile time. " +
+    "For builder-style expressions, use E.coalesce() instead."
+  );
+}

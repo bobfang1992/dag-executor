@@ -701,5 +701,93 @@ PYEOF
 '
 wait_all
 
+# Batch 13: AST expression extraction tests (Step 13.1)
+echo "--- Batch 13: AST expression extraction ---"
+run_bg "Test 58: Natural expression compilation" bash -c '
+# Compile plan with natural expression syntax
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/vm_ast_expr_basic.plan.ts --out /tmp/ci-ast-expr-58 2>&1
+
+# Verify artifact structure
+python3 << "PYEOF"
+import json
+
+with open("/tmp/ci-ast-expr-58/vm_ast_expr_basic.plan.json") as f:
+    plan = json.load(f)
+
+# Must have expr_table with at least one entry
+assert "expr_table" in plan, "Missing expr_table"
+assert len(plan["expr_table"]) >= 1, "expr_table should have at least 1 expression"
+
+# Find the vm node
+vm_node = next((n for n in plan["nodes"] if n["op"] == "vm"), None)
+assert vm_node is not None, "Missing vm node"
+
+# vm node should have expr_id pointing to expr_table entry
+expr_id = vm_node["params"]["expr_id"]
+assert expr_id.startswith("e"), f"expr_id should start with e, got {expr_id}"
+assert expr_id in plan["expr_table"], f"expr_id {expr_id} not found in expr_table"
+
+# Verify expression structure: Key.id * coalesce(P.weight, 0.2)
+expr = plan["expr_table"][expr_id]
+assert expr["op"] == "mul", f"Expected mul op, got {expr['op']}"
+assert expr["a"]["op"] == "key_ref", "Left operand should be key_ref"
+assert expr["a"]["key_id"] == 1, "Left operand should be Key.id (id=1)"
+assert expr["b"]["op"] == "coalesce", "Right operand should be coalesce"
+assert expr["b"]["a"]["op"] == "param_ref", "coalesce first arg should be param_ref"
+assert expr["b"]["b"]["op"] == "const_number", "coalesce second arg should be const"
+assert expr["b"]["b"]["value"] == 0.2, "coalesce fallback should be 0.2"
+
+print("Natural expression compilation validated")
+PYEOF
+'
+
+run_bg "Test 59: Division rejection" bash -c '
+# Attempt to compile plan with division - should fail
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/vm_ast_expr_div.plan.ts --out /tmp/ci-ast-expr-59 2>&1; then
+    echo "Expected compilation to fail for division operator"
+    exit 1
+fi
+
+# Verify error message mentions division
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/vm_ast_expr_div.plan.ts --out /tmp/ci-ast-expr-59 2>&1 | grep -qi "division\|not supported" || {
+    echo "Expected error message about division"
+    exit 1
+}
+exit 0
+'
+
+run_bg "Test 60: Mixed expression styles" bash -c '
+# Compile plan with both natural and builder-style expressions
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/vm_ast_expr_mixed.plan.ts --out /tmp/ci-ast-expr-60 2>&1
+
+python3 << "PYEOF"
+import json
+
+with open("/tmp/ci-ast-expr-60/vm_ast_expr_mixed.plan.json") as f:
+    plan = json.load(f)
+
+# Must have expr_table with at least 2 entries (natural + builder)
+assert "expr_table" in plan, "Missing expr_table"
+assert len(plan["expr_table"]) >= 2, f"Expected at least 2 expressions, got {len(plan['expr_table'])}"
+
+# Find both vm nodes
+vm_nodes = [n for n in plan["nodes"] if n["op"] == "vm"]
+assert len(vm_nodes) == 2, f"Expected 2 vm nodes, got {len(vm_nodes)}"
+
+# Both should have valid expr_ids pointing to expr_table
+expr_ids = [n["params"]["expr_id"] for n in vm_nodes]
+for eid in expr_ids:
+    assert eid in plan["expr_table"], f"expr_id {eid} not in expr_table"
+
+# Verify both expressions are valid
+for eid in expr_ids:
+    expr = plan["expr_table"][eid]
+    assert "op" in expr, f"Expression {eid} missing op"
+
+print("Mixed expression styles validated: both natural and builder-style work together")
+PYEOF
+'
+wait_all
+
 echo ""
 echo "=== All CI tests passed ==="

@@ -4,8 +4,21 @@
 
 import type { KeyToken } from "@ranking-dsl/generated";
 import { assertNotUndefined, checkNoUndefined } from "./guards.js";
-import type { ExprNode } from "./expr.js";
+import type { ExprNode, StaticExprToken } from "./expr.js";
 import type { PredNode } from "./pred.js";
+
+/** Type for expression that can be passed to vm() */
+type VmExpr = ExprNode | StaticExprToken;
+
+/** Check if value is a StaticExprToken (AST-extracted placeholder) */
+function isStaticExprToken(value: unknown): value is StaticExprToken {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "__expr_id" in value &&
+    typeof (value as StaticExprToken).__expr_id === "number"
+  );
+}
 
 /**
  * Internal node representation (before JSON serialization).
@@ -176,28 +189,64 @@ export class CandidateSet {
 
   /**
    * vm: evaluate expression and write to out_key.
+   *
+   * Two calling conventions:
+   * 1. Object form: vm({ outKey, expr, trace?, extensions? })
+   * 2. Natural form: vm(outKey, expr, opts?)
+   *
+   * Natural expressions are AST-extracted at compile time:
+   *   c.vm(Key.final_score, Key.id * coalesce(P.weight, 0.2))
    */
-  vm(opts: {
-    outKey: KeyToken;
-    expr: ExprNode;
-    trace?: string;
-    extensions?: Record<string, unknown>;
-  }): CandidateSet {
-    assertNotUndefined(opts, "vm(opts)");
-    assertNotUndefined(opts.outKey, "vm({ outKey })");
-    assertNotUndefined(opts.expr, "vm({ expr })");
-    // Don't checkNoUndefined on extensions - it's handled separately in addNode
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest as Record<string, unknown>, "vm(opts)");
+  vm(
+    outKeyOrOpts: KeyToken | { outKey: KeyToken; expr: VmExpr; trace?: string; extensions?: Record<string, unknown> },
+    expr?: VmExpr,
+    opts?: { trace?: string; extensions?: Record<string, unknown> }
+  ): CandidateSet {
+    // Determine which form was used
+    let outKey: KeyToken;
+    let exprValue: VmExpr;
+    let trace: string | undefined;
+    let extensions: Record<string, unknown> | undefined;
 
-    const exprId = this.ctx.addExpr(opts.expr);
+    if ("kind" in outKeyOrOpts && outKeyOrOpts.kind === "Key") {
+      // 2-arg form: vm(outKey, expr, opts?)
+      assertNotUndefined(outKeyOrOpts, "vm(outKey, ...)");
+      assertNotUndefined(expr, "vm(..., expr)");
+      outKey = outKeyOrOpts;
+      exprValue = expr;
+      trace = opts?.trace;
+      extensions = opts?.extensions;
+    } else {
+      // Object form: vm({ outKey, expr, ... })
+      const optsObj = outKeyOrOpts as { outKey: KeyToken; expr: VmExpr; trace?: string; extensions?: Record<string, unknown> };
+      assertNotUndefined(optsObj, "vm(opts)");
+      assertNotUndefined(optsObj.outKey, "vm({ outKey })");
+      assertNotUndefined(optsObj.expr, "vm({ expr })");
+      const { extensions: ext, ...rest } = optsObj;
+      checkNoUndefined(rest as Record<string, unknown>, "vm(opts)");
+      outKey = optsObj.outKey;
+      exprValue = optsObj.expr;
+      trace = optsObj.trace;
+      extensions = ext;
+    }
+
+    // Handle StaticExprToken vs regular ExprNode
+    let exprId: string;
+    if (isStaticExprToken(exprValue)) {
+      // AST-extracted expression - use special prefix for later remapping
+      exprId = `__static_e${exprValue.__expr_id}`;
+    } else {
+      // Regular builder-style expression
+      exprId = this.ctx.addExpr(exprValue);
+    }
+
     const newNodeId = this.ctx.addNode(
       "vm",
       [this.nodeId],
       {
-        out_key: opts.outKey.id,
+        out_key: outKey.id,
         expr_id: exprId,
-        trace: opts.trace ?? null,
+        trace: trace ?? null,
       },
       extensions
     );
