@@ -108,7 +108,9 @@ Plans may only import from:
 
 **No arbitrary shared helpers.** All reusable code must go through the fragment system.
 
-**Enforcement:** esbuild plugin in `bundler.ts` rejects unauthorized imports at compile time.
+**Enforcement:**
+- esbuild plugin in `bundler.ts` rejects at compile time
+- ESLint rule `@ranking-dsl/plan-restricted-imports` catches in editor
 
 ### AST Extraction Limitations
 
@@ -143,6 +145,11 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
    import { Key as K, P as Param, coalesce as coal } from "@ranking-dsl/runtime";
    c.vm({ expr: K.id * coal(Param.weight, 0.2) })  // Fails!
    ```
+
+**ESLint enforcement:** `@ranking-dsl/eslint-plugin` catches these issues in editor:
+- `@ranking-dsl/no-dsl-import-alias` - rejects aliasing Key/P/coalesce
+- `@ranking-dsl/inline-expr-only` - rejects variable references in expr
+- `@ranking-dsl/plan-restricted-imports` - restricts imports in .plan.ts files
 
 **Future work:**
 - **Variable resolution**: Allow composing expressions via variables:
