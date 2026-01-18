@@ -63,6 +63,16 @@ WritesEffect eval_writes(const WritesEffectExpr &expr, const EffectGamma &gamma)
 // Serialize writes_effect to JSON for manifest digest
 std::string serialize_writes_effect(const WritesEffectExpr &expr);
 
+// Convert EffectKind to string for JSON output
+inline const char* effect_kind_to_string(EffectKind kind) {
+  switch (kind) {
+    case EffectKind::Exact: return "Exact";
+    case EffectKind::May: return "May";
+    case EffectKind::Unknown: return "Unknown";
+  }
+  return "Unknown";
+}
+
 // Helper to create EffectKeys
 inline std::shared_ptr<WritesEffectExpr> makeEffectKeys(std::vector<uint32_t> key_ids) {
   return std::make_shared<WritesEffectExpr>(EffectKeys{std::move(key_ids)});

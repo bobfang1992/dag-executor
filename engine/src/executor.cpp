@@ -6,7 +6,27 @@
 
 namespace rankd {
 
-void validate_plan(const Plan &plan) {
+// Build param_bindings from validated params for writes_effect evaluation.
+// Uses ValidatedParams which has defaults applied and types normalized.
+static EffectGamma build_param_bindings(const ValidatedParams &params) {
+  EffectGamma bindings;
+
+  // Int params → uint32_t (for EffectFromParam, e.g., out_key)
+  for (const auto &[name, val] : params.int_params) {
+    if (val > 0) {  // key_ids are positive
+      bindings[name] = static_cast<uint32_t>(val);
+    }
+  }
+
+  // String params → std::string (for EffectSwitchEnum)
+  for (const auto &[name, val] : params.string_params) {
+    bindings[name] = val;
+  }
+
+  return bindings;
+}
+
+void validate_plan(Plan &plan) {
   // Check schema_version
   if (plan.schema_version != 1) {
     throw std::runtime_error(
@@ -32,9 +52,11 @@ void validate_plan(const Plan &plan) {
     node_index[node.node_id] = i;
   }
 
-  // Check all inputs exist, ops are known, and params are valid
+  // Check all inputs exist, ops are known, params are valid, and evaluate writes
   const auto &registry = TaskRegistry::instance();
-  for (const auto &node : plan.nodes) {
+  for (size_t i = 0; i < plan.nodes.size(); ++i) {
+    auto &node = plan.nodes[i];  // non-const to store writes_eval
+
     if (!registry.has_task(node.op)) {
       throw std::runtime_error("Unknown op '" + node.op + "' in node '" +
                                node.node_id + "'");
@@ -46,14 +68,17 @@ void validate_plan(const Plan &plan) {
       }
     }
     // Validate params against TaskSpec (fail-closed)
+    ValidatedParams validated_params;
     try {
-      registry.validate_params(node.op, node.params);
+      validated_params = registry.validate_params(node.op, node.params);
     } catch (const std::runtime_error &e) {
       throw std::runtime_error("Node '" + node.node_id + "': " + e.what());
     }
 
-    // Validate ExprId/PredId references against plan tables (generic, based on TaskSpec)
+    // Get TaskSpec for this node
     const auto &spec = registry.get_spec(node.op);
+
+    // Validate ExprId/PredId references against plan tables
     for (const auto &field : spec.params_schema) {
       if (!node.params.contains(field.name) || !node.params[field.name].is_string()) {
         continue;
@@ -74,6 +99,15 @@ void validate_plan(const Plan &plan) {
         }
       }
     }
+
+    // RFC0005: Evaluate writes contract for this node
+    // Use validated_params which has defaults applied and types normalized
+    EffectGamma param_bindings = build_param_bindings(validated_params);
+    WritesEffectExpr writes_expr = compute_effective_writes(spec);
+    WritesEffect writes_result = eval_writes(writes_expr, param_bindings);
+
+    node.writes_eval_kind = writes_result.kind;
+    node.writes_eval_keys = writes_result.keys;
   }
 
   // Check outputs exist

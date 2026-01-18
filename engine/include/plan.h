@@ -1,5 +1,6 @@
 #pragma once
 
+#include "writes_effect.h"
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -17,6 +18,10 @@ struct Node {
 
   // RFC0001: node-level extensions (keys must be in plan.capabilities_required)
   nlohmann::json extensions;
+
+  // RFC0005: Evaluated writes contract (populated during validation)
+  EffectKind writes_eval_kind = EffectKind::Unknown;
+  std::vector<uint32_t> writes_eval_keys;  // sorted, deduped; empty for Unknown
 };
 
 // ExprNode: recursive expression tree (for vm expressions)
