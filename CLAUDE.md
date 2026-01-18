@@ -99,6 +99,16 @@ Use `unknown` for untyped inputs and validate into typed structures. ESLint enfo
 | TS task methods | `dsl/packages/runtime/src/plan.ts` | Plan authoring surface (currently manual) |
 | Generated bindings | `dsl/packages/generated/tasks.ts` | Future: auto-generated from TaskSpec |
 
+### AST Extraction Limitations
+
+Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is extracted at compile time from the plan entry file only.
+
+**Known limitation:** Expressions in imported modules (including fragments) are NOT extracted. This means:
+- Plans must be single files for now (no factoring expressions into helpers)
+- Fragments cannot use natural expression syntax until this is fixed
+
+**Future work:** Run extraction on bundled output or use esbuild plugin to extract across dependency graph. Must be addressed before fragments support natural expressions.
+
 ## Plan Compilation (dslc)
 
 Two compilers are available. **QuickJS-based (dslc)** is the primary compiler used in CI.
