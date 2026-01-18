@@ -57,6 +57,9 @@ export default definePlan({
     const resultEl = document.getElementById('result');
     const compileBtn = document.getElementById('compile-btn');
 
+    // esbuild WASM URL (must match version in import map)
+    const ESBUILD_WASM_URL = 'https://unpkg.com/esbuild-wasm@0.19.12/esbuild.wasm';
+
     // Dynamically import the browser compiler
     async function loadCompiler() {
       statusEl.textContent = 'Status: Loading compiler module...';
@@ -65,7 +68,7 @@ export default definePlan({
       const { initCompiler, compilePlan } = await import('../dist/browser.js');
 
       statusEl.textContent = 'Status: Initializing WASM (esbuild + quickjs)...';
-      await initCompiler();
+      await initCompiler({ wasmURL: ESBUILD_WASM_URL });
 
       statusEl.innerHTML = '<span class="success">Status: Ready!</span>';
       compileBtn.disabled = false;
