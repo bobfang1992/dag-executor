@@ -5,10 +5,11 @@
  * - esbuild-wasm is used instead of native esbuild
  * - QuickJS WASM is loaded via singlefile variant (embedded)
  *
- * Usage:
+ * Usage (Vite):
  *   import { initCompiler, compilePlan } from '@ranking-dsl/compiler/browser';
+ *   import wasmUrl from 'esbuild-wasm/esbuild.wasm?url';
  *
- *   await initCompiler();
+ *   await initCompiler({ wasmURL: wasmUrl });
  *   const result = await compilePlan(sourceCode, 'my_plan');
  */
 
