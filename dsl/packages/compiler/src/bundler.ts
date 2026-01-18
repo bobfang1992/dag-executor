@@ -12,6 +12,74 @@ export interface BundleOptions {
   virtualEntry?: { contents: string };
 }
 
+/**
+ * Allowed import patterns for plans:
+ * - @ranking-dsl/runtime
+ * - @ranking-dsl/generated
+ * - *.fragment.ts files (fragments)
+ */
+const ALLOWED_PACKAGES = ["@ranking-dsl/runtime", "@ranking-dsl/generated"];
+
+function isAllowedImport(importPath: string, importer: string): boolean {
+  // Allow @ranking-dsl packages
+  if (ALLOWED_PACKAGES.some((pkg) => importPath === pkg || importPath.startsWith(pkg + "/"))) {
+    return true;
+  }
+
+  // Allow fragment imports (*.fragment.ts or *.fragment)
+  if (importPath.endsWith(".fragment") || importPath.endsWith(".fragment.ts")) {
+    return true;
+  }
+
+  // Allow relative imports within @ranking-dsl packages (internal imports)
+  if (importer.includes("/packages/runtime/") || importer.includes("/packages/generated/")) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * esbuild plugin to restrict plan imports.
+ * Plans may only import from @ranking-dsl/runtime, @ranking-dsl/generated, and fragments.
+ */
+function importRestrictionPlugin(entryPoint: string): esbuild.Plugin {
+  return {
+    name: "import-restriction",
+    setup(build) {
+      build.onResolve({ filter: /.*/ }, (args) => {
+        // Skip entry point
+        if (args.kind === "entry-point") {
+          return null;
+        }
+
+        // Skip if no importer (shouldn't happen)
+        if (!args.importer) {
+          return null;
+        }
+
+        // Check if import is from the plan file (not from runtime/generated internals)
+        const isFromPlan =
+          args.importer === entryPoint ||
+          args.importer.endsWith(".plan.ts") ||
+          args.importer.includes("/plans/");
+
+        if (isFromPlan && !isAllowedImport(args.path, args.importer)) {
+          return {
+            errors: [
+              {
+                text: `Import "${args.path}" is not allowed in plans. Plans may only import from: @ranking-dsl/runtime, @ranking-dsl/generated, and *.fragment.ts files.`,
+              },
+            ],
+          };
+        }
+
+        return null;
+      });
+    },
+  };
+}
+
 export interface BundleResult {
   code: string;
   warnings: string[];
@@ -50,6 +118,8 @@ export async function bundlePlan(
         "dsl/packages/generated/index.ts"
       ),
     },
+    // Restrict imports to allowed packages only
+    plugins: [importRestrictionPlugin(options.entryPoint)],
   };
 
   // Use stdin with virtual contents or file entry point

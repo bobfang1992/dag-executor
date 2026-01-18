@@ -788,6 +788,21 @@ for eid in expr_ids:
 print("Mixed expression styles validated: both natural and builder-style work together")
 PYEOF
 '
+
+run_bg "Test 61: Reject invalid imports" bash -c '
+# Attempt to compile plan with invalid import - should fail
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_import.plan.ts --out /tmp/ci-ast-expr-61 2>&1; then
+    echo "Expected compilation to fail for invalid import"
+    exit 1
+fi
+
+# Verify error message mentions import restriction
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_import.plan.ts --out /tmp/ci-ast-expr-61 2>&1 | grep -q "not allowed in plans" || {
+    echo "Expected error message about import restriction"
+    exit 1
+}
+exit 0
+'
 wait_all
 
 echo ""

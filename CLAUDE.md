@@ -108,7 +108,7 @@ Plans may only import from:
 
 **No arbitrary shared helpers.** All reusable code must go through the fragment system.
 
-**Enforcement:** Future work - add esbuild plugin or lint rule to reject other imports.
+**Enforcement:** esbuild plugin in `bundler.ts` rejects unauthorized imports at compile time.
 
 ### AST Extraction Limitations
 
