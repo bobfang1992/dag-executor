@@ -289,10 +289,14 @@ function getInitialCode(): string {
     }
   }
 
-  // Check localStorage
-  if (typeof localStorage !== 'undefined') {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return saved;
+  // Check localStorage (wrapped in try/catch for Safari private mode, etc.)
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return saved;
+    }
+  } catch {
+    // localStorage access blocked (Safari private mode, strict settings)
   }
 
   return DEFAULT_PLAN;
