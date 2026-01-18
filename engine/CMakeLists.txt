@@ -137,3 +137,22 @@ target_link_libraries(writes_effect_tests PRIVATE nlohmann_json::nlohmann_json C
 set_target_properties(writes_effect_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )
+
+# Plan info writes_eval tests executable (Catch2)
+add_executable(plan_info_tests
+  tests/test_plan_info_writes_eval.cpp
+  src/plan.cpp
+  src/executor.cpp
+  src/task_registry.cpp
+  src/output_contract.cpp
+  src/capability_registry.cpp
+  src/writes_effect.cpp
+  ${TASK_SOURCES}
+)
+
+target_include_directories(plan_info_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(plan_info_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2)
+
+set_target_properties(plan_info_tests PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)
