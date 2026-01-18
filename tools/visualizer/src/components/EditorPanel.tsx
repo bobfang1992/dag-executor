@@ -474,7 +474,11 @@ export default function EditorPanel() {
   const handleReset = useCallback(() => {
     setCode(DEFAULT_PLAN);
     setCurrentPlanId(null);
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // localStorage access blocked (Safari private mode, etc.)
+    }
     const updated = { ...savedPlans, currentId: null };
     setSavedPlans(updated);
     savePlansState(updated);
