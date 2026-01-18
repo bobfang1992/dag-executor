@@ -156,7 +156,9 @@ void validate_plan(Plan &plan) {
   }
 }
 
-std::vector<RowSet> execute_plan(const Plan &plan, const ExecCtx &ctx) {
+ExecutionResult execute_plan(const Plan &plan, const ExecCtx &ctx) {
+  ExecutionResult result;
+
   // Build node_id -> index map
   std::unordered_map<std::string, size_t> node_index;
   for (size_t i = 0; i < plan.nodes.size(); ++i) {
@@ -217,16 +219,29 @@ std::vector<RowSet> execute_plan(const Plan &plan, const ExecCtx &ctx) {
     validateTaskOutput(node_id, node.op, spec.output_pattern, inputs,
                        validated_params, output);
 
+    // RFC0005: Compute schema delta for this node (runtime audit)
+    // Fast path: if unary op with same batch pointer, schema is unchanged
+    if (!is_same_batch(inputs, output)) {
+      SchemaDelta delta = compute_schema_delta(inputs, output);
+      result.schema_deltas.push_back({node_id, delta});
+    } else {
+      // Same batch: no schema change
+      SchemaDelta delta;
+      delta.in_keys_union = collect_keys(inputs[0].batch());
+      delta.out_keys = delta.in_keys_union;
+      // new_keys and removed_keys remain empty
+      result.schema_deltas.push_back({node_id, delta});
+    }
+
     results.emplace(node_id, std::move(output));
   }
 
   // Collect outputs
-  std::vector<RowSet> outputs;
   for (const auto &out : plan.outputs) {
-    outputs.push_back(results.at(out));
+    result.outputs.push_back(results.at(out));
   }
 
-  return outputs;
+  return result;
 }
 
 } // namespace rankd

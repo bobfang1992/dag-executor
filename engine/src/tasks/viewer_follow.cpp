@@ -59,7 +59,7 @@ public:
     auto country_col = std::make_shared<StringDictColumn>(country_dict,
                                                           country_codes,
                                                           country_valid);
-    *batch = batch->withStringColumn(3001, country_col); // country key_id
+    *batch = batch->withStringColumn(key_id(KeyId::country), country_col);
 
     // Add title column: dict ["L1","L2",...,"L{fanout}"], codes 0..fanout-1
     auto title_dict = std::make_shared<std::vector<std::string>>();
@@ -74,7 +74,7 @@ public:
     }
     auto title_col =
         std::make_shared<StringDictColumn>(title_dict, title_codes, title_valid);
-    *batch = batch->withStringColumn(3002, title_col); // title key_id
+    *batch = batch->withStringColumn(key_id(KeyId::title), title_col);
 
     return RowSet(std::make_shared<ColumnBatch>(*batch));
   }
