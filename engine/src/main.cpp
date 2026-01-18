@@ -133,8 +133,6 @@ int main(int argc, char *argv[]) {
 
     try {
       rankd::Plan plan = rankd::parse_plan(plan_path);
-      // Note: we don't call validate_plan() here to allow inspecting
-      // plans with unsupported capabilities
 
       json output;
       output["plan_name"] = plan.plan_name;
@@ -144,6 +142,38 @@ int main(int argc, char *argv[]) {
                                  : plan.extensions;
       output["capabilities_digest"] = rankd::compute_capabilities_digest(
           plan.capabilities_required, plan.extensions);
+
+      // Check for unsupported capabilities first (fail-closed)
+      std::vector<std::string> unsupported_caps;
+      for (const auto &cap : plan.capabilities_required) {
+        if (!rankd::capability_is_supported(cap)) {
+          unsupported_caps.push_back(cap);
+        }
+      }
+
+      if (!unsupported_caps.empty()) {
+        // Output structured error and exit non-zero
+        output["error"] = {{"code", "UNSUPPORTED_CAPABILITY"},
+                           {"unsupported", unsupported_caps}};
+        std::cout << output.dump() << std::endl;
+        return 1;
+      }
+
+      // Validate plan to populate writes_eval fields (RFC0005)
+      rankd::validate_plan(plan);
+
+      // Add nodes with writes_eval
+      json nodes_arr = json::array();
+      for (const auto &node : plan.nodes) {
+        json node_json;
+        node_json["node_id"] = node.node_id;
+        node_json["op"] = node.op;
+        node_json["writes_eval"] = {
+            {"kind", rankd::effect_kind_to_string(node.writes_eval_kind)},
+            {"keys", node.writes_eval_keys}};
+        nodes_arr.push_back(node_json);
+      }
+      output["nodes"] = nodes_arr;
 
       std::cout << output.dump() << std::endl;
       return 0;

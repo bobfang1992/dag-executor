@@ -583,5 +583,74 @@ PYEOF
 '
 wait_all
 
+# Batch 12: writes_eval tests (RFC0005 Step 12.3a)
+echo "--- Batch 12: writes_eval tests ---"
+run_bg "Test 55: print-plan-info shows writes_eval" bash -c '
+# Get plan info and verify writes_eval is present and correct
+engine/bin/rankd --print-plan-info --plan_name reels_plan_a > /tmp/ci-writes-eval-55.json
+
+python3 << "PYEOF"
+import json
+
+with open("/tmp/ci-writes-eval-55.json") as f:
+    data = json.load(f)
+
+# Must have nodes array
+assert "nodes" in data, "Missing nodes array"
+nodes = data["nodes"]
+assert len(nodes) == 4, f"Expected 4 nodes, got {len(nodes)}"
+
+# Check each node has writes_eval
+for node in nodes:
+    node_id = node["node_id"]
+    assert "writes_eval" in node, f"Node {node_id} missing writes_eval"
+    we = node["writes_eval"]
+    assert "kind" in we, "writes_eval missing kind"
+    assert "keys" in we, "writes_eval missing keys"
+    assert we["kind"] in ["Exact", "May", "Unknown"], f"Invalid kind: {we['kind']}"
+
+# Check specific nodes
+source_node = next(n for n in nodes if n["op"] == "viewer.follow")
+assert source_node["writes_eval"]["kind"] == "Exact"
+assert 3001 in source_node["writes_eval"]["keys"]  # features_esr_score
+assert 3002 in source_node["writes_eval"]["keys"]  # features_lsr_score
+
+vm_node = next(n for n in nodes if n["op"] == "vm")
+assert vm_node["writes_eval"]["kind"] == "Exact"
+assert vm_node["writes_eval"]["keys"] == [2001]  # final_score
+
+filter_node = next(n for n in nodes if n["op"] == "filter")
+assert filter_node["writes_eval"]["kind"] == "Exact"
+assert filter_node["writes_eval"]["keys"] == []  # no writes
+
+print("writes_eval validation passed")
+PYEOF
+'
+
+run_bg "Test 56: print-plan-info error on unsupported caps" bash -c '
+# Compile plan with unsupported capabilities
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/ci-writes-eval >/dev/null 2>&1
+
+# Should exit non-zero
+if engine/bin/rankd --print-plan-info --plan /tmp/ci-writes-eval/valid_capabilities.plan.json > /tmp/ci-unsup-caps.json 2>&1; then
+    echo "Expected non-zero exit for unsupported capabilities"
+    exit 1
+fi
+
+# Output should have error field
+python3 << "PYEOF"
+import json
+with open("/tmp/ci-unsup-caps.json") as f:
+    data = json.load(f)
+assert "error" in data, "Missing error field"
+assert data["error"]["code"] == "UNSUPPORTED_CAPABILITY"
+assert len(data["error"]["unsupported"]) > 0
+assert "nodes" not in data, "Should not have nodes on error"
+unsupported = data["error"]["unsupported"]
+print(f"Correctly rejected unsupported capabilities: {unsupported}")
+PYEOF
+'
+wait_all
+
 echo ""
 echo "=== All CI tests passed ==="
