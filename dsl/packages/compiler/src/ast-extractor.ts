@@ -85,7 +85,10 @@ function isNaturalExpr(node: ts.Expression, sourceFile: ts.SourceFile): boolean 
   if (node.kind === ts.SyntaxKind.NullKeyword) return true;
   if (ts.isPrefixUnaryExpression(node)) return true;
   if (ts.isBinaryExpression(node)) return true;
-  if (ts.isParenthesizedExpression(node)) return true;
+  // Unwrap parentheses and check inner expression
+  if (ts.isParenthesizedExpression(node)) {
+    return isNaturalExpr(node.expression, sourceFile);
+  }
 
   // Property access: Key.foo, P.bar
   if (ts.isPropertyAccessExpression(node)) {

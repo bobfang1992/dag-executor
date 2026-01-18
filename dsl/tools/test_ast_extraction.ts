@@ -136,6 +136,26 @@ test("rejects division operator", () => {
   assertEqual(result.errors[0].message.includes("Division"), true, "error message");
 });
 
+// Test 6: Parenthesized builder-style is skipped (not extracted)
+test("skips parenthesized builder-style expressions", () => {
+  const source = `
+    import { definePlan, Key, E } from "@ranking-dsl/runtime";
+    export default definePlan({
+      name: "test",
+      build: (ctx) => {
+        return ctx.viewer
+          .follow({ fanout: 10 })
+          .vm({ outKey: Key.final_score, expr: (E.mul(E.key(Key.id), E.const(2))) })
+          .take({ count: 5 });
+      },
+    });
+  `;
+  const result = extractExpressions(source, "test.plan.ts");
+  assertEqual(result.errors.length, 0, "errors");
+  // Builder-style expressions should NOT be extracted
+  assertEqual(result.extractedExprs.size, 0, "extracted count");
+});
+
 // Summary
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);
