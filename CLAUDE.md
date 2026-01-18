@@ -99,18 +99,24 @@ Use `unknown` for untyped inputs and validate into typed structures. ESLint enfo
 | TS task methods | `dsl/packages/runtime/src/plan.ts` | Plan authoring surface (currently manual) |
 | Generated bindings | `dsl/packages/generated/tasks.ts` | Future: auto-generated from TaskSpec |
 
+### Plan Import Restrictions
+
+Plans may only import from:
+1. `@ranking-dsl/runtime` - DSL runtime APIs
+2. `@ranking-dsl/generated` - Generated tokens (Key, P, Feat)
+3. Fragments - Formal reusable subgraphs (when implemented)
+
+**No arbitrary shared helpers.** All reusable code must go through the fragment system.
+
+**Enforcement:** Future work - add esbuild plugin or lint rule to reject other imports.
+
 ### AST Extraction Limitations
 
 Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is extracted at compile time from the plan entry file only.
 
-**Known limitation:** Expressions in imported modules are NOT extracted. This affects:
-- Shared helper files (e.g., `shared/scoring.ts` imported by multiple plans)
-- Fragments (reusable subgraphs)
-- Any code not in the plan entry file
-
-Plans CAN import arbitrary TS/JS files (esbuild bundles them), but natural expressions in those files will fail at runtime.
-
-**Workaround:** Use builder-style expressions (`E.mul(E.key(...), ...)`) in shared code - these work everywhere.
+**Known limitation:** Expressions in fragments are NOT extracted. When fragments are implemented:
+- Fragments must use builder-style expressions (`E.mul(E.key(...), ...)`), OR
+- Extraction must be extended to process fragments
 
 **Future work:** Run extraction on bundled output or use esbuild plugin to extract across dependency graph.
 
