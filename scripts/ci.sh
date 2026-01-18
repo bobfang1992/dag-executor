@@ -69,6 +69,7 @@ run_bg "Unit tests (plan_info)" engine/bin/plan_info_tests
 run_bg "Unit tests (schema_delta)" engine/bin/schema_delta_tests
 run_bg "TS writes_effect tests" ./node_modules/.bin/tsx dsl/tools/test_writes_effect.ts
 run_bg "TS AST extraction tests" ./node_modules/.bin/tsx dsl/tools/test_ast_extraction.ts
+run_bg "ESLint plugin tests" ./node_modules/.bin/tsx dsl/packages/eslint-plugin/src/rules/__tests__/run.ts
 wait_all
 
 echo ""
