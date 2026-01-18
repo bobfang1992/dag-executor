@@ -45,7 +45,7 @@ interface Store {
   // Actions
   loadIndex: () => Promise<void>;
   loadPlanByName: (name: string) => Promise<void>;
-  loadPlan: (json: PlanJson, fileName: string) => void;
+  loadPlan: (json: PlanJson, fileName: string, options?: { skipHistory?: boolean }) => void;
   clearPlan: () => void;
   toggleSource: () => void;
   loadSource: (planName: string) => Promise<void>;
@@ -119,7 +119,7 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
 
-  loadPlan: (json, fileName) => {
+  loadPlan: (json, fileName, options) => {
     const parsed = parsePlan(json);
     const graph = layoutGraph(parsed);
     set({
@@ -131,8 +131,9 @@ export const useStore = create<Store>((set, get) => ({
       expandedFragments: new Set(),
       planError: null,
     });
-    // Push to browser history (unless we're handling a popstate)
-    if (!isHandlingPopState) {
+    // Push to browser history (unless we're handling a popstate or skipHistory is set)
+    // skipHistory is used for live editor plans which aren't in the plan index
+    if (!isHandlingPopState && !options?.skipHistory) {
       history.pushState({ plan: json.plan_name }, '', `?plan=${json.plan_name}`);
     }
   },

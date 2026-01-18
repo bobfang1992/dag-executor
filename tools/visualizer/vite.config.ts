@@ -34,7 +34,7 @@ export default defineConfig({
   plugins: [react(), servePlanSources()],
   publicDir: path.resolve(__dirname, '../../artifacts'),
   server: {
-    port: 5173,
+    port: 5175,
     open: true,
   },
   build: {
@@ -43,4 +43,10 @@ export default defineConfig({
     // Don't copy publicDir to dist in production (artifacts are large)
     copyPublicDir: false,
   },
+  // Handle WASM files for quickjs-emscripten and esbuild-wasm
+  optimizeDeps: {
+    exclude: ['quickjs-emscripten', '@jitl/quickjs-wasmfile-release-sync'],
+  },
+  // Ensure WASM files are served correctly
+  assetsInclude: ['**/*.wasm'],
 });
