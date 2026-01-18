@@ -134,6 +134,16 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
 
 3. **Fragments**: When implemented, fragments must use builder-style expressions OR extraction must be extended to process them.
 
+4. **No import aliases**: Extraction only recognizes exact identifiers `Key`, `P`, `coalesce`. Aliasing is not supported:
+   ```typescript
+   // WORKS
+   import { Key, P, coalesce } from "@ranking-dsl/runtime";
+
+   // DOES NOT WORK - aliases not recognized
+   import { Key as K, P as Param, coalesce as coal } from "@ranking-dsl/runtime";
+   c.vm({ expr: K.id * coal(Param.weight, 0.2) })  // Fails!
+   ```
+
 **Future work:**
 - **Variable resolution**: Allow composing expressions via variables:
   ```typescript
