@@ -24,6 +24,7 @@
     "@ranking-dsl/generated": "workspace:*"
   },
   "devDependencies": {
+    "eslint": "^9.0.0",
     "tsx": "^4.6.0"
   }
 }

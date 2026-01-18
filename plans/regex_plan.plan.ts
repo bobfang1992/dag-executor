@@ -10,7 +10,8 @@
  * - ids: [1,3,5,7,9] (odd ids have country="US")
  */
 
-import { definePlan, Pred, Key } from "@ranking-dsl/runtime";
+import { definePlan, Pred } from "@ranking-dsl/runtime";
+import { Key } from "@ranking-dsl/generated";
 
 export default definePlan({
   name: "regex_plan",

@@ -4,8 +4,21 @@
 
 import type { KeyToken } from "@ranking-dsl/generated";
 import { assertNotUndefined, checkNoUndefined } from "./guards.js";
-import type { ExprNode } from "./expr.js";
+import type { ExprNode, StaticExprToken } from "./expr.js";
 import type { PredNode } from "./pred.js";
+
+/** Type for expression that can be passed to vm() */
+type VmExpr = ExprNode | StaticExprToken;
+
+/** Check if value is a StaticExprToken (AST-extracted placeholder) */
+function isStaticExprToken(value: unknown): value is StaticExprToken {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "__expr_id" in value &&
+    typeof (value as StaticExprToken).__expr_id === "number"
+  );
+}
 
 /**
  * Internal node representation (before JSON serialization).
@@ -176,21 +189,32 @@ export class CandidateSet {
 
   /**
    * vm: evaluate expression and write to out_key.
+   *
+   * Natural expressions are AST-extracted at compile time:
+   *   c.vm({ outKey: Key.final_score, expr: Key.id * coalesce(P.weight, 0.2) })
    */
   vm(opts: {
     outKey: KeyToken;
-    expr: ExprNode;
+    expr: VmExpr;
     trace?: string;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
     assertNotUndefined(opts, "vm(opts)");
     assertNotUndefined(opts.outKey, "vm({ outKey })");
     assertNotUndefined(opts.expr, "vm({ expr })");
-    // Don't checkNoUndefined on extensions - it's handled separately in addNode
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest as Record<string, unknown>, "vm(opts)");
 
-    const exprId = this.ctx.addExpr(opts.expr);
+    // Handle StaticExprToken vs regular ExprNode
+    let exprId: string;
+    if (isStaticExprToken(opts.expr)) {
+      // AST-extracted expression - use special prefix for later remapping
+      exprId = `__static_e${opts.expr.__expr_id}`;
+    } else {
+      // Regular builder-style expression
+      exprId = this.ctx.addExpr(opts.expr);
+    }
+
     const newNodeId = this.ctx.addNode(
       "vm",
       [this.nodeId],

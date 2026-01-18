@@ -1,5 +1,6 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
+import rankingDslPlugin from "./packages/eslint-plugin/dist/index.js";
 
 export default tseslint.config(
   eslint.configs.recommended,
@@ -20,6 +21,18 @@ export default tseslint.config(
     files: ["*.js"],
     rules: {
       "no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+    },
+  },
+  // Rules for plan files
+  {
+    files: ["**/*.plan.ts"],
+    plugins: {
+      "@ranking-dsl": rankingDslPlugin,
+    },
+    rules: {
+      "@ranking-dsl/no-dsl-import-alias": "error",
+      "@ranking-dsl/inline-expr-only": "error",
+      "@ranking-dsl/plan-restricted-imports": "error",
     },
   },
 );
