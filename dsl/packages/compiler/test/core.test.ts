@@ -5,7 +5,6 @@
  */
 
 import * as esbuild from 'esbuild';
-import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { compilePlan } from '../src/core/index.js';
@@ -14,9 +13,33 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RUNTIME_PATH = path.resolve(__dirname, '../../runtime/src/index.ts');
 const GENERATED_PATH = path.resolve(__dirname, '../../generated/index.ts');
 
-// Load source files
-const runtimeSource = fs.readFileSync(RUNTIME_PATH, 'utf-8');
-const generatedSource = fs.readFileSync(GENERATED_PATH, 'utf-8');
+/**
+ * Pre-bundle a package into a single file that can be used as a virtual module.
+ * This is necessary because the runtime has internal imports (./expr.js, etc.)
+ * that the virtual module plugin can't resolve.
+ */
+async function prebundlePackage(entryPoint: string, packageName: string): Promise<string> {
+  const result = await esbuild.build({
+    entryPoints: [entryPoint],
+    bundle: true,
+    format: 'esm',
+    platform: 'neutral',
+    target: 'es2020',
+    write: false,
+    // Mark peer dependencies as external (they'll be resolved by the main bundler)
+    external: packageName === '@ranking-dsl/runtime' ? ['@ranking-dsl/generated'] : [],
+  });
+
+  if (!result.outputFiles || result.outputFiles.length !== 1) {
+    throw new Error(`Failed to prebundle ${packageName}`);
+  }
+
+  return result.outputFiles[0].text;
+}
+
+// Pre-bundled sources (initialized in runTests)
+let runtimeSource: string;
+let generatedSource: string;
 
 let passed = 0;
 let failed = 0;
@@ -225,6 +248,14 @@ const tests = [
 // Run all tests
 async function runTests() {
   console.log('Running core compiler tests...\n');
+
+  // Pre-bundle runtime and generated packages
+  // This is necessary because they have internal imports that the virtual module
+  // plugin can't resolve (e.g., runtime imports ./expr.js, ./plan.js, etc.)
+  console.log('Pre-bundling runtime and generated packages...');
+  generatedSource = await prebundlePackage(GENERATED_PATH, '@ranking-dsl/generated');
+  runtimeSource = await prebundlePackage(RUNTIME_PATH, '@ranking-dsl/runtime');
+  console.log('Pre-bundling complete.\n');
 
   for (const t of tests) {
     await t();
