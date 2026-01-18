@@ -57,6 +57,7 @@ add_executable(rankd
   src/task_registry.cpp
   src/output_contract.cpp
   src/capability_registry.cpp
+  src/writes_effect.cpp
   ${TASK_SOURCES}
 )
 
@@ -75,6 +76,7 @@ add_executable(rankd_tests
   tests/test_pred_eval.cpp
   src/task_registry.cpp
   src/output_contract.cpp
+  src/writes_effect.cpp
   ${TASK_SOURCES}
 )
 
@@ -93,6 +95,7 @@ add_executable(concat_tests
   src/task_registry.cpp
   src/output_contract.cpp
   src/capability_registry.cpp
+  src/writes_effect.cpp
   ${TASK_SOURCES}
 )
 
@@ -111,6 +114,7 @@ add_executable(regex_tests
   src/task_registry.cpp
   src/output_contract.cpp
   src/capability_registry.cpp
+  src/writes_effect.cpp
   ${TASK_SOURCES}
 )
 
@@ -118,5 +122,18 @@ target_include_directories(regex_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(regex_tests PRIVATE nlohmann_json::nlohmann_json re2::re2)
 
 set_target_properties(regex_tests PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)
+
+# WritesEffect tests executable (Catch2)
+add_executable(writes_effect_tests
+  tests/test_writes_effect.cpp
+  src/writes_effect.cpp
+)
+
+target_include_directories(writes_effect_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(writes_effect_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain)
+
+set_target_properties(writes_effect_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )

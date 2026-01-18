@@ -21,6 +21,7 @@ public:
         .writes = {},
         .default_budget = {.timeout_ms = 50},
         .output_pattern = OutputPattern::ConcatDense,
+        // writes_effect omitted - no column writes
     };
   }
 

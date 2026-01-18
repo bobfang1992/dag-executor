@@ -50,7 +50,18 @@ engine/             # C++23 execution engine
 plans/              # Official plans (CI, production) → artifacts/plans/
 examples/plans/     # Example/tutorial plans → artifacts/plans-examples/
 artifacts/          # Compiled JSON artifacts
+docs/               # Developer guides
 ```
+
+### Documentation
+
+| Guide | Audience | Purpose |
+|-------|----------|---------|
+| [TASK_IMPLEMENTATION_GUIDE.md](docs/TASK_IMPLEMENTATION_GUIDE.md) | Infra engineers | How to create C++ tasks |
+| [PLAN_AUTHORING_GUIDE.md](docs/PLAN_AUTHORING_GUIDE.md) | Ranking engineers | How to write plans in TS |
+| [PLAN_COMPILER_GUIDE.md](docs/PLAN_COMPILER_GUIDE.md) | All | Compiler internals |
+| [ADDING_CAPABILITIES.md](docs/ADDING_CAPABILITIES.md) | All | How to add IR capabilities |
+| [CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) | All | Capability payload examples |
 
 ## Key Design Constraints
 
@@ -446,6 +457,7 @@ Codegen generates:
 | RFC | Capability ID | Status |
 |-----|---------------|--------|
 | 0001 | `cap.rfc.0001.extensions_capabilities.v1` | implemented |
+| 0005 | `cap.rfc.0005.writes_effect.v1` | implemented |
 
 See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examples.
 
@@ -459,6 +471,9 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 | C++ runtime logic | `engine/src/capability_registry.cpp` |
 | DSL runtime | `dsl/packages/runtime/src/plan.ts` |
 | Artifact validation | `dsl/packages/runtime/src/artifact-validation.ts` |
+| writes_effect ADT (C++) | `engine/include/writes_effect.h` |
+| writes_effect evaluator (C++) | `engine/src/writes_effect.cpp` |
+| writes_effect (TS) | `dsl/packages/runtime/src/writes-effect.ts` |
 
 ### Digest Computation
 
@@ -653,6 +668,26 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - `artifacts/capabilities.json` + `artifacts/capabilities.digest` - JSON artifacts
 - `--print-registry` extended with `capability_registry_digest` and `num_capabilities`
 - CI test 53: Capability registry digest parity (TS == C++)
+
+**Step 12.1: Add RFC0005 Capability to Registry**
+- Added `cap.rfc.0005.writes_effect.v1` to `registry/capabilities.toml`
+- Capability for param-dependent write effect expressions in TaskSpec
+
+**Step 12.2: TaskSpec writes_effect Expression Language (RFC 0005)**
+- **Writes Contract**: `UNION(writes, writes_effect)` - unified model for declaring task writes
+  - `writes`: Fixed/static keys (always written)
+  - `writes_effect`: Dynamic/param-dependent keys (optional)
+  - `compute_effective_writes(spec)`: Helper to combine both fields
+- **ADT types** (`engine/include/writes_effect.h`): `EffectKeys`, `EffectFromParam`, `EffectSwitchEnum`, `EffectUnion`
+- **Evaluator** (`engine/src/writes_effect.cpp`): `eval_writes()` returns `Exact(K) | May(K) | Unknown`
+- **Task declarations**:
+  - Source tasks: `.writes = {schema_keys}` (e.g., `viewer.follow` writes `{country, title}`)
+  - No-write tasks: `.writes = {}`, omit `writes_effect` (filter, take, concat)
+  - Param-dependent: `.writes_effect = EffectFromParam{"out_key"}` (vm)
+- **TS implementation**: `dsl/packages/runtime/src/writes-effect.ts` with identical semantics
+- **Properties**: Keys use set semantics (sorted, deduped), gamma context for link-time env
+- **CI tests**: C++ (17 cases, 46 assertions), TS (21 cases), parity validation
+- **Docs**: `docs/TASK_IMPLEMENTATION_GUIDE.md` - comprehensive infra engineer guide
 
 ### 🔲 Not Yet Implemented
 
