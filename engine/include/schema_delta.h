@@ -24,6 +24,8 @@ struct NodeSchemaDelta {
 
 // Collect all keys (float + string columns) from a ColumnBatch
 // Returns sorted, unique vector of key IDs
+// NOTE: Only covers float/string columns. Extend when adding new column types
+// (e.g., feature bundles, bool columns).
 inline std::vector<uint32_t> collect_keys(const ColumnBatch &batch) {
   std::vector<uint32_t> keys;
 
