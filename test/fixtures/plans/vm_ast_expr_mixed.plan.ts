@@ -15,12 +15,12 @@ export default definePlan({
   build: (ctx) => {
     return ctx.viewer
       .follow({ fanout: 10, trace: "src" })
-      // First vm: natural expression syntax (2-arg form)
-      .vm(
-        Key.final_score,
-        Key.id * coalesce(P.media_age_penalty_weight, 0.2),
-        { trace: "vm_natural" }
-      )
+      // First vm: natural expression syntax (object form)
+      .vm({
+        outKey: Key.final_score,
+        expr: Key.id * coalesce(P.media_age_penalty_weight, 0.2),
+        trace: "vm_natural",
+      })
       // Second vm: builder-style (object form)
       .vm({
         outKey: Key.model_score_1,

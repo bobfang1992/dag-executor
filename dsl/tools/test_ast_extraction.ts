@@ -53,7 +53,7 @@ test("extracts expr from arbitrary method (not just vm)", () => {
   assertEqual(expr?.op, "mul", "expr op");
 });
 
-// Test 2: vm with variable outKey
+// Test 2: vm with variable outKey (object form)
 test("extracts expr from vm when outKey is a variable", () => {
   const source = `
     import { definePlan, Key, P } from "@ranking-dsl/runtime";
@@ -63,7 +63,7 @@ test("extracts expr from vm when outKey is a variable", () => {
         const outKey = Key.final_score;
         return ctx.viewer
           .follow({ fanout: 10 })
-          .vm(outKey, Key.id * 2)
+          .vm({ outKey, expr: Key.id * 2 })
           .take({ count: 5 });
       },
     });
@@ -75,7 +75,7 @@ test("extracts expr from vm when outKey is a variable", () => {
   assertEqual(expr?.op, "mul", "expr op");
 });
 
-// Test 3: vm with direct Key.* still works
+// Test 3: vm with direct Key.* in object form
 test("extracts expr from vm with direct Key.* outKey", () => {
   const source = `
     import { definePlan, Key } from "@ranking-dsl/runtime";
@@ -84,7 +84,7 @@ test("extracts expr from vm with direct Key.* outKey", () => {
       build: (ctx) => {
         return ctx.viewer
           .follow({ fanout: 10 })
-          .vm(Key.final_score, Key.id + 100)
+          .vm({ outKey: Key.final_score, expr: Key.id + 100 })
           .take({ count: 5 });
       },
     });
@@ -126,7 +126,7 @@ test("rejects division operator", () => {
       build: (ctx) => {
         return ctx.viewer
           .follow({ fanout: 10 })
-          .vm(Key.final_score, Key.id / 2)
+          .vm({ outKey: Key.final_score, expr: Key.id / 2 })
           .take({ count: 5 });
       },
     });

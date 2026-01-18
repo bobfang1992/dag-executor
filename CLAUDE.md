@@ -752,8 +752,9 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - [x] PredIR builder (Pred.cmp, Pred.in, Pred.isNull, Pred.notNull, Pred.and, Pred.or, Pred.not, Pred.regex)
 - [x] QuickJS-based plan execution with esbuild bundling
 - [x] Sandbox security (no eval, no Function, no Node globals)
+- [x] AST extraction for natural expressions in vm() (Key.x * coalesce(P.y, 0.2))
 - [ ] Fragment authoring surface
-- [ ] AST extraction for complex expressions (future enhancement)
+- [ ] C++ TaskSpec → TS task definitions codegen (single source of truth)
 
 **Engine Core (§9)**
 - [x] ColumnBatch (SoA storage) - id + float columns with validity
@@ -794,4 +795,3 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - [ ] Plan skeleton generator (`plan:new` - interactive wizard to scaffold new plans)
 - [ ] Task skeleton generator (scaffold new C++ task with header, source, registry entry)
 - [ ] SourceRef generation
-- [ ] AST extraction for complex expressions (future enhancement)

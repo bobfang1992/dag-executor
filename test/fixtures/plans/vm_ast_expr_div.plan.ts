@@ -12,11 +12,11 @@ export default definePlan({
   build: (ctx) => {
     return ctx.viewer
       .follow({ fanout: 10, trace: "src" })
-      .vm(
-        Key.final_score,
-        Key.id / P.media_age_penalty_weight,  // Division is not allowed
-        { trace: "vm_div" }
-      )
+      .vm({
+        outKey: Key.final_score,
+        expr: Key.id / P.media_age_penalty_weight,  // Division is not allowed
+        trace: "vm_div",
+      })
       .take({ count: 5, trace: "take" });
   },
 });

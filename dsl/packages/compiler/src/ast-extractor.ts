@@ -1,9 +1,8 @@
 /**
  * AST Extractor: finds task calls with natural expressions and extracts/rewrites them.
  *
- * Generic detection for any task that accepts an `expr` parameter:
- * - Object form: .someTask({ expr: naturalExpr, ... }) - any task with `expr` property
- * - Positional form: .vm(outKey, naturalExpr) - configured per-task
+ * All task calls use named arguments: .task({ name: value, ... })
+ * Extracts any object argument with { expr: naturalExpr } property.
  *
  * Detection:
  * - Builder-style (skip): E.mul(...), E.key(...), { op: "...", ... }
@@ -110,22 +109,10 @@ interface Replacement {
 }
 
 /**
- * Configuration for tasks with positional expression arguments.
- * Maps method name to the argument index (0-based) that contains the expression.
- *
- * For object-form arguments with `expr` property, extraction is automatic.
- */
-const POSITIONAL_EXPR_ARGS: Record<string, number> = {
-  // vm(outKey, expr, opts?) - expr is at index 1
-  vm: 1,
-};
-
-/**
  * Extract natural expressions from task calls and rewrite the source.
  *
- * Handles two forms:
- * 1. Object form (generic): any task with { expr: naturalExpr } in its argument
- * 2. Positional form (configured): tasks in POSITIONAL_EXPR_ARGS mapping
+ * All task calls use named arguments: .task({ name: value, ... })
+ * Extracts any object argument with { expr: naturalExpr } property.
  */
 export function extractExpressions(
   sourceCode: string,
@@ -187,24 +174,10 @@ export function extractExpressions(
     ts.forEachChild(node, visit);
   }
 
-  function processMethodCall(methodName: string, call: ts.CallExpression): void {
-    const args = call.arguments;
-
-    // Check for positional form if this method has a configured expr position
-    const exprArgIndex = POSITIONAL_EXPR_ARGS[methodName];
-    if (exprArgIndex !== undefined && args.length > exprArgIndex) {
-      const firstArg = args[0];
-      // Positional form: first arg is NOT an object literal (object form uses { outKey, expr })
-      // This handles both `vm(Key.foo, expr)` and `vm(someVar, expr)`
-      if (!ts.isObjectLiteralExpression(firstArg)) {
-        const exprArg = args[exprArgIndex];
-        tryExtract(exprArg);
-        return;
-      }
-    }
-
-    // Generic object form: look for { expr: ... } in any object argument
-    for (const arg of args) {
+  function processMethodCall(_methodName: string, call: ts.CallExpression): void {
+    // All task calls use named arguments: .task({ name: value, ... })
+    // Extract any object argument with { expr: naturalExpr } property
+    for (const arg of call.arguments) {
       if (ts.isObjectLiteralExpression(arg)) {
         for (const prop of arg.properties) {
           if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {

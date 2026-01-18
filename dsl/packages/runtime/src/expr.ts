@@ -89,7 +89,7 @@ export const E = {
  * Standalone coalesce function for natural expression syntax.
  *
  * Usage in vm():
- *   c.vm(Key.final_score, Key.id * coalesce(P.weight, 0.2))
+ *   c.vm({ outKey: Key.final_score, expr: Key.id * coalesce(P.weight, 0.2) })
  *
  * This function is recognized by the AST extractor and compiled to ExprIR
  * at compile time. It should never be called at runtime for valid plans.
