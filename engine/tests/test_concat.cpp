@@ -59,7 +59,7 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
     // Unified dict should be: lhs dict in order + rhs entries not in lhs
     // lhs dict = ["US", "CA"], rhs dict = ["CA", "FR"]
     // Unified should be ["US", "CA", "FR"]
-    const auto *country_col = result.batch().getStringCol(3001); // Key.country = 3001
+    const auto *country_col = result.batch().getStringCol(key_id(KeyId::country));
     REQUIRE(country_col != nullptr);
     REQUIRE(country_col->dict->size() == 3);
     REQUIRE((*country_col->dict)[0] == "US");

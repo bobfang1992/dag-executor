@@ -19,6 +19,9 @@ enum class KeyId : uint32_t {
   features_lsr = 4002,
 };
 
+// Helper to convert KeyId to uint32_t (avoids verbose static_cast)
+constexpr uint32_t key_id(KeyId k) noexcept { return static_cast<uint32_t>(k); }
+
 enum class KeyType { Int, Float, String, Bool, FeatureBundle };
 enum class Status { Active, Deprecated, Blocked };
 

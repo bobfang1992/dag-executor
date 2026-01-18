@@ -61,7 +61,7 @@ public:
     auto country_col = std::make_shared<StringDictColumn>(country_dict,
                                                           country_codes,
                                                           country_valid);
-    *batch = batch->withStringColumn(3001, country_col);
+    *batch = batch->withStringColumn(key_id(KeyId::country), country_col);
 
     // No title column for this source
 

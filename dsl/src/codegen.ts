@@ -631,8 +631,13 @@ function generateKeysH(keys: KeyEntry[], digest: string): string {
 
   lines.push("};");
   lines.push("");
+  lines.push("// Helper to convert KeyId to uint32_t (avoids verbose static_cast)");
+  lines.push("constexpr uint32_t key_id(KeyId k) noexcept {");
+  lines.push("  return static_cast<uint32_t>(k);");
+  lines.push("}");
+  lines.push("");
   lines.push("enum class KeyType { Int, Float, String, Bool, FeatureBundle };");
-  lines.push("enum class Status { Active, Deprecated, Blocked };");
+  lines.push("enum class Status { Active, Deprecated, Blocked };")
   lines.push("");
   lines.push("struct KeyMeta {");
   lines.push("    uint32_t id;");
