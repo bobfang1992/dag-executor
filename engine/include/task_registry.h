@@ -56,6 +56,14 @@ struct TaskSpec {
   std::optional<WritesEffectExpr> writes_effect; // RFC0005: param-dependent writes
 };
 
+// Compute the effective writes contract expression from a TaskSpec.
+// This combines static writes and dynamic writes_effect into a single expression:
+//   - If both empty: returns EffectKeys{}
+//   - If only writes: returns EffectKeys{writes}
+//   - If only writes_effect: returns *writes_effect
+//   - If both: returns EffectUnion{Keys(writes), *writes_effect}
+WritesEffectExpr compute_effective_writes(const TaskSpec &spec);
+
 // Validated parameters - stored after validation so run functions don't
 // re-parse
 struct ValidatedParams {

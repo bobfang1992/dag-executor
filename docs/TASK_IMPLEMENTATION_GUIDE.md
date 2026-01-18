@@ -46,10 +46,10 @@ struct TaskSpec {
   std::string op;                          // Unique operation name
   std::vector<ParamField> params_schema;   // Parameter definitions
   std::vector<KeyId> reads;                // Static key reads (audit)
-  std::vector<KeyId> writes;               // Static key writes (audit)
+  std::vector<KeyId> writes;               // Static/fixed key writes
   DefaultBudget default_budget;            // Timeout (MVP: ignored)
-  OutputPattern output_pattern;            // Output shape contract
-  std::optional<WritesEffectExpr> writes_effect; // Param-dependent writes
+  OutputPattern output_pattern;            // Output shape contract (rows)
+  std::optional<WritesEffectExpr> writes_effect; // Dynamic/param-dependent writes
 };
 ```
 
@@ -88,7 +88,7 @@ struct ParamField {
 
 ### Output Pattern (`output_pattern`)
 
-Declares the shape contract for task output:
+Declares the **row shape** contract for task output:
 
 | Pattern | Description | Example Tasks |
 |---------|-------------|---------------|
@@ -108,35 +108,69 @@ Currently ignored by executor (MVP), but declared for future enforcement.
 
 ---
 
-## writes_effect System (RFC 0005)
+## Writes Contract (RFC 0005)
 
-`writes_effect` declares which keys a task **might write to**, enabling the engine to detect conflicts at link time.
+The **Writes Contract** declares which columns a task may materialize or overwrite. It consists of two fields that work together:
 
-### Why It Exists
-
-- **Static `writes`**: Good for fixed keys, but can't express param-dependent writes
-- **`writes_effect`**: Captures "this task writes to whatever `out_key` param says"
-
-### The 4 Options
-
-#### 1. `EffectKeys{}` - Fixed Set (or None)
-
-Use when: Task writes to a **fixed, known set** of keys (or no keys at all).
-
-```cpp
-// No writes at all (source tasks, filter, take)
-.writes_effect = EffectKeys{}
-
-// Fixed writes to specific keys
-.writes_effect = EffectKeys{{4001, 4002}}  // key_ids
+```
+Writes Contract = UNION( Keys(writes), writes_effect )
 ```
 
-**When to use:**
-- Source tasks (no column writes, schema is static)
-- Transform tasks that don't add columns (filter, take, sort)
-- Tasks that always write the same keys regardless of params
+| Field | Purpose | When to Use |
+|-------|---------|-------------|
+| `writes` | Fixed/static keys | Task always writes the same columns |
+| `writes_effect` | Dynamic/param-dependent keys | Columns depend on params |
 
-#### 2. `EffectFromParam{"param_name"}` - Single Key from Param
+**Key insight:** Most tasks only need to fill ONE of these fields.
+
+### Why Two Fields?
+
+- **`writes`** is the preferred way to declare fixed keys (simple, explicit)
+- **`writes_effect`** is used only when keys depend on params (e.g., `out_key`)
+
+The system computes the union automatically. You do NOT need to manually combine them.
+
+### Decision Flowchart
+
+```
+Does the task materialize/overwrite any columns?
+│
+├─ No → .writes = {}, omit .writes_effect
+│       (e.g., filter, take, sort)
+│
+└─ Yes → Are the written keys constant for all param values?
+    │
+    ├─ Yes (fixed schema) → put keys in .writes, omit .writes_effect
+    │                       (e.g., source tasks)
+    │
+    └─ No (param-dependent) → How are keys determined?
+        │
+        ├─ Single param (like out_key) → .writes_effect = EffectFromParam{...}
+        │
+        ├─ Enum switch (like stage) → .writes_effect = EffectSwitchEnum{...}
+        │
+        └─ Multiple dynamic sources → .writes_effect = EffectUnion{...}
+
+Mixed (fixed + dynamic)?
+  → Put fixed keys in .writes
+  → Put dynamic part in .writes_effect
+  → System computes the union automatically
+```
+
+### Quick Reference
+
+| Task Type | `writes` | `writes_effect` |
+|-----------|----------|-----------------|
+| Source (fixed schema) | `{3001, 3002}` | `std::nullopt` |
+| Filter/Take (no writes) | `{}` | `std::nullopt` |
+| vm (param-dependent) | `{}` | `EffectFromParam{"out_key"}` |
+| fetch_features (mixed) | `{static_keys}` | `EffectSwitchEnum{...}` |
+
+### Dynamic Writes Expressions
+
+For param-dependent writes, use one of these `writes_effect` forms:
+
+#### `EffectFromParam{"param_name"}` - Single Key from Param
 
 Use when: Task writes to **one key specified by a param**.
 
@@ -145,11 +179,7 @@ Use when: Task writes to **one key specified by a param**.
 .writes_effect = EffectFromParam{"out_key"}
 ```
 
-**When to use:**
-- `vm` task: `out_key` param determines output column
-- Any task where user specifies a single output key
-
-#### 3. `EffectSwitchEnum{"param", cases}` - Enum-Dependent
+#### `EffectSwitchEnum{"param", cases}` - Enum-Dependent
 
 Use when: Output keys depend on an **enum param** (like stage).
 
@@ -162,16 +192,12 @@ cases["lsr"] = makeEffectKeys({4003, 4004});
 .writes_effect = EffectSwitchEnum{"stage", std::move(cases)}
 ```
 
-**When to use:**
-- Tasks with enum params that change output schema
-- Example: `fetch_features` writes ESR columns for stage=esr, LSR columns for stage=lsr
+#### `EffectUnion{items}` - Multiple Dynamic Sources
 
-#### 4. `EffectUnion{items}` - Combination
-
-Use when: Multiple write sources need to be **combined**.
+Use when: Multiple param-dependent write sources need to be **combined**.
 
 ```cpp
-// Task that writes out_key AND stage-dependent keys
+// Task with multiple dynamic outputs
 std::vector<std::shared_ptr<WritesEffectExpr>> items;
 items.push_back(makeEffectFromParam("out_key"));
 items.push_back(makeEffectSwitchEnum("stage", cases));
@@ -179,26 +205,14 @@ items.push_back(makeEffectSwitchEnum("stage", cases));
 .writes_effect = EffectUnion{std::move(items)}
 ```
 
-**When to use:**
-- Complex tasks with multiple param-dependent outputs
-- Combining fixed keys with param-dependent keys
+#### `EffectKeys{...}` - For Internal Use
 
-### Decision Flowchart
-
-```
-Does your task write any columns?
-├── No → EffectKeys{}
-└── Yes → Are the written keys always the same?
-    ├── Yes → EffectKeys{{key1, key2, ...}}
-    └── No → How are keys determined?
-        ├── Single param (like out_key) → EffectFromParam{"param"}
-        ├── Enum param (like stage) → EffectSwitchEnum{"param", cases}
-        └── Multiple sources → EffectUnion{...}
-```
+`EffectKeys` is mainly used internally (in `EffectUnion` or `EffectSwitchEnum` cases).
+For fixed keys, prefer putting them in `.writes` instead.
 
 ### Evaluation Results
 
-When evaluated with a gamma context (param bindings):
+When the system evaluates the writes contract with param bindings (gamma):
 
 | Result | Meaning |
 |--------|---------|
@@ -233,10 +247,10 @@ public:
         {.name = "trace", .type = TaskParamType::String, .required = false, .nullable = true},
       },
       .reads = {},
-      .writes = {},
+      .writes = {},  // Set if task writes fixed columns
       .default_budget = {.timeout_ms = 50},
       .output_pattern = OutputPattern::UnaryPreserveView,
-      .writes_effect = EffectKeys{},  // Adjust based on decision flowchart
+      // .writes_effect - only set if writes depend on params
     };
   }
   // ...
@@ -335,7 +349,9 @@ engine/bin/rowset_tests
 
 ## Common Patterns
 
-### Source Task (No Inputs)
+### Source Task (Fixed Schema)
+
+Source tasks emit a fixed set of columns. Declare them in `.writes`.
 
 ```cpp
 static TaskSpec spec() {
@@ -344,8 +360,9 @@ static TaskSpec spec() {
     .params_schema = {
       {.name = "fanout", .type = TaskParamType::Int, .required = true},
     },
+    .writes = {3001, 3002},  // country, title - the emitted schema
     .output_pattern = OutputPattern::SourceFanoutDense,
-    .writes_effect = EffectKeys{},  // Source tasks have fixed schemas
+    // writes_effect omitted - no param-dependent writes
   };
 }
 
@@ -353,11 +370,13 @@ static RowSet run(const std::vector<RowSet>& inputs, ...) {
   if (!inputs.empty()) {
     throw std::runtime_error("my_source: expected 0 inputs");
   }
-  // Create and return new ColumnBatch
+  // Create and return new ColumnBatch with country, title columns
 }
 ```
 
-### Transform Task (Preserves Rows)
+### Transform Task (Param-Dependent Output)
+
+Tasks like `vm` write to a column specified by a param.
 
 ```cpp
 static TaskSpec spec() {
@@ -367,17 +386,20 @@ static TaskSpec spec() {
       {.name = "out_key", .type = TaskParamType::Int, .required = true},
       {.name = "expr_id", .type = TaskParamType::ExprId, .required = true},
     },
+    .writes = {},  // No fixed writes
     .output_pattern = OutputPattern::UnaryPreserveView,
-    .writes_effect = EffectFromParam{"out_key"},
+    .writes_effect = EffectFromParam{"out_key"},  // Writes depend on param
   };
 }
 
 static RowSet run(const std::vector<RowSet>& inputs, ...) {
-  // Add column, return input.withBatch(new_batch)
+  // Add column specified by out_key, return input.withBatch(new_batch)
 }
 ```
 
-### Filter Task (Subsets Rows)
+### Filter Task (No Column Writes)
+
+Tasks that only affect rows (not columns) have no writes.
 
 ```cpp
 static TaskSpec spec() {
@@ -386,8 +408,9 @@ static TaskSpec spec() {
     .params_schema = {
       {.name = "pred_id", .type = TaskParamType::PredId, .required = true},
     },
+    .writes = {},  // No column writes
     .output_pattern = OutputPattern::UnarySubsetView,
-    .writes_effect = EffectKeys{},  // No column writes
+    // writes_effect omitted - no writes at all
   };
 }
 
@@ -420,8 +443,11 @@ static RowSet run(const std::vector<RowSet>& inputs, ...) {
 - [ ] Implement `run()` with proper validation
 - [ ] Add `TaskRegistrar<T>` at bottom
 - [ ] Add to `CMakeLists.txt`
-- [ ] Choose correct `writes_effect` (see decision flowchart)
-- [ ] Choose correct `output_pattern`
+- [ ] Declare writes contract:
+  - Fixed columns → `.writes = {key_ids}`
+  - Param-dependent → `.writes_effect = ...`
+  - No writes → both empty/omitted
+- [ ] Choose correct `output_pattern` (row shape)
 - [ ] Add unit tests
 - [ ] Add DSL bindings (if user-facing)
 - [ ] Run `./scripts/ci.sh`

@@ -17,10 +17,10 @@ public:
                  .nullable = true},
             },
         .reads = {},
-        .writes = {},
+        .writes = {KeyId::country, KeyId::title},  // Fixed schema columns
         .default_budget = {.timeout_ms = 100},
         .output_pattern = OutputPattern::SourceFanoutDense,
-        .writes_effect = EffectKeys{}, // Source task, no column writes
+        // writes_effect omitted - no param-dependent writes
     };
   }
 

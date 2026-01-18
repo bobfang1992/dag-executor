@@ -673,17 +673,21 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - Added `cap.rfc.0005.writes_effect.v1` to `registry/capabilities.toml`
 - Capability for param-dependent write effect expressions in TaskSpec
 
-**Step 12.2: TaskSpec writes_effect Expression Language**
-- `engine/include/writes_effect.h` - ADT types: `EffectKeys`, `EffectFromParam`, `EffectSwitchEnum`, `EffectUnion`
-- `engine/src/writes_effect.cpp` - `eval_writes()` evaluator returns `Exact(K) | May(K) | Unknown`
-- `engine/include/task_registry.h` - TaskSpec extended with `std::optional<WritesEffectExpr> writes_effect`
-- Task writes_effect assignments:
-  - `vm`: `FromParam("out_key")` - writes depend on out_key parameter
-  - `filter`, `take`, `concat`, `viewer.follow`, `viewer.fetch_cached_recommendation`: `Keys{}` (no param-dependent writes)
-- `dsl/packages/runtime/src/writes-effect.ts` - TS implementation with identical semantics
-- Evaluator gamma context: compile/link-time env mapping param → concrete value
-- Keys use set semantics (sorted, deduped)
-- CI tests: C++ unit tests (17 cases), TS unit tests (21 cases), parity validation
+**Step 12.2: TaskSpec writes_effect Expression Language (RFC 0005)**
+- **Writes Contract**: `UNION(writes, writes_effect)` - unified model for declaring task writes
+  - `writes`: Fixed/static keys (always written)
+  - `writes_effect`: Dynamic/param-dependent keys (optional)
+  - `compute_effective_writes(spec)`: Helper to combine both fields
+- **ADT types** (`engine/include/writes_effect.h`): `EffectKeys`, `EffectFromParam`, `EffectSwitchEnum`, `EffectUnion`
+- **Evaluator** (`engine/src/writes_effect.cpp`): `eval_writes()` returns `Exact(K) | May(K) | Unknown`
+- **Task declarations**:
+  - Source tasks: `.writes = {schema_keys}` (e.g., `viewer.follow` writes `{country, title}`)
+  - No-write tasks: `.writes = {}`, omit `writes_effect` (filter, take, concat)
+  - Param-dependent: `.writes_effect = EffectFromParam{"out_key"}` (vm)
+- **TS implementation**: `dsl/packages/runtime/src/writes-effect.ts` with identical semantics
+- **Properties**: Keys use set semantics (sorted, deduped), gamma context for link-time env
+- **CI tests**: C++ (17 cases, 46 assertions), TS (21 cases), parity validation
+- **Docs**: `docs/TASK_IMPLEMENTATION_GUIDE.md` - comprehensive infra engineer guide
 
 ### 🔲 Not Yet Implemented
 

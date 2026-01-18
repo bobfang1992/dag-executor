@@ -27,6 +27,43 @@ void TaskRegistry::register_task(TaskSpec spec, TaskFn fn) {
   tasks_[op] = TaskEntry{.spec = std::move(spec), .run = std::move(fn)};
 }
 
+WritesEffectExpr compute_effective_writes(const TaskSpec &spec) {
+  bool has_static = !spec.writes.empty();
+  bool has_dynamic = spec.writes_effect.has_value();
+
+  // Convert KeyId vector to uint32_t vector
+  auto to_uint32_vec = [](const std::vector<KeyId> &keys) {
+    std::vector<uint32_t> result;
+    result.reserve(keys.size());
+    for (const auto &k : keys) {
+      result.push_back(static_cast<uint32_t>(k));
+    }
+    return result;
+  };
+
+  if (!has_static && !has_dynamic) {
+    // No writes at all
+    return EffectKeys{};
+  }
+
+  if (has_static && !has_dynamic) {
+    // Only static writes
+    return EffectKeys{to_uint32_vec(spec.writes)};
+  }
+
+  if (!has_static && has_dynamic) {
+    // Only dynamic writes
+    return *spec.writes_effect;
+  }
+
+  // Both static and dynamic: union them
+  std::vector<std::shared_ptr<WritesEffectExpr>> items;
+  items.push_back(
+      std::make_shared<WritesEffectExpr>(EffectKeys{to_uint32_vec(spec.writes)}));
+  items.push_back(std::make_shared<WritesEffectExpr>(*spec.writes_effect));
+  return EffectUnion{std::move(items)};
+}
+
 bool TaskRegistry::has_task(const std::string &op) const {
   return tasks_.find(op) != tasks_.end();
 }
