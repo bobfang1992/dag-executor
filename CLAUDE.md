@@ -134,7 +134,15 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
 
 3. **Fragments**: When implemented, fragments must use builder-style expressions OR extraction must be extended to process them.
 
-**Future work:** Extend extraction to handle variable references and fragments.
+**Future work:**
+- **Variable resolution**: Allow composing expressions via variables:
+  ```typescript
+  const score1 = Key.key1 + Key.key2;
+  const score2 = Key.key3 * P.weight;
+  c.vm({ outKey: Key.final, expr: score1 + score2 });
+  ```
+  Requires AST-level constant folding to resolve variable references to their definitions.
+- **Fragment extraction**: Extend extraction to process fragments when implemented.
 
 ## Plan Compilation (dslc)
 
