@@ -68,6 +68,7 @@ run_bg "Unit tests (writes_effect)" engine/bin/writes_effect_tests
 run_bg "Unit tests (plan_info)" engine/bin/plan_info_tests
 run_bg "Unit tests (schema_delta)" engine/bin/schema_delta_tests
 run_bg "TS writes_effect tests" ./node_modules/.bin/tsx dsl/tools/test_writes_effect.ts
+run_bg "TS AST extraction tests" ./node_modules/.bin/tsx dsl/tools/test_ast_extraction.ts
 wait_all
 
 echo ""

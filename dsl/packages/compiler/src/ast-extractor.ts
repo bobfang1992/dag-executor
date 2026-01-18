@@ -193,17 +193,13 @@ export function extractExpressions(
     // Check for positional form if this method has a configured expr position
     const exprArgIndex = POSITIONAL_EXPR_ARGS[methodName];
     if (exprArgIndex !== undefined && args.length > exprArgIndex) {
-      const exprArg = args[exprArgIndex];
-      // For vm, verify first arg is Key.* to distinguish from object form
-      if (methodName === "vm" && args.length >= 2) {
-        const firstArg = args[0];
-        if (ts.isPropertyAccessExpression(firstArg)) {
-          const objName = firstArg.expression.getText(sourceFile);
-          if (objName === "Key") {
-            tryExtract(exprArg);
-            return;
-          }
-        }
+      const firstArg = args[0];
+      // Positional form: first arg is NOT an object literal (object form uses { outKey, expr })
+      // This handles both `vm(Key.foo, expr)` and `vm(someVar, expr)`
+      if (!ts.isObjectLiteralExpression(firstArg)) {
+        const exprArg = args[exprArgIndex];
+        tryExtract(exprArg);
+        return;
       }
     }
 
