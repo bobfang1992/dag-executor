@@ -156,3 +156,22 @@ target_link_libraries(plan_info_tests PRIVATE nlohmann_json::nlohmann_json Catch
 set_target_properties(plan_info_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )
+
+# Runtime schema delta tests executable (Catch2)
+add_executable(schema_delta_tests
+  tests/test_runtime_schema_delta.cpp
+  src/plan.cpp
+  src/executor.cpp
+  src/task_registry.cpp
+  src/output_contract.cpp
+  src/capability_registry.cpp
+  src/writes_effect.cpp
+  ${TASK_SOURCES}
+)
+
+target_include_directories(schema_delta_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(schema_delta_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2)
+
+set_target_properties(schema_delta_tests PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)

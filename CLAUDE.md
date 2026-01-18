@@ -322,6 +322,12 @@ engine/bin/rankd --list-plans
 # Print registry digests
 engine/bin/rankd --print-registry
 
+# Print plan info (capabilities, writes_eval per node)
+engine/bin/rankd --print-plan-info --plan_name reels_plan_a
+
+# Run with schema delta trace (runtime audit)
+echo '{"request_id": "test"}' | engine/bin/rankd --plan_name reels_plan_a --dump-run-trace
+
 # Run all CI tests
 ./scripts/ci.sh
 
@@ -474,6 +480,7 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 | writes_effect ADT (C++) | `engine/include/writes_effect.h` |
 | writes_effect evaluator (C++) | `engine/src/writes_effect.cpp` |
 | writes_effect (TS) | `dsl/packages/runtime/src/writes-effect.ts` |
+| Schema delta (runtime audit) | `engine/include/schema_delta.h` |
 
 ### Digest Computation
 
@@ -523,6 +530,11 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
   - `dsl/src/generated/keys.ts`, `params.ts`, `features.ts` - TS tokens (Key, P, Feat)
   - `engine/include/key_registry.h`, `param_registry.h`, `feature_registry.h` - C++ enums + metadata
   - `artifacts/keys.json`, `params.json`, `features.json` - JSON artifacts with digests
+- `key_id()` helper generated in `key_registry.h` for clean KeyId → uint32_t conversion:
+  ```cpp
+  // Instead of: static_cast<uint32_t>(KeyId::country)
+  batch->withStringColumn(key_id(KeyId::country), col);
+  ```
 - `--print-registry` flag for rankd to output registry digests
 - CI runs `pnpm -C dsl run gen:check` to verify generated outputs are up-to-date
 
@@ -688,6 +700,38 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - **Properties**: Keys use set semantics (sorted, deduped), gamma context for link-time env
 - **CI tests**: C++ (17 cases, 46 assertions), TS (21 cases), parity validation
 - **Docs**: `docs/TASK_IMPLEMENTATION_GUIDE.md` - comprehensive infra engineer guide
+
+**Step 12.3a: Engine Evaluates writes_eval at Plan Load**
+- `validate_plan()` now evaluates `writes_effect` for each node using `ValidatedParams`
+- Node struct extended with `writes_eval_kind` and `writes_eval_keys` fields
+- `--print-plan-info` outputs per-node `writes_eval` (kind + keys)
+- Fail-closed: unsupported capabilities produce structured error and exit 1
+- CI tests 55-56: writes_eval validation
+
+**Step 12.3b: Fixtures + Tests for writes_eval**
+- Test fixtures: `engine/tests/fixtures/plan_info/vm_and_row_ops.plan.json`, `fixed_source.plan.json`
+- Catch2 tests (`test_plan_info_writes_eval.cpp`): 40 assertions in 3 test cases
+- Verifies vm node has `Exact({out_key})`, row-only ops have `Exact({})`
+- RFC 0005 updated to match implementation (Status: Implemented)
+
+**Step 12.4a: Runtime Schema Drift Audit**
+- `engine/include/schema_delta.h` - SchemaDelta struct + helpers
+  - `collect_keys()`: Get all column keys from ColumnBatch (float + string)
+  - `compute_schema_delta()`: Compute `new_keys` / `removed_keys` per node
+  - `is_same_batch()`: Fast path for unary ops with shared batch
+- `ExecutionResult` struct: returns both `outputs` and `schema_deltas`
+- `--dump-run-trace` flag: includes `schema_deltas` in JSON response
+- `key_id()` helper in `key_registry.h`: cleaner KeyId → uint32_t conversion
+- CI test 57: schema_deltas validation
+
+**Step 12.4b: Schema Delta Tests**
+- `engine/tests/test_runtime_schema_delta.cpp` - Catch2 tests (82 assertions)
+  - Tests `vm_and_row_ops` and `fixed_source` fixtures
+  - Verifies source nodes have non-empty `new_keys`
+  - Verifies row-only ops (filter, take, concat) have empty new/removed keys
+  - Verifies VM node has `out_key` in `new_keys`
+  - Validates all key arrays are sorted and unique
+- `schema_delta_tests` binary added to CMake and CI
 
 ### 🔲 Not Yet Implemented
 
