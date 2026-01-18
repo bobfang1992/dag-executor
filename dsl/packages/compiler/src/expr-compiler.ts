@@ -41,12 +41,13 @@ export function compileExpr(
   paramLookup: Map<string, number>,
   sourceFile: ts.SourceFile
 ): CompileExprResult {
-  // Numeric literal: 123, 0.5, 1_000 (with numeric separators)
+  // Numeric literal: 123, 0.5, 1_000, 0x10, 0b10, 0o10
   if (ts.isNumericLiteral(node)) {
     // Strip numeric separators (underscores) before parsing
-    // TypeScript allows 1_000, 0.1_5, etc. but parseFloat stops at underscore
+    // TypeScript allows 1_000, 0x1_0, etc. but Number() stops at underscore
     const sanitized = node.text.replace(/_/g, "");
-    const value = parseFloat(sanitized);
+    // Use Number() instead of parseFloat to handle hex/binary/octal literals
+    const value = Number(sanitized);
     if (!Number.isFinite(value)) {
       return {
         error: `Invalid numeric literal: ${node.text}`,
