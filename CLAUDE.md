@@ -112,13 +112,29 @@ Plans may only import from:
 
 ### AST Extraction Limitations
 
-Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is extracted at compile time from the plan entry file only.
+Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is extracted at compile time.
 
-**Known limitation:** Expressions in fragments are NOT extracted. When fragments are implemented:
-- Fragments must use builder-style expressions (`E.mul(E.key(...), ...)`), OR
-- Extraction must be extended to process fragments
+**Limitations:**
 
-**Future work:** Run extraction on bundled output or use esbuild plugin to extract across dependency graph.
+1. **QuickJS compiler only**: Natural expressions require `dslc` (QuickJS compiler). The legacy Node compiler (`compiler-node`) does NOT support natural expressions - use builder-style (`E.mul(...)`) instead.
+
+2. **Inline expressions only**: The `expr` value must be an inline expression in the task call. Variables, shorthand, or spread patterns are NOT extracted:
+   ```typescript
+   // WORKS - inline expression
+   c.vm({ outKey: Key.x, expr: Key.id * coalesce(P.y, 0.2) })
+
+   // DOES NOT WORK - variable reference
+   const myExpr = Key.id * coalesce(P.y, 0.2);
+   c.vm({ outKey: Key.x, expr: myExpr })  // Fails at runtime!
+
+   // DOES NOT WORK - shorthand
+   const expr = Key.id * coalesce(P.y, 0.2);
+   c.vm({ outKey: Key.x, expr })  // Fails at runtime!
+   ```
+
+3. **Fragments**: When implemented, fragments must use builder-style expressions OR extraction must be extended to process them.
+
+**Future work:** Extend extraction to handle variable references and fragments.
 
 ## Plan Compilation (dslc)
 
