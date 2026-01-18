@@ -126,17 +126,17 @@ TEST_CASE("concat_demo.plan.json executes correctly", "[concat][plan]") {
   ctx.expr_table = &plan.expr_table;
   ctx.pred_table = &plan.pred_table;
 
-  auto outputs = execute_plan(plan, ctx);
+  auto result = execute_plan(plan, ctx);
 
-  REQUIRE(outputs.size() == 1);
-  REQUIRE(outputs[0].rowCount() == 8);
-  REQUIRE(outputs[0].logicalSize() == 8);
+  REQUIRE(result.outputs.size() == 1);
+  REQUIRE(result.outputs[0].rowCount() == 8);
+  REQUIRE(result.outputs[0].logicalSize() == 8);
 
   // Check output ids
-  auto indices = outputs[0].materializeIndexViewForOutput(outputs[0].batch().size());
+  auto indices = result.outputs[0].materializeIndexViewForOutput(result.outputs[0].batch().size());
   std::vector<int64_t> ids;
   for (uint32_t idx : indices) {
-    ids.push_back(outputs[0].batch().getId(idx));
+    ids.push_back(result.outputs[0].batch().getId(idx));
   }
   REQUIRE(ids == std::vector<int64_t>{1, 2, 3, 4, 1001, 1002, 1003, 1004});
 }

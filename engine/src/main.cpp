@@ -51,6 +51,7 @@ int main(int argc, char *argv[]) {
   bool print_registry = false;
   bool list_plans = false;
   bool print_plan_info = false;
+  bool dump_run_trace = false;
 
   app.add_option("--plan", plan_path, "Path to plan JSON file");
   app.add_option("--plan_dir", plan_dir,
@@ -64,6 +65,8 @@ int main(int argc, char *argv[]) {
                "List available plans from plan_dir/index.json and exit");
   app.add_flag("--print-plan-info", print_plan_info,
                "Print plan info (including capabilities_digest) and exit");
+  app.add_flag("--dump-run-trace", dump_run_trace,
+               "Include runtime trace (schema_deltas) in response");
 
   CLI11_PARSE(app, argc, argv);
 
@@ -273,10 +276,10 @@ int main(int argc, char *argv[]) {
       ctx.expr_table = &plan.expr_table;
       ctx.pred_table = &plan.pred_table;
 
-      auto outputs = rankd::execute_plan(plan, ctx);
+      auto exec_result = rankd::execute_plan(plan, ctx);
 
       // Merge all outputs into candidates
-      for (const auto &rowset : outputs) {
+      for (const auto &rowset : exec_result.outputs) {
         auto indices =
             rowset.materializeIndexViewForOutput(rowset.batch().size());
 
@@ -324,6 +327,21 @@ int main(int argc, char *argv[]) {
 
           candidates.push_back(candidate);
         }
+      }
+
+      // Include schema_deltas if --dump-run-trace is set
+      if (dump_run_trace) {
+        json schema_deltas = json::array();
+        for (const auto &nd : exec_result.schema_deltas) {
+          json delta_json;
+          delta_json["node_id"] = nd.node_id;
+          delta_json["in_keys_union"] = nd.delta.in_keys_union;
+          delta_json["out_keys"] = nd.delta.out_keys;
+          delta_json["new_keys"] = nd.delta.new_keys;
+          delta_json["removed_keys"] = nd.delta.removed_keys;
+          schema_deltas.push_back(delta_json);
+        }
+        response["schema_deltas"] = schema_deltas;
       }
     } catch (const std::exception &e) {
       std::cerr << "Error: " << e.what() << std::endl;
