@@ -14,22 +14,23 @@ export type { CompileResult };
  */
 export interface InitCompilerOptions {
   /**
-   * URL to the esbuild.wasm file.
-   * If not provided, falls back to CDN (unpkg.com).
-   * For offline/CSP-restricted environments, bundle the WASM and provide the URL:
+   * URL to the esbuild.wasm file (required).
+   * Must match the installed esbuild-wasm version to avoid JS/WASM mismatch.
+   *
+   * Example with Vite:
    *   import wasmUrl from 'esbuild-wasm/esbuild.wasm?url';
    *   await initCompiler({ wasmURL: wasmUrl });
    */
-  wasmURL?: string;
+  wasmURL: string;
 }
 
 /**
  * Initialize the browser compiler.
  * Must be called before compilePlan().
  *
- * @param options - Optional configuration including wasmURL for offline support
+ * @param options - Configuration including wasmURL (required)
  */
-export declare function initCompiler(options?: InitCompilerOptions): Promise<void>;
+export declare function initCompiler(options: InitCompilerOptions): Promise<void>;
 
 /**
  * Compile a plan from TypeScript source to JSON artifact.
