@@ -83,6 +83,22 @@ Use `unknown` for untyped inputs and validate into typed structures. ESLint enfo
 - Lifecycle: `active` → `deprecated` → `blocked`
 - Renames require new ID + deprecate old
 
+### C++ TaskSpec is SSOT for Task Definitions
+
+**Current state:** Task methods in `dsl/packages/runtime/src/plan.ts` (vm, filter, take, concat, etc.) are manually written and must be kept in sync with C++ TaskSpec definitions in `engine/src/task_registry.cpp`.
+
+**Future work:** Generate TS task bindings from C++ TaskSpec to ensure:
+1. Task method signatures match C++ param schemas (required/optional, types)
+2. All task calls use named args: `.task({ param1: value, param2: value })`
+3. No positional args allowed - enforced by generated types
+4. Parity between C++ validation and TS types
+
+| Component | Location | Role |
+|-----------|----------|------|
+| C++ TaskSpec (SSOT) | `engine/src/task_registry.cpp` | Defines task params, types, reads/writes |
+| TS task methods | `dsl/packages/runtime/src/plan.ts` | Plan authoring surface (currently manual) |
+| Generated bindings | `dsl/packages/generated/tasks.ts` | Future: auto-generated from TaskSpec |
+
 ## Plan Compilation (dslc)
 
 Two compilers are available. **QuickJS-based (dslc)** is the primary compiler used in CI.
