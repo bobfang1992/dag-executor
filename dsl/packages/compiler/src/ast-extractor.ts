@@ -1,5 +1,9 @@
 /**
- * AST Extractor: finds vm() calls with natural expressions, extracts and rewrites them.
+ * AST Extractor: finds task calls with natural expressions and extracts/rewrites them.
+ *
+ * Generic detection for any task that accepts an `expr` parameter:
+ * - Object form: .someTask({ expr: naturalExpr, ... }) - any task with `expr` property
+ * - Positional form: .vm(outKey, naturalExpr) - configured per-task
  *
  * Detection:
  * - Builder-style (skip): E.mul(...), E.key(...), { op: "...", ... }
@@ -106,7 +110,22 @@ interface Replacement {
 }
 
 /**
- * Extract natural expressions from vm() calls and rewrite the source.
+ * Configuration for tasks with positional expression arguments.
+ * Maps method name to the argument index (0-based) that contains the expression.
+ *
+ * For object-form arguments with `expr` property, extraction is automatic.
+ */
+const POSITIONAL_EXPR_ARGS: Record<string, number> = {
+  // vm(outKey, expr, opts?) - expr is at index 1
+  vm: 1,
+};
+
+/**
+ * Extract natural expressions from task calls and rewrite the source.
+ *
+ * Handles two forms:
+ * 1. Object form (generic): any task with { expr: naturalExpr } in its argument
+ * 2. Positional form (configured): tasks in POSITIONAL_EXPR_ARGS mapping
  */
 export function extractExpressions(
   sourceCode: string,
@@ -125,83 +144,76 @@ export function extractExpressions(
   const replacements: Replacement[] = [];
   let exprCounter = 0;
 
+  /**
+   * Try to extract and record a natural expression.
+   * Returns true if extraction was successful or skipped (builder-style).
+   * Returns false and records error if compilation failed.
+   */
+  function tryExtract(exprNode: ts.Expression): boolean {
+    if (!isNaturalExpr(exprNode, sourceFile)) {
+      return true; // Skip builder-style, not an error
+    }
+
+    const result = compileExpr(exprNode, keyLookup, paramLookup, sourceFile);
+    if ("error" in result) {
+      const loc = getNodeLocation(result.node, sourceFile);
+      errors.push({
+        message: result.error,
+        line: loc.line,
+        column: loc.column,
+      });
+      return false;
+    }
+
+    const exprId = exprCounter++;
+    extractedExprs.set(exprId, result.expr);
+    replacements.push({
+      start: exprNode.getStart(sourceFile),
+      end: exprNode.getEnd(),
+      exprId,
+    });
+    return true;
+  }
+
   function visit(node: ts.Node): void {
-    // Look for .vm() calls
+    // Look for method calls: .someMethod(...)
     if (ts.isCallExpression(node)) {
       if (ts.isPropertyAccessExpression(node.expression)) {
         const methodName = node.expression.name.text;
-
-        if (methodName === "vm") {
-          // Handle vm() call
-          processVmCall(node);
-        }
+        processMethodCall(methodName, node);
       }
     }
 
     ts.forEachChild(node, visit);
   }
 
-  function processVmCall(call: ts.CallExpression): void {
+  function processMethodCall(methodName: string, call: ts.CallExpression): void {
     const args = call.arguments;
 
-    // 2-arg form: vm(outKey, expr, opts?)
-    if (args.length >= 2) {
-      const firstArg = args[0];
-      // Check if first arg is Key.* (outKey) - indicates 2-arg form
-      if (ts.isPropertyAccessExpression(firstArg)) {
-        const objName = firstArg.expression.getText(sourceFile);
-        if (objName === "Key") {
-          // This is 2-arg form
-          const exprArg = args[1];
-          if (isNaturalExpr(exprArg, sourceFile)) {
-            const result = compileExpr(exprArg, keyLookup, paramLookup, sourceFile);
-            if ("error" in result) {
-              const loc = getNodeLocation(result.node, sourceFile);
-              errors.push({
-                message: result.error,
-                line: loc.line,
-                column: loc.column,
-              });
-            } else {
-              const exprId = exprCounter++;
-              extractedExprs.set(exprId, result.expr);
-              replacements.push({
-                start: exprArg.getStart(sourceFile),
-                end: exprArg.getEnd(),
-                exprId,
-              });
-            }
+    // Check for positional form if this method has a configured expr position
+    const exprArgIndex = POSITIONAL_EXPR_ARGS[methodName];
+    if (exprArgIndex !== undefined && args.length > exprArgIndex) {
+      const exprArg = args[exprArgIndex];
+      // For vm, verify first arg is Key.* to distinguish from object form
+      if (methodName === "vm" && args.length >= 2) {
+        const firstArg = args[0];
+        if (ts.isPropertyAccessExpression(firstArg)) {
+          const objName = firstArg.expression.getText(sourceFile);
+          if (objName === "Key") {
+            tryExtract(exprArg);
+            return;
           }
-          return;
         }
       }
     }
 
-    // Object form: vm({ outKey: ..., expr: ... })
-    if (args.length >= 1 && ts.isObjectLiteralExpression(args[0])) {
-      const objArg = args[0];
-      for (const prop of objArg.properties) {
-        if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {
-          if (prop.name.text === "expr") {
-            const exprValue = prop.initializer;
-            if (isNaturalExpr(exprValue, sourceFile)) {
-              const result = compileExpr(exprValue, keyLookup, paramLookup, sourceFile);
-              if ("error" in result) {
-                const loc = getNodeLocation(result.node, sourceFile);
-                errors.push({
-                  message: result.error,
-                  line: loc.line,
-                  column: loc.column,
-                });
-              } else {
-                const exprId = exprCounter++;
-                extractedExprs.set(exprId, result.expr);
-                replacements.push({
-                  start: exprValue.getStart(sourceFile),
-                  end: exprValue.getEnd(),
-                  exprId,
-                });
-              }
+    // Generic object form: look for { expr: ... } in any object argument
+    for (const arg of args) {
+      if (ts.isObjectLiteralExpression(arg)) {
+        for (const prop of arg.properties) {
+          if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {
+            if (prop.name.text === "expr") {
+              tryExtract(prop.initializer);
             }
           }
         }
