@@ -63,9 +63,9 @@ function assertNoError(code: string, ruleId: string, filename = "test.ts") {
   }
 }
 
-// Tests for no-dsl-import-alias
-test("no-dsl-import-alias: allows non-aliased Key", () => {
-  assertNoError(
+// Tests for no-dsl-import-alias (now bans all Key/P/coalesce imports since they are globals)
+test("no-dsl-import-alias: rejects Key import (globals only)", () => {
+  assertHasError(
     `import { Key } from "@ranking-dsl/runtime";`,
     "@ranking-dsl/no-dsl-import-alias"
   );
@@ -74,6 +74,13 @@ test("no-dsl-import-alias: allows non-aliased Key", () => {
 test("no-dsl-import-alias: rejects aliased Key", () => {
   assertHasError(
     `import { Key as K } from "@ranking-dsl/runtime";`,
+    "@ranking-dsl/no-dsl-import-alias"
+  );
+});
+
+test("no-dsl-import-alias: rejects coalesce import (globals only)", () => {
+  assertHasError(
+    `import { coalesce } from "@ranking-dsl/runtime";`,
     "@ranking-dsl/no-dsl-import-alias"
   );
 });
@@ -92,9 +99,23 @@ test("no-dsl-import-alias: allows aliased non-restricted identifiers", () => {
   );
 });
 
+test("no-dsl-import-alias: rejects Key from @ranking-dsl/generated", () => {
+  assertHasError(
+    `import { Key } from "@ranking-dsl/generated";`,
+    "@ranking-dsl/no-dsl-import-alias"
+  );
+});
+
 test("no-dsl-import-alias: rejects aliased Key from @ranking-dsl/generated", () => {
   assertHasError(
     `import { Key as JK } from "@ranking-dsl/generated";`,
+    "@ranking-dsl/no-dsl-import-alias"
+  );
+});
+
+test("no-dsl-import-alias: rejects P from @ranking-dsl/generated", () => {
+  assertHasError(
+    `import { P } from "@ranking-dsl/generated";`,
     "@ranking-dsl/no-dsl-import-alias"
   );
 });
@@ -106,10 +127,46 @@ test("no-dsl-import-alias: rejects aliased P from @ranking-dsl/generated", () =>
   );
 });
 
-test("no-dsl-import-alias: allows non-aliased from @ranking-dsl/generated", () => {
+test("no-dsl-import-alias: allows other imports from @ranking-dsl/generated", () => {
   assertNoError(
-    `import { Key, P } from "@ranking-dsl/generated";`,
+    `import { KeyToken, ParamToken } from "@ranking-dsl/generated";`,
     "@ranking-dsl/no-dsl-import-alias"
+  );
+});
+
+// Tests for no-dsl-reassign
+test("no-dsl-reassign: rejects const JK = Key", () => {
+  assertHasError(
+    `const JK = Key;`,
+    "@ranking-dsl/no-dsl-reassign"
+  );
+});
+
+test("no-dsl-reassign: rejects let params = P", () => {
+  assertHasError(
+    `let params = P;`,
+    "@ranking-dsl/no-dsl-reassign"
+  );
+});
+
+test("no-dsl-reassign: rejects const coal = coalesce", () => {
+  assertHasError(
+    `const coal = coalesce;`,
+    "@ranking-dsl/no-dsl-reassign"
+  );
+});
+
+test("no-dsl-reassign: allows const x = someOtherThing", () => {
+  assertNoError(
+    `const x = someOtherThing;`,
+    "@ranking-dsl/no-dsl-reassign"
+  );
+});
+
+test("no-dsl-reassign: allows const score = Key.id (property access, not reassign)", () => {
+  assertNoError(
+    `const score = Key.id;`,
+    "@ranking-dsl/no-dsl-reassign"
   );
 });
 

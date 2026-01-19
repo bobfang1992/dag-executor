@@ -31,6 +31,7 @@ export default tseslint.config(
     },
     rules: {
       "@ranking-dsl/no-dsl-import-alias": "error",
+      "@ranking-dsl/no-dsl-reassign": "error",
       "@ranking-dsl/inline-expr-only": "error",
       "@ranking-dsl/plan-restricted-imports": "error",
     },

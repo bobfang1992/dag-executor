@@ -118,6 +118,10 @@ export async function bundlePlan(
         "dsl/packages/generated/index.ts"
       ),
     },
+    // Inject Key, P, coalesce as globals (no imports needed in plans)
+    inject: [
+      resolve(options.repoRoot, "dsl/packages/compiler/src/inject-globals.ts"),
+    ],
     // Restrict imports to allowed packages only
     plugins: [importRestrictionPlugin(options.entryPoint)],
   };

@@ -5,7 +5,8 @@
  * with a clear error message.
  */
 
-import { definePlan, Key, P } from "@ranking-dsl/runtime";
+import { definePlan } from "@ranking-dsl/runtime";
+// Key, P, coalesce are globals injected by the compiler
 
 export default definePlan({
   name: "vm_ast_expr_div",

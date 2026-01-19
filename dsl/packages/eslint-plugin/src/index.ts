@@ -5,6 +5,7 @@
  */
 
 import noDslImportAlias from "./rules/no-dsl-import-alias.js";
+import noDslReassign from "./rules/no-dsl-reassign.js";
 import inlineExprOnly from "./rules/inline-expr-only.js";
 import planRestrictedImports from "./rules/plan-restricted-imports.js";
 
@@ -15,6 +16,7 @@ const plugin = {
   },
   rules: {
     "no-dsl-import-alias": noDslImportAlias,
+    "no-dsl-reassign": noDslReassign,
     "inline-expr-only": inlineExprOnly,
     "plan-restricted-imports": planRestrictedImports,
   },
@@ -23,6 +25,7 @@ const plugin = {
       plugins: ["@ranking-dsl"],
       rules: {
         "@ranking-dsl/no-dsl-import-alias": "error",
+        "@ranking-dsl/no-dsl-reassign": "error",
         "@ranking-dsl/inline-expr-only": "error",
         "@ranking-dsl/plan-restricted-imports": "error",
       },

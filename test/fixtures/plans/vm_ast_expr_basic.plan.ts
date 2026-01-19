@@ -7,7 +7,8 @@
  * Expected: AST extractor compiles the expression to ExprIR and merges into expr_table.
  */
 
-import { definePlan, Key, P, coalesce } from "@ranking-dsl/runtime";
+import { definePlan } from "@ranking-dsl/runtime";
+// Key, P, coalesce are globals injected by the compiler
 
 export default definePlan({
   name: "vm_ast_expr_basic",

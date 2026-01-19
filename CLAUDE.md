@@ -102,15 +102,23 @@ Use `unknown` for untyped inputs and validate into typed structures. ESLint enfo
 ### Plan Import Restrictions
 
 Plans may only import from:
-1. `@ranking-dsl/runtime` - DSL runtime APIs
-2. `@ranking-dsl/generated` - Generated tokens (Key, P, Feat)
-3. Fragments - Formal reusable subgraphs (when implemented)
+1. `@ranking-dsl/runtime` - DSL runtime APIs (E, Pred, definePlan)
+2. Fragments - Formal reusable subgraphs (when implemented)
+
+**Global Tokens (no import needed):**
+- `Key` - Column key references (e.g., `Key.final_score`)
+- `P` - Parameter references (e.g., `P.media_age_penalty_weight`)
+- `coalesce` - Null fallback function (e.g., `coalesce(P.x, 0.2)`)
+
+The compiler injects these via esbuild's `inject` option. **Do not import them.**
 
 **No arbitrary shared helpers.** All reusable code must go through the fragment system.
 
 **Enforcement:**
 - esbuild plugin in `bundler.ts` rejects at compile time
 - ESLint rule `@ranking-dsl/plan-restricted-imports` catches in editor
+- ESLint rule `@ranking-dsl/no-dsl-import-alias` rejects Key/P/coalesce imports
+- ESLint rule `@ranking-dsl/no-dsl-reassign` rejects reassignment (`const JK = Key`)
 
 ### AST Extraction Limitations
 
@@ -122,7 +130,7 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
 
 2. **Inline expressions only**: The `expr` value must be an inline expression in the task call. Variables, shorthand, or spread patterns are NOT extracted:
    ```typescript
-   // WORKS - inline expression
+   // WORKS - inline expression (Key, P, coalesce are globals)
    c.vm({ outKey: Key.x, expr: Key.id * coalesce(P.y, 0.2) })
 
    // DOES NOT WORK - variable reference
@@ -136,18 +144,19 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
 
 3. **Fragments**: When implemented, fragments must use builder-style expressions OR extraction must be extended to process them.
 
-4. **No import aliases**: Extraction only recognizes exact identifiers `Key`, `P`, `coalesce`. Aliasing is not supported:
+4. **No reassignment**: Extraction only recognizes exact identifiers `Key`, `P`, `coalesce`. Reassigning is not supported:
    ```typescript
-   // WORKS
-   import { Key, P, coalesce } from "@ranking-dsl/runtime";
+   // WORKS - use globals directly (no import needed)
+   c.vm({ expr: Key.id * coalesce(P.weight, 0.2) })
 
-   // DOES NOT WORK - aliases not recognized
-   import { Key as K, P as Param, coalesce as coal } from "@ranking-dsl/runtime";
-   c.vm({ expr: K.id * coal(Param.weight, 0.2) })  // Fails!
+   // DOES NOT WORK - reassignment not recognized
+   const JK = Key;
+   c.vm({ expr: JK.id * coalesce(P.weight, 0.2) })  // Fails!
    ```
 
 **ESLint enforcement:** `@ranking-dsl/eslint-plugin` catches these issues in editor:
-- `@ranking-dsl/no-dsl-import-alias` - rejects aliasing Key/P/coalesce
+- `@ranking-dsl/no-dsl-import-alias` - rejects importing Key/P/coalesce (they are globals)
+- `@ranking-dsl/no-dsl-reassign` - rejects reassignment (`const JK = Key`)
 - `@ranking-dsl/inline-expr-only` - rejects variable references in expr
 - `@ranking-dsl/plan-restricted-imports` - restricts imports in .plan.ts files
 
@@ -246,6 +255,7 @@ See [docs/PLAN_COMPILER_GUIDE.md](docs/PLAN_COMPILER_GUIDE.md) for detailed usag
 
 ### Key Access
 ```typescript
+// Key, P, coalesce are globals (no import needed)
 row.get(Key.some_key)      // Standard access via tokens
 row.set(Key.some_key, val) // Returns new RowSet (pure functional)
 row._debug.get("key")      // Debug-only string access

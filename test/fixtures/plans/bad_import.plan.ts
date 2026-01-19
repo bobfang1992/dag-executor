@@ -5,7 +5,8 @@
  * and *.fragment.ts files. This plan tries to import an arbitrary helper.
  */
 
-import { definePlan, Key } from "@ranking-dsl/runtime";
+import { definePlan } from "@ranking-dsl/runtime";
+// Key, P, coalesce are globals injected by the compiler
 import { someHelper } from "./helpers/scoring";  // Not allowed!
 
 export default definePlan({

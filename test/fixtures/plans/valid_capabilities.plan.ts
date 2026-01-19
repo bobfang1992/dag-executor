@@ -3,7 +3,7 @@
  * Should compile successfully - demonstrates RFC0001 functionality.
  */
 import { definePlan } from "@ranking-dsl/runtime";
-import { Key } from "@ranking-dsl/generated";
+// Key, P, coalesce are globals injected by the compiler
 
 export default definePlan({
   name: "valid_capabilities",

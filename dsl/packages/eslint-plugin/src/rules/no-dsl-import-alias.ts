@@ -1,11 +1,12 @@
 /**
  * ESLint rule: no-dsl-import-alias
  *
- * Disallows aliasing Key, P, or coalesce imports from @ranking-dsl/runtime.
- * The AST extractor only recognizes exact identifiers.
+ * Disallows importing Key, P, or coalesce from @ranking-dsl packages.
+ * These are injected as globals by the compiler and should not be imported.
  *
- * BAD:  import { Key as K } from "@ranking-dsl/runtime"
- * GOOD: import { Key } from "@ranking-dsl/runtime"
+ * BAD:  import { Key } from "@ranking-dsl/runtime"
+ * BAD:  import { Key as K } from "@ranking-dsl/generated"
+ * GOOD: (no import) - Key, P, coalesce are globals
  */
 
 import type { Rule } from "eslint";
@@ -17,12 +18,12 @@ const rule: Rule.RuleModule = {
   meta: {
     type: "problem",
     docs: {
-      description: "Disallow aliasing Key, P, or coalesce from @ranking-dsl packages",
+      description: "Disallow importing Key, P, or coalesce from @ranking-dsl packages (they are globals)",
       recommended: true,
     },
     messages: {
-      noAlias:
-        "Import '{{name}}' must not be aliased. The AST extractor only recognizes exact identifiers. Use 'import { {{name}} }' instead of 'import { {{name}} as {{alias}} }'.",
+      noImport:
+        "'{{name}}' is a global provided by the compiler. Do not import it. Remove '{{name}}' from your import statement.",
     },
     schema: [],
   },
@@ -45,19 +46,13 @@ const rule: Rule.RuleModule = {
               ? specifier.imported.name
               : String(specifier.imported.value);
 
-          const localName = specifier.local.name;
-
-          // Check if this is a restricted identifier being aliased
-          if (
-            RESTRICTED_IDENTIFIERS.includes(importedName) &&
-            importedName !== localName
-          ) {
+          // Report any import of restricted identifiers (not just aliases)
+          if (RESTRICTED_IDENTIFIERS.includes(importedName)) {
             context.report({
               node: specifier,
-              messageId: "noAlias",
+              messageId: "noImport",
               data: {
                 name: importedName,
-                alias: localName,
               },
             });
           }

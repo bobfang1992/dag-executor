@@ -1,8 +1,11 @@
 /**
- * Test fixture: Uses aliased Key import (should fail ESLint).
+ * Test fixture: Imports Key (should fail ESLint).
+ *
+ * Key is a global provided by the compiler. Importing it (even without alias)
+ * should be flagged by the no-dsl-import-alias rule.
  */
 import { definePlan, Pred } from "@ranking-dsl/runtime";
-import { Key as JK, P } from "@ranking-dsl/generated";
+import { Key as JK } from "@ranking-dsl/generated";  // ESLint should reject this
 
 export default definePlan({
   name: "bad_alias",

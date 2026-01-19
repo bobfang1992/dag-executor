@@ -11,7 +11,7 @@
  */
 
 import { definePlan, Pred } from "@ranking-dsl/runtime";
-import { Key } from "@ranking-dsl/generated";
+// Key, P, coalesce are globals injected by the compiler
 
 export default definePlan({
   name: "regex_plan",

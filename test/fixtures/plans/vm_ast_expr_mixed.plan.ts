@@ -8,7 +8,8 @@
  * Expected: Both expressions end up in expr_table with different IDs.
  */
 
-import { definePlan, E, Key, P, coalesce } from "@ranking-dsl/runtime";
+import { definePlan, E } from "@ranking-dsl/runtime";
+// Key, P, coalesce are globals injected by the compiler
 
 export default definePlan({
   name: "vm_ast_expr_mixed",
