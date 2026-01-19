@@ -246,3 +246,5 @@ candidates.take({ count: value ?? 10 })
 - [CLAUDE.md](../CLAUDE.md) - Full project documentation
 - `registry/keys.toml` - Available keys
 - `registry/params.toml` - Available parameters
+- `registry/tasks.toml` - Task definitions (generated from C++)
+- `dsl/packages/generated/tasks.ts` - TypeScript task option types
