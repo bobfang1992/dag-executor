@@ -1,5 +1,9 @@
 /**
  * Plan authoring API: CandidateSet, PlanCtx, definePlan.
+ *
+ * Note: Method signatures use inline types that match the generated types in
+ * @ranking-dsl/generated/tasks.ts. The generated types are derived from C++
+ * TaskSpec and can be imported by consumers who prefer them.
  */
 
 import type { KeyToken } from "@ranking-dsl/generated";

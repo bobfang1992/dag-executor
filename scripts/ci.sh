@@ -817,5 +817,53 @@ run_bg "Test 63: Production plans pass ESLint" bash -c '
 '
 wait_all
 
+# Batch 14: Task manifest tests
+echo "--- Batch 14: Task manifest tests ---"
+run_bg "Test 64: tasks.toml in sync with C++" bash -c '
+# Generate fresh TOML from C++
+engine/bin/rankd --print-task-manifest > /tmp/tasks_generated.toml
+
+# Compare with committed file
+if diff registry/tasks.toml /tmp/tasks_generated.toml > /tmp/tasks_diff.txt 2>&1; then
+    exit 0
+else
+    echo "ERROR: registry/tasks.toml out of sync with C++ TaskSpec"
+    echo "Diff:"
+    cat /tmp/tasks_diff.txt
+    echo ""
+    echo "Run: engine/bin/rankd --print-task-manifest > registry/tasks.toml"
+    exit 1
+fi
+'
+
+run_bg "Test 65: Task manifest digest parity (TS == C++)" bash -c '
+# Get TS digest from generated tasks.ts
+TS_DIGEST=$(grep "TASK_MANIFEST_DIGEST" dsl/packages/generated/tasks.ts | sed "s/.*\"\(.*\)\".*/\1/")
+
+# Get C++ digest from tasks.toml
+CPP_DIGEST=$(grep "manifest_digest" registry/tasks.toml | sed "s/.*\"\(.*\)\".*/\1/")
+
+if [ "$TS_DIGEST" = "$CPP_DIGEST" ]; then
+    exit 0
+else
+    echo "Task manifest digest mismatch: TS=$TS_DIGEST C++=$CPP_DIGEST"
+    exit 1
+fi
+'
+
+run_bg "Test 66: tasks.ts exports task count" bash -c '
+# Check that TASK_COUNT is exported and matches num_tasks
+TS_COUNT=$(grep "TASK_COUNT" dsl/packages/generated/tasks.ts | sed "s/.*= \([0-9]*\).*/\1/")
+CPP_COUNT=$(engine/bin/rankd --print-registry | python3 -c "import json,sys; print(json.load(sys.stdin)[\"num_tasks\"])")
+
+if [ "$TS_COUNT" = "$CPP_COUNT" ]; then
+    exit 0
+else
+    echo "Task count mismatch: TS=$TS_COUNT C++=$CPP_COUNT"
+    exit 1
+fi
+'
+wait_all
+
 echo ""
 echo "=== All CI tests passed ==="

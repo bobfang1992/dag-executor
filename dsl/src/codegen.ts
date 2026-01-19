@@ -73,6 +73,28 @@ interface ValidationRules {
   enums: Record<string, string[]>;
 }
 
+type TaskParamType = "int" | "float" | "bool" | "string" | "expr_id" | "pred_id";
+
+interface TaskParamEntry {
+  name: string;
+  type: TaskParamType;
+  required: boolean;
+  nullable: boolean;
+}
+
+interface TaskEntry {
+  op: string;
+  output_pattern: string;
+  params: TaskParamEntry[];
+  writes_effect?: unknown; // JSON parsed from triple-quoted string
+}
+
+interface TaskRegistry {
+  schema_version: number;
+  manifest_digest: string;
+  tasks: TaskEntry[];
+}
+
 // ============================================================
 // Validation Helpers
 // ============================================================
@@ -82,6 +104,7 @@ const PARAM_TYPES: readonly string[] = ["int", "float", "string", "bool"];
 const FEATURE_TYPES: readonly string[] = ["int", "float", "string", "bool"];
 const STATUSES: readonly string[] = ["active", "deprecated", "blocked"];
 const CAPABILITY_STATUSES: readonly string[] = ["implemented", "draft", "deprecated", "blocked"];
+const TASK_PARAM_TYPES: readonly string[] = ["int", "float", "bool", "string", "expr_id", "pred_id"];
 
 function isKeyType(v: unknown): v is KeyType {
   return typeof v === "string" && KEY_TYPES.includes(v);
@@ -101,6 +124,10 @@ function isStatus(v: unknown): v is Status {
 
 function isCapabilityStatus(v: unknown): v is CapabilityStatus {
   return typeof v === "string" && CAPABILITY_STATUSES.includes(v);
+}
+
+function isTaskParamType(v: unknown): v is TaskParamType {
+  return typeof v === "string" && TASK_PARAM_TYPES.includes(v);
 }
 
 function assertString(v: unknown, field: string): string {
@@ -350,6 +377,92 @@ function parseValidation(tomlPath: string): ValidationRules {
   return { schema_version, patterns, limits, enums };
 }
 
+function parseTasks(tomlPath: string): TaskRegistry {
+  const content = readFileSync(tomlPath, "utf-8");
+  const parsed: unknown = parseToml(content);
+
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error("Invalid TOML structure in tasks.toml");
+  }
+
+  const obj = parsed as Record<string, unknown>;
+
+  const schemaVersion = assertNumber(obj["schema_version"], "schema_version");
+  if (schemaVersion !== 1) {
+    throw new Error(`Unsupported tasks.toml schema_version: ${schemaVersion}`);
+  }
+
+  const manifestDigest = assertString(obj["manifest_digest"], "manifest_digest");
+
+  const rawTasks = obj["task"];
+  if (!Array.isArray(rawTasks)) {
+    throw new Error("Expected [[task]] array in tasks.toml");
+  }
+
+  const tasks: TaskEntry[] = [];
+
+  for (const raw of rawTasks) {
+    if (typeof raw !== "object" || raw === null) {
+      throw new Error("Invalid task entry");
+    }
+    const r = raw as Record<string, unknown>;
+
+    const op = assertString(r["op"], "op");
+    const outputPattern = assertString(r["output_pattern"], "output_pattern");
+
+    // Parse writes_effect if present (triple-quoted JSON string)
+    let writesEffect: unknown = undefined;
+    if (r["writes_effect"] !== undefined) {
+      const effectStr = assertString(r["writes_effect"], "writes_effect");
+      try {
+        writesEffect = JSON.parse(effectStr.trim());
+      } catch (e) {
+        throw new Error(`task ${op}: writes_effect is not valid JSON: ${e}`);
+      }
+    }
+
+    // Parse params
+    const rawParams = r["param"];
+    const params: TaskParamEntry[] = [];
+    if (rawParams !== undefined) {
+      if (!Array.isArray(rawParams)) {
+        throw new Error(`task ${op}: expected [[task.param]] array`);
+      }
+      for (const rawParam of rawParams) {
+        if (typeof rawParam !== "object" || rawParam === null) {
+          throw new Error(`task ${op}: invalid param entry`);
+        }
+        const p = rawParam as Record<string, unknown>;
+        const name = assertString(p["name"], "name");
+        const typeVal = p["type"];
+        if (!isTaskParamType(typeVal)) {
+          throw new Error(`task ${op}: invalid param type: ${typeVal}`);
+        }
+        const required = assertBoolean(p["required"], "required");
+        const nullable = assertBoolean(p["nullable"], "nullable");
+
+        params.push({ name, type: typeVal, required, nullable });
+      }
+    }
+
+    tasks.push({
+      op,
+      output_pattern: outputPattern,
+      params,
+      writes_effect: writesEffect,
+    });
+  }
+
+  // Sort by op for deterministic output
+  tasks.sort((a, b) => a.op.localeCompare(b.op));
+
+  return {
+    schema_version: schemaVersion,
+    manifest_digest: manifestDigest,
+    tasks,
+  };
+}
+
 function parseCapabilities(tomlPath: string): CapabilityEntry[] {
   const content = readFileSync(tomlPath, "utf-8");
   const parsed: unknown = parseToml(content);
@@ -587,8 +700,195 @@ function generateIndexTs(): string {
     'export { Feat, FeatureToken, FeatureType, FEATURE_REGISTRY_DIGEST, FEATURE_COUNT } from "./features.js";',
     'export * from "./validation.js";',
     'export * from "./capabilities.js";',
+    'export * from "./tasks.js";',
     "",
   ].join("\n");
+}
+
+/**
+ * Generate TypeScript task option interfaces from TaskRegistry.
+ *
+ * Param mapping:
+ *   C++ name    C++ type   TS name    TS type
+ *   out_key     Int        outKey     KeyToken
+ *   expr_id     ExprId     expr       VmExpr
+ *   pred_id     PredId     pred       PredNode
+ *   fanout      Int        fanout     number
+ *   count       Int        count      number
+ *   trace       String     trace      string | undefined
+ */
+function generateTasksTs(registry: TaskRegistry): string {
+  const lines: string[] = [
+    "// AUTO-GENERATED from C++ TaskSpec - DO NOT EDIT",
+    "// Generated by dsl/src/codegen.ts from registry/tasks.toml",
+    '// Regenerate with: pnpm -C dsl run gen',
+    "",
+    'import type { KeyToken } from "./keys.js";',
+    "",
+    "// ============================================================",
+    "// Expression and predicate types (structural, matching runtime)",
+    "// ============================================================",
+    "",
+    "/** Expression node (structural type matching @ranking-dsl/runtime ExprNode) */",
+    "export interface ExprNode {",
+    "  readonly op: string;",
+    "  [key: string]: unknown;",
+    "}",
+    "",
+    "/** AST-extracted expression placeholder */",
+    "export interface StaticExprToken {",
+    "  readonly __expr_id: number;",
+    "}",
+    "",
+    "/** Expression type for vm task */",
+    "export type VmExpr = ExprNode | StaticExprToken;",
+    "",
+    "/** Predicate node (structural type matching @ranking-dsl/runtime PredNode) */",
+    "export interface PredNode {",
+    "  readonly op: string;",
+    "  [key: string]: unknown;",
+    "}",
+    "",
+  ];
+
+  // Classify tasks: viewer.* are source tasks, others are transform tasks
+  const sourceTasks: TaskEntry[] = [];
+  const transformTasks: TaskEntry[] = [];
+
+  for (const task of registry.tasks) {
+    if (task.op.startsWith("viewer.")) {
+      sourceTasks.push(task);
+    } else {
+      transformTasks.push(task);
+    }
+  }
+
+  // Generate source task option interfaces
+  if (sourceTasks.length > 0) {
+    lines.push("// ============================================================");
+    lines.push("// Source task option interfaces");
+    lines.push("// ============================================================");
+    lines.push("");
+
+    for (const task of sourceTasks) {
+      const interfaceName = opToInterfaceName(task.op);
+      lines.push(`export interface ${interfaceName} {`);
+      for (const param of task.params) {
+        const tsName = cppNameToTsName(param.name);
+        const tsType = paramTypeToTsType(param);
+        const optional = !param.required ? "?" : "";
+        lines.push(`  ${tsName}${optional}: ${tsType};`);
+      }
+      // All tasks support extensions
+      lines.push("  extensions?: Record<string, unknown>;");
+      lines.push("}");
+      lines.push("");
+    }
+  }
+
+  // Generate transform task option interfaces
+  if (transformTasks.length > 0) {
+    lines.push("// ============================================================");
+    lines.push("// Transform task option interfaces");
+    lines.push("// ============================================================");
+    lines.push("");
+
+    for (const task of transformTasks) {
+      const interfaceName = opToInterfaceName(task.op);
+      lines.push(`export interface ${interfaceName} {`);
+      for (const param of task.params) {
+        const tsName = cppNameToTsName(param.name);
+        const tsType = paramTypeToTsType(param);
+        const optional = !param.required ? "?" : "";
+        lines.push(`  ${tsName}${optional}: ${tsType};`);
+      }
+      // All tasks support extensions
+      lines.push("  extensions?: Record<string, unknown>;");
+      lines.push("}");
+      lines.push("");
+    }
+  }
+
+  // Export metadata
+  lines.push("// ============================================================");
+  lines.push("// Metadata");
+  lines.push("// ============================================================");
+  lines.push("");
+  lines.push(`export const TASK_MANIFEST_DIGEST = "${registry.manifest_digest}";`);
+  lines.push(`export const TASK_COUNT = ${registry.tasks.length};`);
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+/**
+ * Convert C++ param name to TypeScript name (snake_case to camelCase)
+ * Special cases: out_key -> outKey, expr_id -> expr, pred_id -> pred
+ */
+function cppNameToTsName(cppName: string): string {
+  // Special mappings
+  if (cppName === "expr_id") return "expr";
+  if (cppName === "pred_id") return "pred";
+
+  // Convert snake_case to camelCase
+  return cppName.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+/**
+ * Convert C++ op name to TypeScript interface name
+ * e.g., "viewer.follow" -> "ViewerFollowOpts"
+ *       "vm" -> "VmOpts"
+ */
+function opToInterfaceName(op: string): string {
+  const parts = op.split(".");
+  const pascalParts = parts.map(p =>
+    p.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase())
+  );
+  return pascalParts.join("") + "Opts";
+}
+
+/**
+ * Convert C++ param type to TypeScript type
+ */
+function paramTypeToTsType(param: TaskParamEntry): string {
+  const { type, nullable } = param;
+
+  let baseType: string;
+  switch (type) {
+    case "int":
+      // Special case: out_key is KeyToken
+      if (param.name === "out_key") {
+        baseType = "KeyToken";
+      } else {
+        baseType = "number";
+      }
+      break;
+    case "float":
+      baseType = "number";
+      break;
+    case "bool":
+      baseType = "boolean";
+      break;
+    case "string":
+      baseType = "string";
+      break;
+    case "expr_id":
+      baseType = "VmExpr";
+      break;
+    case "pred_id":
+      baseType = "PredNode";
+      break;
+    default:
+      baseType = "unknown";
+  }
+
+  // Nullable types: add " | null" or " | undefined" for optional nullable
+  if (nullable && !param.required) {
+    // Optional nullable params become optional (handled by ?)
+    return baseType;
+  }
+
+  return baseType;
 }
 
 function generatePlanGlobalsDts(): string {
@@ -1261,6 +1561,7 @@ function main() {
   const features = parseFeatures(path.join(repoRoot, "registry/features.toml"));
   const validation = parseValidation(path.join(repoRoot, "registry/validation.toml"));
   const capabilities = parseCapabilities(path.join(repoRoot, "registry/capabilities.toml"));
+  const tasks = parseTasks(path.join(repoRoot, "registry/tasks.toml"));
 
   // Build canonical JSON
   const keysCanonical = { schema_version: 1, entries: keys };
@@ -1293,6 +1594,7 @@ function main() {
     { path: "dsl/packages/generated/features.ts", content: generateFeaturesTs(features, featuresDigest) },
     { path: "dsl/packages/generated/validation.ts", content: generateValidationTs(validation, validationDigest) },
     { path: "dsl/packages/generated/capabilities.ts", content: generateCapabilitiesTs(capabilities, capabilitiesDigest) },
+    { path: "dsl/packages/generated/tasks.ts", content: generateTasksTs(tasks) },
     { path: "dsl/packages/generated/index.ts", content: generateIndexTs() },
     // Plan globals declaration for editor support
     { path: "plan-globals.d.ts", content: generatePlanGlobalsDts() },

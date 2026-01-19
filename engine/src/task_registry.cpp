@@ -338,4 +338,71 @@ std::string TaskRegistry::compute_manifest_digest() const {
   return sha256::hash(canonical);
 }
 
+std::string TaskRegistry::to_toml() const {
+  std::ostringstream out;
+  out << "# AUTO-GENERATED from C++ TaskSpec - DO NOT EDIT\n";
+  out << "# Regenerate with: engine/bin/rankd --print-task-manifest > "
+         "registry/tasks.toml\n";
+  out << "schema_version = 1\n";
+  out << "manifest_digest = \"" << compute_manifest_digest() << "\"\n";
+  out << "\n";
+
+  auto specs = get_all_specs(); // sorted by op
+
+  for (const auto &spec : specs) {
+    out << "[[task]]\n";
+    out << "op = \"" << spec.op << "\"\n";
+    out << "output_pattern = \"" << outputPatternToString(spec.output_pattern)
+        << "\"\n";
+
+    // writes_effect if present
+    if (spec.writes_effect) {
+      out << "writes_effect = \"\"\"\n"
+          << serialize_writes_effect(*spec.writes_effect) << "\n\"\"\"\n";
+    }
+
+    // params
+    // Sort params by name for deterministic output
+    auto sorted_params = spec.params_schema;
+    std::sort(sorted_params.begin(), sorted_params.end(),
+              [](const ParamField &a, const ParamField &b) {
+                return a.name < b.name;
+              });
+
+    for (const auto &p : sorted_params) {
+      out << "\n  [[task.param]]\n";
+      out << "  name = \"" << p.name << "\"\n";
+
+      // type string
+      switch (p.type) {
+      case TaskParamType::Int:
+        out << "  type = \"int\"\n";
+        break;
+      case TaskParamType::Float:
+        out << "  type = \"float\"\n";
+        break;
+      case TaskParamType::Bool:
+        out << "  type = \"bool\"\n";
+        break;
+      case TaskParamType::String:
+        out << "  type = \"string\"\n";
+        break;
+      case TaskParamType::ExprId:
+        out << "  type = \"expr_id\"\n";
+        break;
+      case TaskParamType::PredId:
+        out << "  type = \"pred_id\"\n";
+        break;
+      }
+
+      out << "  required = " << (p.required ? "true" : "false") << "\n";
+      out << "  nullable = " << (p.nullable ? "true" : "false") << "\n";
+    }
+
+    out << "\n";
+  }
+
+  return out.str();
+}
+
 } // namespace rankd

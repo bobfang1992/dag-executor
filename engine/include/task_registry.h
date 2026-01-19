@@ -129,6 +129,9 @@ public:
   // Compute task manifest digest
   std::string compute_manifest_digest() const;
 
+  // Generate TOML representation for codegen
+  std::string to_toml() const;
+
   // Get number of registered tasks
   size_t num_tasks() const { return tasks_.size(); }
 

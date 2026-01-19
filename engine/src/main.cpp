@@ -49,6 +49,7 @@ int main(int argc, char *argv[]) {
   std::string plan_dir = "artifacts/plans";
   std::string plan_name;
   bool print_registry = false;
+  bool print_task_manifest = false;
   bool list_plans = false;
   bool print_plan_info = false;
   bool dump_run_trace = false;
@@ -61,6 +62,8 @@ int main(int argc, char *argv[]) {
                  "<plan_dir>/<name>.plan.json)");
   app.add_flag("--print-registry", print_registry,
                "Print registry digests and exit");
+  app.add_flag("--print-task-manifest", print_task_manifest,
+               "Print task manifest TOML and exit");
   app.add_flag("--list-plans", list_plans,
                "List available plans from plan_dir/index.json and exit");
   app.add_flag("--print-plan-info", print_plan_info,
@@ -87,6 +90,13 @@ int main(int argc, char *argv[]) {
     output["num_capabilities"] = rankd::kCapabilityCount;
     output["num_tasks"] = task_registry.num_tasks();
     std::cout << output.dump() << std::endl;
+    return 0;
+  }
+
+  // Handle --print-task-manifest
+  if (print_task_manifest) {
+    const auto &task_registry = rankd::TaskRegistry::instance();
+    std::cout << task_registry.to_toml() << std::endl;
     return 0;
   }
 
