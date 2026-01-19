@@ -849,6 +849,9 @@ function opToInterfaceName(op: string): string {
 
 /**
  * Convert C++ param type to TypeScript type
+ *
+ * Handles nullable params: if nullable=true, emit "baseType | null"
+ * This maintains parity with C++ validation which accepts null for nullable params.
  */
 function paramTypeToTsType(param: TaskParamEntry): string {
   const { type, nullable } = param;
@@ -882,10 +885,9 @@ function paramTypeToTsType(param: TaskParamEntry): string {
       baseType = "unknown";
   }
 
-  // Nullable types: add " | null" or " | undefined" for optional nullable
-  if (nullable && !param.required) {
-    // Optional nullable params become optional (handled by ?)
-    return baseType;
+  // Nullable types: add " | null" to maintain parity with C++ validation
+  if (nullable) {
+    return `${baseType} | null`;
   }
 
   return baseType;

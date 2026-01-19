@@ -34,13 +34,13 @@ export interface PredNode {
 
 export interface ViewerFetchCachedRecommendationOpts {
   fanout: number;
-  trace?: string;
+  trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
 export interface ViewerFollowOpts {
   fanout: number;
-  trace?: string;
+  trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
@@ -49,26 +49,26 @@ export interface ViewerFollowOpts {
 // ============================================================
 
 export interface ConcatOpts {
-  trace?: string;
+  trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
 export interface FilterOpts {
   pred: PredNode;
-  trace?: string;
+  trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
 export interface TakeOpts {
   count: number;
-  trace?: string;
+  trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
 export interface VmOpts {
   expr: VmExpr;
   outKey: KeyToken;
-  trace?: string;
+  trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 

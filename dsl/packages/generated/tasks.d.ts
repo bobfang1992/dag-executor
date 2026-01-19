@@ -17,32 +17,32 @@ export interface PredNode {
 }
 export interface ViewerFetchCachedRecommendationOpts {
     fanout: number;
-    trace?: string;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
 }
 export interface ViewerFollowOpts {
     fanout: number;
-    trace?: string;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
 }
 export interface ConcatOpts {
-    trace?: string;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
 }
 export interface FilterOpts {
     pred: PredNode;
-    trace?: string;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
 }
 export interface TakeOpts {
     count: number;
-    trace?: string;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
 }
 export interface VmOpts {
     expr: VmExpr;
     outKey: KeyToken;
-    trace?: string;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
 }
 export declare const TASK_MANIFEST_DIGEST = "687d722c1814f1481da590256799d799e3d0e20478fb4760f39ec20b91594e22";
