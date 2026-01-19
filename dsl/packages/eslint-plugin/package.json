@@ -1,0 +1,20 @@
+{
+  "name": "@ranking-dsl/eslint-plugin",
+  "version": "0.1.0",
+  "description": "ESLint rules for ranking DSL plans",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsx src/rules/__tests__/run.ts"
+  },
+  "keywords": ["eslint", "eslint-plugin", "ranking-dsl"],
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@types/eslint": "^8.56.0",
+    "typescript": "^5.0.0"
+  }
+}

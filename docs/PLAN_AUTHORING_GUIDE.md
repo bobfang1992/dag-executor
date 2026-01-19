@@ -41,7 +41,7 @@ Here's a minimal template:
 
 ```typescript
 import { definePlan } from "@ranking-dsl/runtime";
-import { Key, P } from "@ranking-dsl/generated";
+// Key, P, coalesce are globals - no import needed!
 
 export default definePlan({
   name: "my_plan", // Must match filename (my_plan.plan.ts)
@@ -51,8 +51,8 @@ export default definePlan({
 
     // 2. Transform (optional): compute scores, filter, etc.
     const scored = candidates.vm({
-      key: Key.final_score,
-      expr: Key.id.mul(P.media_age_penalty_weight),
+      outKey: Key.final_score,
+      expr: Key.id * coalesce(P.media_age_penalty_weight, 0.2),
     });
 
     // 3. Return final candidates with output keys
@@ -63,6 +63,20 @@ export default definePlan({
   },
 });
 ```
+
+### Global Tokens
+
+The compiler injects these as globals - **do not import them**:
+
+| Token | Description | Example |
+|-------|-------------|---------|
+| `Key` | Column key references | `Key.final_score`, `Key.country` |
+| `P` | Parameter references | `P.media_age_penalty_weight` |
+| `coalesce` | Null fallback function | `coalesce(P.weight, 0.2)` |
+
+**ESLint enforces this:**
+- Importing `Key`, `P`, or `coalesce` is an error
+- Reassigning them (`const JK = Key`) is an error
 
 ### 3. Update the Manifest
 

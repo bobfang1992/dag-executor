@@ -20,8 +20,9 @@ import { createHash } from "node:crypto";
 import { bundlePlan } from "./bundler.js";
 import { executePlan } from "./executor.js";
 import { stableStringify } from "./stable-stringify.js";
+import { extractExpressions } from "./ast-extractor.js";
 import { isValidPlanName } from "@ranking-dsl/generated";
-import { validateArtifact } from "@ranking-dsl/runtime";
+import { validateArtifact, type ExprNode } from "@ranking-dsl/runtime";
 
 // Read package version
 const __filename = fileURLToPath(import.meta.url);
@@ -120,10 +121,29 @@ async function compilePlan(
   console.log(`Compiling: ${planPath}`);
 
   try {
-    // Step 1: Bundle with esbuild
+    // Step 1: Read source file
+    const sourceCode = await readFile(absPath, "utf-8");
+
+    // Step 2: AST extraction - find natural expressions in vm() calls
+    const { rewrittenSource, extractedExprs, errors } = extractExpressions(
+      sourceCode,
+      planFileName
+    );
+
+    // Report extraction errors
+    if (errors.length > 0) {
+      for (const error of errors) {
+        console.error(`${planFileName}:${error.line}:${error.column}: ${error.message}`);
+      }
+      throw new Error(`AST extraction failed with ${errors.length} error(s)`);
+    }
+
+    // Step 3: Bundle with esbuild (use virtual entry if source was rewritten)
+    const hasExtractions = extractedExprs.size > 0;
     const { code, warnings } = await bundlePlan({
       entryPoint: absPath,
       repoRoot,
+      virtualEntry: hasExtractions ? { contents: rewrittenSource } : undefined,
     });
 
     // Report warnings if any
@@ -134,21 +154,26 @@ async function compilePlan(
       }
     }
 
-    // Step 2: Execute in QuickJS sandbox
+    // Step 4: Execute in QuickJS sandbox
     const { artifact } = await executePlan({
       code,
       planPath: planFileName,
     });
 
-    // Step 3: Validate artifact structure (full PlanArtifact schema)
+    // Step 5: Validate artifact structure (full PlanArtifact schema)
     // Uses shared validation from @ranking-dsl/runtime for parity with Node compiler
     validateArtifact(artifact, planFileName);
 
     // After validation, we know artifact is a valid object
-    const validatedArtifact = artifact as Record<string, unknown>;
+    let validatedArtifact = artifact as Record<string, unknown>;
     const planName = (validatedArtifact as { plan_name: string }).plan_name;
 
-    // Step 4: Enforce plan_name matches filename and is valid
+    // Step 6: Post-process - merge extracted expressions into expr_table
+    if (hasExtractions) {
+      validatedArtifact = mergeExtractedExprs(validatedArtifact, extractedExprs);
+    }
+
+    // Step 7: Enforce plan_name matches filename and is valid
     const expectedName = planFileName.replace(/\.plan\.ts$/, "");
     if (planName !== expectedName) {
       throw new Error(
@@ -163,7 +188,7 @@ async function compilePlan(
       );
     }
 
-    // Step 5: Add built_by metadata
+    // Step 8: Add built_by metadata
     const bundleDigest = createHash("sha256").update(code).digest("hex").substring(0, 16);
     const artifactWithMetadata = {
       ...validatedArtifact,
@@ -175,7 +200,7 @@ async function compilePlan(
       },
     };
 
-    // Step 6: Write to output directory
+    // Step 9: Write to output directory
     const absOutputDir = resolve(process.cwd(), outputDir);
     await mkdir(absOutputDir, { recursive: true });
 
@@ -196,6 +221,62 @@ async function compilePlan(
     }
     process.exit(1);
   }
+}
+
+/**
+ * Merge AST-extracted expressions into artifact's expr_table and remap node params.
+ *
+ * The artifact has:
+ * - expr_table: { e0: {...}, e1: {...}, ... } (from builder-style expressions)
+ * - nodes[].params.expr_id: "__static_eN" (from natural expressions)
+ *
+ * This function:
+ * 1. Adds extracted expressions to expr_table with new IDs
+ * 2. Remaps __static_eN references in nodes to the new IDs
+ */
+function mergeExtractedExprs(
+  artifact: Record<string, unknown>,
+  extractedExprs: Map<number, ExprNode>
+): Record<string, unknown> {
+  // Get or create expr_table
+  const exprTable = (artifact.expr_table ?? {}) as Record<string, ExprNode>;
+
+  // Count existing entries to determine next ID
+  let nextId = Object.keys(exprTable).length;
+
+  // Map from __static_eN → eM
+  const idRemap = new Map<string, string>();
+
+  // Add extracted expressions to expr_table
+  for (const [staticId, expr] of extractedExprs) {
+    const newId = `e${nextId++}`;
+    exprTable[newId] = expr;
+    idRemap.set(`__static_e${staticId}`, newId);
+  }
+
+  // Remap node params
+  const nodes = artifact.nodes as Array<{
+    params: Record<string, unknown>;
+    [key: string]: unknown;
+  }>;
+
+  for (const node of nodes) {
+    if (node.params && typeof node.params.expr_id === "string") {
+      const exprId = node.params.expr_id;
+      if (exprId.startsWith("__static_e")) {
+        const remapped = idRemap.get(exprId);
+        if (remapped) {
+          node.params.expr_id = remapped;
+        }
+      }
+    }
+  }
+
+  return {
+    ...artifact,
+    expr_table: exprTable,
+    nodes,
+  };
 }
 
 main().catch((err) => {

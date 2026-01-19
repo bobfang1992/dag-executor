@@ -83,6 +83,93 @@ Use `unknown` for untyped inputs and validate into typed structures. ESLint enfo
 - Lifecycle: `active` → `deprecated` → `blocked`
 - Renames require new ID + deprecate old
 
+### C++ TaskSpec is SSOT for Task Definitions
+
+**Current state:** Task methods in `dsl/packages/runtime/src/plan.ts` (vm, filter, take, concat, etc.) are manually written and must be kept in sync with C++ TaskSpec definitions in `engine/src/task_registry.cpp`.
+
+**Future work:** Generate TS task bindings from C++ TaskSpec to ensure:
+1. Task method signatures match C++ param schemas (required/optional, types)
+2. All task calls use named args: `.task({ param1: value, param2: value })`
+3. No positional args allowed - enforced by generated types
+4. Parity between C++ validation and TS types
+
+| Component | Location | Role |
+|-----------|----------|------|
+| C++ TaskSpec (SSOT) | `engine/src/task_registry.cpp` | Defines task params, types, reads/writes |
+| TS task methods | `dsl/packages/runtime/src/plan.ts` | Plan authoring surface (currently manual) |
+| Generated bindings | `dsl/packages/generated/tasks.ts` | Future: auto-generated from TaskSpec |
+
+### Plan Import Restrictions
+
+Plans may only import from:
+1. `@ranking-dsl/runtime` - DSL runtime APIs (E, Pred, definePlan)
+2. Fragments - Formal reusable subgraphs (when implemented)
+
+**Global Tokens (no import needed):**
+- `Key` - Column key references (e.g., `Key.final_score`)
+- `P` - Parameter references (e.g., `P.media_age_penalty_weight`)
+- `coalesce` - Null fallback function (e.g., `coalesce(P.x, 0.2)`)
+
+The compiler injects these via esbuild's `inject` option. **Do not import them.**
+
+**No arbitrary shared helpers.** All reusable code must go through the fragment system.
+
+**Enforcement:**
+- esbuild plugin in `bundler.ts` rejects at compile time
+- ESLint rule `@ranking-dsl/plan-restricted-imports` catches in editor
+- ESLint rule `@ranking-dsl/no-dsl-import-alias` rejects Key/P/coalesce imports
+- ESLint rule `@ranking-dsl/no-dsl-reassign` rejects reassignment (`const JK = Key`)
+
+### AST Extraction Limitations
+
+Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is extracted at compile time.
+
+**Limitations:**
+
+1. **QuickJS compiler only**: Natural expressions require `dslc` (QuickJS compiler). The legacy Node compiler (`compiler-node`) does NOT support natural expressions - use builder-style (`E.mul(...)`) instead.
+
+2. **Inline expressions only**: The `expr` value must be an inline expression in the task call. Variables, shorthand, or spread patterns are NOT extracted:
+   ```typescript
+   // WORKS - inline expression (Key, P, coalesce are globals)
+   c.vm({ outKey: Key.x, expr: Key.id * coalesce(P.y, 0.2) })
+
+   // DOES NOT WORK - variable reference
+   const myExpr = Key.id * coalesce(P.y, 0.2);
+   c.vm({ outKey: Key.x, expr: myExpr })  // Fails at runtime!
+
+   // DOES NOT WORK - shorthand
+   const expr = Key.id * coalesce(P.y, 0.2);
+   c.vm({ outKey: Key.x, expr })  // Fails at runtime!
+   ```
+
+3. **Fragments**: When implemented, fragments must use builder-style expressions OR extraction must be extended to process them.
+
+4. **No reassignment**: Extraction only recognizes exact identifiers `Key`, `P`, `coalesce`. Reassigning is not supported:
+   ```typescript
+   // WORKS - use globals directly (no import needed)
+   c.vm({ expr: Key.id * coalesce(P.weight, 0.2) })
+
+   // DOES NOT WORK - reassignment not recognized
+   const JK = Key;
+   c.vm({ expr: JK.id * coalesce(P.weight, 0.2) })  // Fails!
+   ```
+
+**ESLint enforcement:** `@ranking-dsl/eslint-plugin` catches these issues in editor:
+- `@ranking-dsl/no-dsl-import-alias` - rejects importing Key/P/coalesce (they are globals)
+- `@ranking-dsl/no-dsl-reassign` - rejects reassignment (`const JK = Key`)
+- `@ranking-dsl/inline-expr-only` - rejects variable references in expr
+- `@ranking-dsl/plan-restricted-imports` - restricts imports in .plan.ts files
+
+**Future work:**
+- **Variable resolution**: Allow composing expressions via variables:
+  ```typescript
+  const score1 = Key.key1 + Key.key2;
+  const score2 = Key.key3 * P.weight;
+  c.vm({ outKey: Key.final, expr: score1 + score2 });
+  ```
+  Requires AST-level constant folding to resolve variable references to their definitions.
+- **Fragment extraction**: Extend extraction to process fragments when implemented.
+
 ## Plan Compilation (dslc)
 
 Two compilers are available. **QuickJS-based (dslc)** is the primary compiler used in CI.
@@ -168,6 +255,7 @@ See [docs/PLAN_COMPILER_GUIDE.md](docs/PLAN_COMPILER_GUIDE.md) for detailed usag
 
 ### Key Access
 ```typescript
+// Key, P, coalesce are globals (no import needed)
 row.get(Key.some_key)      // Standard access via tokens
 row.set(Key.some_key, val) // Returns new RowSet (pure functional)
 row._debug.get("key")      // Debug-only string access
@@ -752,8 +840,9 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - [x] PredIR builder (Pred.cmp, Pred.in, Pred.isNull, Pred.notNull, Pred.and, Pred.or, Pred.not, Pred.regex)
 - [x] QuickJS-based plan execution with esbuild bundling
 - [x] Sandbox security (no eval, no Function, no Node globals)
+- [x] AST extraction for natural expressions in vm() (Key.x * coalesce(P.y, 0.2))
 - [ ] Fragment authoring surface
-- [ ] AST extraction for complex expressions (future enhancement)
+- [ ] C++ TaskSpec → TS task definitions codegen (single source of truth)
 
 **Engine Core (§9)**
 - [x] ColumnBatch (SoA storage) - id + float columns with validity
@@ -794,4 +883,3 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - [ ] Plan skeleton generator (`plan:new` - interactive wizard to scaffold new plans)
 - [ ] Task skeleton generator (scaffold new C++ task with header, source, registry entry)
 - [ ] SourceRef generation
-- [ ] AST extraction for complex expressions (future enhancement)
