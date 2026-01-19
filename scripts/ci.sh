@@ -391,41 +391,33 @@ assert plan[\"nodes\"][0][\"extensions\"][\"cap.debug\"][\"node_debug\"] == True
 "'
 wait_all
 
-# Batch 9: Compiler parity tests (parallel)
-# Use direct CLI invocation to avoid pnpm lock contention
-# Use ./node_modules/.bin/tsx for Node compiler (tsx installed via pnpm)
-echo "--- Batch 9: Compiler parity ---"
-run_bg "Test 43: Parity (valid_capabilities)" bash -c '
-mkdir -p /tmp/parity-test/qjs /tmp/parity-test/node
-node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/qjs
-./node_modules/.bin/tsx dsl/packages/compiler-node/src/cli.ts test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/parity-test/node
+# Batch 9: Compilation tests (parallel)
+echo "--- Batch 9: Compilation tests ---"
+run_bg "Test 43: Compile valid_capabilities" bash -c '
+mkdir -p /tmp/compile-test
+node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/compile-test
 python3 -c "
 import json
-with open(\"/tmp/parity-test/qjs/valid_capabilities.plan.json\") as f:
-    qjs = json.load(f)
-with open(\"/tmp/parity-test/node/valid_capabilities.plan.json\") as f:
-    node = json.load(f)
-del qjs[\"built_by\"]
-del node[\"built_by\"]
-assert qjs == node, \"Compiler outputs differ\"
+with open(\"/tmp/compile-test/valid_capabilities.plan.json\") as f:
+    plan = json.load(f)
+assert \"capabilities_required\" in plan
+assert \"cap.audit\" in plan[\"capabilities_required\"]
+assert \"cap.debug\" in plan[\"capabilities_required\"]
 "'
 
-run_bg "Test 44: Parity (multiple plans)" bash -c '
-mkdir -p /tmp/parity-multi/qjs /tmp/parity-multi/node
+run_bg "Test 44: Compile multiple plans" bash -c '
+mkdir -p /tmp/compile-multi
 for plan in plans/reels_plan_a.plan.ts plans/concat_plan.plan.ts plans/regex_plan.plan.ts; do
-    node dsl/packages/compiler/dist/cli.js build "$plan" --out /tmp/parity-multi/qjs
-    ./node_modules/.bin/tsx dsl/packages/compiler-node/src/cli.ts "$plan" --out /tmp/parity-multi/node
+    node dsl/packages/compiler/dist/cli.js build "$plan" --out /tmp/compile-multi
 done
 python3 -c "
 import json
 for name in [\"reels_plan_a\", \"concat_plan\", \"regex_plan\"]:
-    with open(f\"/tmp/parity-multi/qjs/{name}.plan.json\") as f:
-        qjs = json.load(f)
-    with open(f\"/tmp/parity-multi/node/{name}.plan.json\") as f:
-        node = json.load(f)
-    del qjs[\"built_by\"]
-    del node[\"built_by\"]
-    assert qjs == node, f\"{name} outputs differ\"
+    with open(f\"/tmp/compile-multi/{name}.plan.json\") as f:
+        plan = json.load(f)
+    assert \"plan_name\" in plan
+    assert \"nodes\" in plan
+    assert plan[\"plan_name\"] == name
 "'
 wait_all
 

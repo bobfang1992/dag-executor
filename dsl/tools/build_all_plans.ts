@@ -9,11 +9,10 @@
  * Options:
  *   --manifest <path>  Manifest file path (default: plans/manifest.json)
  *   --out <dir>        Output directory (default: artifacts/plans)
- *   --backend <type>   Compiler backend: quickjs | node (default: quickjs)
  */
 
-import { readFile, readdir, writeFile, mkdir } from "node:fs/promises";
-import { resolve, basename } from "node:path";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
@@ -31,7 +30,6 @@ interface Manifest {
 interface BuildOptions {
   manifest: string;
   out: string;
-  backend: "quickjs" | "node";
 }
 
 interface IndexEntry {
@@ -56,7 +54,6 @@ async function parseArgs(): Promise<BuildOptions> {
   const options: BuildOptions = {
     manifest: "plans/manifest.json",
     out: "artifacts/plans",
-    backend: "quickjs",
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -73,16 +70,6 @@ async function parseArgs(): Promise<BuildOptions> {
         }
         options.out = args[++i];
         break;
-      case "--backend":
-        if (i + 1 >= args.length) {
-          throw new Error("--backend requires an argument");
-        }
-        const backend = args[++i];
-        if (backend !== "quickjs" && backend !== "node") {
-          throw new Error(`Invalid backend: ${backend}. Must be 'quickjs' or 'node'`);
-        }
-        options.backend = backend;
-        break;
       case "--help":
       case "-h":
         console.log(`
@@ -94,7 +81,6 @@ Usage:
 Options:
   --manifest <path>  Manifest file path (default: plans/manifest.json)
   --out <dir>        Output directory (default: artifacts/plans)
-  --backend <type>   Compiler backend: quickjs | node (default: quickjs)
   --help, -h         Show this help message
 `);
         process.exit(0);
@@ -126,37 +112,21 @@ async function loadManifest(manifestPath: string): Promise<Manifest> {
 
 async function compilePlan(
   planPath: string,
-  outputDir: string,
-  backend: "quickjs" | "node"
+  outputDir: string
 ): Promise<void> {
   const absOutputDir = resolve(REPO_ROOT, outputDir);
 
-  if (backend === "quickjs") {
-    // Use dslc (QuickJS-based compiler)
-    const command = "node";
-    const args = [
-      "dsl/packages/compiler/dist/cli.js",
-      "build",
-      planPath,
-      "--out",
-      absOutputDir,
-    ];
+  const command = "node";
+  const args = [
+    "dsl/packages/compiler/dist/cli.js",
+    "build",
+    planPath,
+    "--out",
+    absOutputDir,
+  ];
 
-    console.log(`[QuickJS] Compiling: ${planPath}`);
-    await runCommand(command, args, REPO_ROOT);
-  } else {
-    // Use compiler-node (legacy Node-based compiler)
-    const command = "tsx";
-    const args = [
-      "dsl/packages/compiler-node/src/cli.ts",
-      planPath,
-      "--out",
-      absOutputDir,
-    ];
-
-    console.log(`[Node] Compiling: ${planPath}`);
-    await runCommand(command, args, REPO_ROOT);
-  }
+  console.log(`Compiling: ${planPath}`);
+  await runCommand(command, args, REPO_ROOT);
 }
 
 function runCommand(
@@ -251,7 +221,6 @@ function computeCapabilitiesDigest(
  */
 async function generateIndex(
   outputDir: string,
-  backend: "quickjs" | "node",
   compiledPlanNames: string[]
 ): Promise<void> {
   const absOutputDir = resolve(REPO_ROOT, outputDir);
@@ -293,8 +262,8 @@ async function generateIndex(
         digest: `sha256:${digest}`,
         capabilities_digest: capabilitiesDigest,
         built_by: {
-          backend,
-          tool: backend === "quickjs" ? "dslc" : "compiler-node",
+          backend: "quickjs",
+          tool: "dslc",
           tool_version: plan.built_by?.tool_version ?? "0.1.0",
         },
       });
@@ -323,7 +292,6 @@ async function main() {
 
     console.log(`Reading manifest: ${options.manifest}`);
     console.log(`Output directory: ${options.out}`);
-    console.log(`Compiler backend: ${options.backend}`);
     console.log();
 
     const manifest = await loadManifest(options.manifest);
@@ -340,7 +308,7 @@ async function main() {
 
     for (const planPath of manifest.plans) {
       try {
-        await compilePlan(planPath, options.out, options.backend);
+        await compilePlan(planPath, options.out);
         successCount++;
 
         // Extract plan name from path: "plans/reels_plan_a.plan.ts" -> "reels_plan_a"
@@ -363,7 +331,7 @@ async function main() {
 
     // Generate index.json only for plans in the manifest (not stale artifacts)
     if (compiledPlanNames.length > 0) {
-      await generateIndex(options.out, options.backend, compiledPlanNames);
+      await generateIndex(options.out, compiledPlanNames);
     }
 
     console.log();

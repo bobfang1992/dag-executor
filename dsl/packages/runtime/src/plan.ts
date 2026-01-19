@@ -344,8 +344,6 @@ export interface PlanDef {
  * 1. Build the plan
  * 2. Finalize to artifact
  * 3. Call globalThis.__emitPlan() to emit the artifact
- *
- * When running in Node (via compiler-node), it returns a PlanDef for direct use.
  */
 export function definePlan(spec: {
   name: string;

@@ -61,7 +61,8 @@ Plans are TypeScript files that compile to JSON artifacts using the QuickJS-base
 
 ```typescript
 // examples/plans/my_plan.plan.ts
-import { definePlan, E, Pred, Key, P } from "@ranking-dsl/runtime";
+import { definePlan, E, Pred } from "@ranking-dsl/runtime";
+// Key, P, coalesce are globals - no import needed!
 
 export default definePlan({
   name: "my_plan",
@@ -134,31 +135,16 @@ echo '{"request_id": "t", "param_overrides": {"media_age_penalty_weight": 0.5}}'
   | engine/bin/rankd --plan_name my_plan
 ```
 
-### Alternative: Node-based Compiler (Debug/Fallback)
-
-```bash
-# Single plan with Node compiler (faster iteration, less secure)
-pnpm run plan:build:node plans/my_plan.plan.ts --out artifacts/plans
-
-# All plans with Node backend
-pnpm run plan:build:all:node
-```
-
 **Note:** Plans are listed in `plans/manifest.json` (official) or `examples/plans/manifest.json` (examples). Run `pnpm run plan:manifest:sync` to update from directory scan.
 
-### Security & Compiler Backends
+### Compiler Security
 
-**QuickJS-based compiler (dslc)** - Primary, used in CI:
+The QuickJS-based compiler (`dslc`) provides secure, sandboxed compilation:
 - ❌ No `eval()` or `Function` constructor
 - ❌ No `process`, `require`, `module`, or Node.js globals
 - ❌ No file system, network, or dynamic imports
 - ✅ Deterministic builds (same input → same output)
 - ✅ Portable (WASM-based, no native addons)
-
-**Node-based compiler (compiler-node)** - Legacy fallback for debugging:
-- ⚠️ Full Node.js access (less secure)
-- ✅ Faster iteration during development
-- ✅ Incremental builds (skip up-to-date plans)
 
 **See [Plan Compiler Guide](docs/PLAN_COMPILER_GUIDE.md) for detailed usage.**
 
@@ -172,8 +158,7 @@ engine/                  # C++23 execution engine
 registry/                # Key/Param/Feature definitions (TOML)
 dsl/packages/
   runtime/               # Plan authoring API (E, Pred, definePlan)
-  compiler/              # dslc compiler (QuickJS-based, primary)
-  compiler-node/         # Legacy Node-based compiler (fallback)
+  compiler/              # dslc compiler (QuickJS-based sandbox)
   generated/             # Generated Key/Param/Feature tokens
 plans/                   # Official .plan.ts files → artifacts/plans/
 examples/plans/          # Example .plan.ts files → artifacts/plans-examples/

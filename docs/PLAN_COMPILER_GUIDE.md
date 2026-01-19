@@ -17,13 +17,13 @@ Each store has:
 
 ---
 
-## Compilers
+## Compiler
 
-Two compilers are available:
-- **QuickJS-based (dslc)**: Primary compiler, used in CI and production
-- **Node-based (compiler-node)**: Legacy fallback for debugging
-
-**CI Policy:** CI must use QuickJS only.
+The `dslc` compiler uses QuickJS for secure, sandboxed compilation:
+- No `eval()` or `Function` constructor
+- No Node.js globals (process, require, module)
+- No file system, network, or dynamic imports
+- Deterministic builds (same input → same output)
 
 ---
 
@@ -42,7 +42,7 @@ pnpm run plan:build:all
 ### Build Single Plan
 
 ```bash
-# Single plan with dslc (QuickJS)
+# Single plan with dslc
 pnpm run dslc build plans/my_plan.plan.ts --out artifacts/plans
 ```
 
@@ -107,34 +107,14 @@ Plans are sorted lexicographically for determinism.
 
 ---
 
-## Debug/Fallback: Node Compiler
-
-**Use for:** Debugging, development iteration, or when QuickJS compilation fails.
-
-```bash
-# Single plan with Node compiler
-pnpm run plan:build:node plans/my_plan.plan.ts --out artifacts/plans
-
-# All official plans with Node backend
-pnpm run plan:build:all:node
-
-# All example plans with Node backend
-pnpm run plan:build:examples:node
-```
-
----
-
 ## Advanced: Direct Invocation
 
 ```bash
 # Direct dslc invocation
 node dsl/packages/compiler/dist/cli.js build <plan.ts> --out <output-dir>
 
-# Direct Node compiler invocation
-tsx dsl/packages/compiler-node/src/cli.ts <plan.ts> --out <output-dir>
-
 # Custom manifest and output
-tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir --backend quickjs
+tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir
 ```
 
 ---
@@ -143,12 +123,10 @@ tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir --backe
 
 | Command | Description |
 |---------|-------------|
-| `pnpm run plan:build:all` | Build official plans (QuickJS) |
-| `pnpm run plan:build:examples` | Build example plans (QuickJS) |
-| `pnpm run plan:build:all:node` | Build official plans (Node, debug) |
+| `pnpm run plan:build:all` | Build official plans |
+| `pnpm run plan:build:examples` | Build example plans |
 | `pnpm run plan:manifest:sync` | Sync official manifest |
-| `pnpm run dslc build <file> --out <dir>` | Build single plan (QuickJS) |
-| `pnpm run plan:build:node <file> --out <dir>` | Build single plan (Node) |
+| `pnpm run dslc build <file> --out <dir>` | Build single plan |
 
 ---
 
@@ -196,10 +174,10 @@ Generated `index.json`:
 
 ## Troubleshooting
 
-### QuickJS compilation fails
-- Try Node compiler: `pnpm run plan:build:node <plan> --out artifacts/plans`
+### Compilation fails
 - Check for use of Node globals (process, fs, require) in your plan
 - Check for dynamic imports or eval
+- Ensure natural expressions use `Key`, `P`, `coalesce` directly (not aliased)
 
 ### Manifest out of sync
 - Run `pnpm run plan:manifest:sync` to regenerate from directory scan

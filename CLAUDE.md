@@ -126,7 +126,7 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
 
 **Limitations:**
 
-1. **QuickJS compiler only**: Natural expressions require `dslc` (QuickJS compiler). The legacy Node compiler (`compiler-node`) does NOT support natural expressions - use builder-style (`E.mul(...)`) instead.
+1. **dslc compiler required**: Natural expressions require the `dslc` compiler (QuickJS-based).
 
 2. **Inline expressions only**: The `expr` value must be an inline expression in the task call. Variables, shorthand, or spread patterns are NOT extracted:
    ```typescript
@@ -172,11 +172,7 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
 
 ## Plan Compilation (dslc)
 
-Two compilers are available. **QuickJS-based (dslc)** is the primary compiler used in CI.
-
-### QuickJS Compiler (Primary)
-
-Uses QuickJS for sandboxed, deterministic plan compilation:
+The `dslc` compiler uses QuickJS for sandboxed, deterministic plan compilation:
 
 **Security Model:**
 - **No eval/Function**: Dynamic code generation is blocked
@@ -206,21 +202,6 @@ Plans that attempt forbidden operations fail with clear errors:
 $ pnpm run dslc build test/fixtures/plans/evil.plan.ts --out artifacts/plans
 Error: QuickJS execution failed for evil.plan.ts: not a function
 ```
-
-### Node Compiler (Legacy/Fallback)
-
-Uses Node.js for fast iteration during development:
-
-**Usage:**
-```bash
-# Single plan
-pnpm run plan:build:node examples/plans/my_plan.plan.ts --out artifacts/plans
-
-# All plans (Node backend)
-pnpm run plan:build:all:node
-```
-
-**Use for:** Debugging, development iteration. **Not for CI.**
 
 ### Plan Store Model
 
@@ -441,18 +422,11 @@ pnpm run dslc build plans/my_plan.plan.ts --out artifacts/plans
 pnpm run plan:manifest:sync           # Sync plans/manifest.json
 pnpm run plan:manifest:sync:examples  # Sync examples/plans/manifest.json
 
-# Compile all plans with Node backend (debugging/fallback)
-pnpm run plan:build:all:node
-
-# Fallback: Node-based compiler (legacy, for development)
-pnpm run plan:build:node plans/foo.plan.ts --out artifacts/plans
-
 # Advanced: Direct invocation
 node dsl/packages/compiler/dist/cli.js build plans/foo.plan.ts --out artifacts/plans
-tsx dsl/packages/compiler-node/src/cli.ts plans/foo.plan.ts --out artifacts/plans
 
 # Custom manifest and output directory
-tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir --backend quickjs
+tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir
 ```
 
 ---
@@ -678,28 +652,23 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - Dict-scan optimization: regex runs once per dict entry (O(dict_size)), lookup via codes (O(1))
 - Plan artifacts: `regex_demo.plan.json`, `regex_param_demo.plan.json`, `bad_regex_flags.plan.json`
 
-**Step 09: Node-based Plan Authoring (TypeScript DSL)**
+**Step 09: TypeScript DSL Runtime**
 - `dsl/packages/runtime/` - TypeScript runtime package
-  - `plan.ts` - PlanCtx, CandidateSet, definePlan() for node-based plan authoring
+  - `plan.ts` - PlanCtx, CandidateSet, definePlan() for plan authoring
   - `expr.ts` - E builder: const, constNull, key, param, add, sub, mul, neg, coalesce
   - `pred.ts` - Pred builder: constBool, and, or, not, cmp, in, isNull, notNull, regex
   - `guards.ts` - assertNotUndefined, checkNoUndefined helpers
-- `dsl/packages/compiler-node/` - Simple CLI compiler (legacy, Node-based)
-  - `cli.ts` - Compiles `*.plan.ts` → `artifacts/plans/*.plan.json`
-  - `stable-stringify.ts` - Deterministic JSON serialization
 - `dsl/packages/generated/` - Generated Key/Param/Feature tokens re-exported
 - Example plans: `reels_plan_a.plan.ts`, `concat_plan.plan.ts`, `regex_plan.plan.ts`
-- Build: `pnpm run build:dsl` then `pnpm run plan:build examples/plans/*.plan.ts`
 
-**Step 10: QuickJS-based Plan Execution**
-- `dsl/packages/compiler/` - QuickJS-based dslc compiler (replaces Node-based compiler)
+**Step 10: QuickJS-based Plan Compiler**
+- `dsl/packages/compiler/` - QuickJS-based dslc compiler
   - `bundler.ts` - esbuild integration: bundles plan + runtime → single IIFE script
   - `executor.ts` - QuickJS sandbox: executes bundle, captures __emitPlan(), validates artifact
   - `cli.ts` - Main dslc CLI: `dslc build <plan.ts> --out <dir>`, full artifact schema validation
   - `stable-stringify.ts` - Deterministic JSON serialization
-- Runtime refactoring:
+- Runtime integration:
   - `plan.ts`: `definePlan()` detects QuickJS mode via `global.__emitPlan` and emits artifact
-  - Maintains backward compatibility with Node-based compiler-node
 - Security:
   - Sandbox disables: eval, Function (including prototype bypass), process, require, module, dynamic imports
   - Validates artifacts: no undefined, no functions, no symbols, no cycles (shared refs OK)
@@ -833,7 +802,6 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 **DSL Layer (§4-7)**
 - [x] TypeScript runtime package (`dsl/packages/runtime`)
 - [x] Compiler (`dsl/packages/compiler`, dslc CLI with QuickJS sandbox)
-- [x] Legacy Node-based compiler (`dsl/packages/compiler-node`)
 - [x] Generated bindings (`dsl/packages/generated`)
 - [x] Plan authoring surface (definePlan, CandidateSet)
 - [x] ExprIR builder (E.const, E.key, E.param, E.add, E.sub, E.mul, E.neg, E.coalesce)
