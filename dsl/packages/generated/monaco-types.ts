@@ -104,10 +104,10 @@ declare module '@ranking-dsl/runtime' {
     or(a: PredNode, b: PredNode): PredNode;
     not(x: PredNode): PredNode;
     cmp(op: '==' | '!=' | '<' | '<=' | '>' | '>=', a: ExprNode, b: ExprNode): PredNode;
-    inList(token: KeyToken, values: number[] | string[]): PredNode;
-    isNull(token: KeyToken): PredNode;
-    notNull(token: KeyToken): PredNode;
-    regex(token: KeyToken, pattern: string): PredNode;
+    in(lhs: ExprNode, list: (number | string)[]): PredNode;
+    isNull(a: ExprNode): PredNode;
+    notNull(a: ExprNode): PredNode;
+    regex(key: KeyToken, pattern: string | ParamToken, flags?: '' | 'i'): PredNode;
   };
 
   // ============================================================
@@ -126,7 +126,7 @@ declare module '@ranking-dsl/runtime' {
     concat(other: CandidateSet, opts?: { trace?: string }): CandidateSet;
     filter(opts: { pred: PredNode; trace?: string }): CandidateSet;
     take(opts: { count: number; trace?: string }): CandidateSet;
-    vm(opts: { expr: ExprNode; outKey: KeyToken; trace?: string }): CandidateSet;
+    vm(opts: { expr: ExprNode | number; outKey: KeyToken; trace?: string }): CandidateSet;
   }
 
   export interface PlanConfig {

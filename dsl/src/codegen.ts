@@ -2053,10 +2053,10 @@ function generateMonacoTypes(
     "    or(a: PredNode, b: PredNode): PredNode;",
     "    not(x: PredNode): PredNode;",
     "    cmp(op: '==' | '!=' | '<' | '<=' | '>' | '>=', a: ExprNode, b: ExprNode): PredNode;",
-    "    inList(token: KeyToken, values: number[] | string[]): PredNode;",
-    "    isNull(token: KeyToken): PredNode;",
-    "    notNull(token: KeyToken): PredNode;",
-    "    regex(token: KeyToken, pattern: string): PredNode;",
+    "    in(lhs: ExprNode, list: (number | string)[]): PredNode;",
+    "    isNull(a: ExprNode): PredNode;",
+    "    notNull(a: ExprNode): PredNode;",
+    "    regex(key: KeyToken, pattern: string | ParamToken, flags?: '' | 'i'): PredNode;",
     "  };",
     "",
     "  // =====================================================",
@@ -2168,7 +2168,8 @@ function generateMonacoOptsType(task: TaskEntry): string {
         tsType = "string";
         break;
       case "expr_id":
-        tsType = "ExprNode";
+        // Accept ExprNode (builder API) or number (natural expression result)
+        tsType = "ExprNode | number";
         break;
       case "pred_id":
         tsType = "PredNode";
