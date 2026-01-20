@@ -123,7 +123,7 @@ function checkNoUndefined(obj: Record<string, unknown>, context: string): void {
 // =====================================================
 
 /** Implementation for viewer.fetch_cached_recommendation */
-export function fetch_cached_recommendationImpl(
+export function fetchCachedRecommendationImpl(
   ctx: TaskContext,
   opts: {
     fanout: number;
@@ -131,15 +131,15 @@ export function fetch_cached_recommendationImpl(
     extensions?: Record<string, unknown>;
   }
 ): string {
-  assertNotUndefined(opts, "fetch_cached_recommendation(opts)");
-  assertNotUndefined(opts.fanout, "fetch_cached_recommendation({ fanout })");
-  assertInteger(opts.fanout, "fetch_cached_recommendation({ fanout })");
+  assertNotUndefined(opts, "fetchCachedRecommendation(opts)");
+  assertNotUndefined(opts.fanout, "fetchCachedRecommendation({ fanout })");
+  assertInteger(opts.fanout, "fetchCachedRecommendation({ fanout })");
   const { extensions, ...rest } = opts;
-  checkNoUndefined(rest as Record<string, unknown>, "fetch_cached_recommendation(opts)");
+  checkNoUndefined(rest as Record<string, unknown>, "fetchCachedRecommendation(opts)");
 
   // Validate trace
   if (opts.trace !== undefined) {
-    assertStringOrNull(opts.trace, "fetch_cached_recommendation({ trace })");
+    assertStringOrNull(opts.trace, "fetchCachedRecommendation({ trace })");
   }
 
   const params: Record<string, unknown> = {
@@ -358,6 +358,6 @@ export function vmImpl(
 // =====================================================
 
 export const GENERATED_TASKS = {
-  source: ["fetch_cached_recommendation", "follow"],
+  source: ["fetchCachedRecommendation", "follow"],
   transform: ["concat", "filter", "sort", "take", "vm"],
 } as const;

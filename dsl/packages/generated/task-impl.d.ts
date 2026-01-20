@@ -11,7 +11,7 @@ export interface TaskContext {
     addPred(pred: PredNode): string;
 }
 /** Implementation for viewer.fetch_cached_recommendation */
-export declare function fetch_cached_recommendationImpl(ctx: TaskContext, opts: {
+export declare function fetchCachedRecommendationImpl(ctx: TaskContext, opts: {
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
@@ -55,7 +55,7 @@ export declare function vmImpl(ctx: TaskContext, inputNodeId: string, opts: {
     extensions?: Record<string, unknown>;
 }): string;
 export declare const GENERATED_TASKS: {
-    readonly source: readonly ["fetch_cached_recommendation", "follow"];
+    readonly source: readonly ["fetchCachedRecommendation", "follow"];
     readonly transform: readonly ["concat", "filter", "sort", "take", "vm"];
 };
 //# sourceMappingURL=task-impl.d.ts.map
