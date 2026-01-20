@@ -11,7 +11,7 @@ EXPECTED_KEYS=8
 EXPECTED_PARAMS=3
 EXPECTED_FEATURES=2
 EXPECTED_CAPABILITIES=2
-EXPECTED_TASKS=6
+EXPECTED_TASKS=7
 
 # Create temp directory for parallel job outputs
 # Note: Don't use TMPDIR as variable name - it's a system env var on macOS
