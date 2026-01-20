@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SCREENSHOTS_DIR = join(__dirname, '..', 'screenshots');
-const PORT = 5173; // Vite dev server port (preview doesn't have artifacts since copyPublicDir: false)
+const PORT = 5175; // Vite dev server port (preview doesn't have artifacts since copyPublicDir: false)
 const BASE_URL = `http://localhost:${PORT}`;
 
 async function waitForServer(url: string, timeout = 30000): Promise<void> {

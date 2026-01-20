@@ -57,7 +57,8 @@ function compileApi() {
         try {
           const parsed = JSON.parse(body);
           source = parsed.source;
-          filename = parsed.filename || 'live_plan.plan.ts';
+          // Sanitize filename to prevent path traversal attacks
+          filename = path.basename(parsed.filename || 'live_plan.plan.ts');
         } catch {
           res.statusCode = 400;
           res.setHeader('Content-Type', 'application/json');
