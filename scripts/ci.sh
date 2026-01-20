@@ -394,9 +394,10 @@ python3 -c "
 import json
 with open(\"/tmp/ci-valid-caps/valid_capabilities.plan.json\") as f:
     plan = json.load(f)
-assert plan[\"capabilities_required\"] == [\"cap.audit\", \"cap.debug\"]
-assert \"cap.debug\" in plan[\"extensions\"]
-assert plan[\"nodes\"][0][\"extensions\"][\"cap.debug\"][\"node_debug\"] == True
+assert plan[\"capabilities_required\"] == [\"cap.rfc.0001.extensions_capabilities.v1\"]
+# Check node-level extensions
+assert plan[\"nodes\"][0][\"extensions\"][\"cap.rfc.0001.extensions_capabilities.v1\"] == {}
+assert plan[\"nodes\"][1][\"extensions\"][\"cap.rfc.0001.extensions_capabilities.v1\"] == {}
 "'
 wait_all
 
@@ -410,8 +411,7 @@ import json
 with open(\"/tmp/compile-test/valid_capabilities.plan.json\") as f:
     plan = json.load(f)
 assert \"capabilities_required\" in plan
-assert \"cap.audit\" in plan[\"capabilities_required\"]
-assert \"cap.debug\" in plan[\"capabilities_required\"]
+assert \"cap.rfc.0001.extensions_capabilities.v1\" in plan[\"capabilities_required\"]
 "'
 
 run_bg "Test 44: Compile multiple plans" bash -c '
@@ -596,11 +596,9 @@ python3 scripts/ci-helpers/validate_writes_eval.py /tmp/ci-writes-eval-55.json
 '
 
 run_bg "Test 56: print-plan-info error on unsupported caps" bash -c '
-# Compile plan with unsupported capabilities
-node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/valid_capabilities.plan.ts --out /tmp/ci-writes-eval >/dev/null 2>&1
-
+# Use existing fixture with unsupported capability
 # Should exit non-zero
-if engine/bin/rankd --print-plan-info --plan /tmp/ci-writes-eval/valid_capabilities.plan.json > /tmp/ci-unsup-caps.json 2>&1; then
+if engine/bin/rankd --print-plan-info --plan artifacts/plans/bad_engine_unknown_cap.plan.json > /tmp/ci-unsup-caps.json 2>&1; then
     echo "Expected non-zero exit for unsupported capabilities"
     exit 1
 fi

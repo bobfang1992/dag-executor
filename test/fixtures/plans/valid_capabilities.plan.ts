@@ -8,24 +8,23 @@ import { definePlan } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "valid_capabilities",
   build: (ctx) => {
-    // Declare capabilities with payload
-    ctx.requireCapability("cap.debug", { level: "verbose" });
-    ctx.requireCapability("cap.audit");
+    // Declare the base extensions/capabilities capability (RFC0001)
+    ctx.requireCapability("cap.rfc.0001.extensions_capabilities.v1");
 
-    // Create a node with extensions
+    // Create a node with extensions (empty payload as per schema)
     const candidates = ctx.viewer.follow({
       fanout: 10,
       trace: "src",
       extensions: {
-        "cap.debug": { node_debug: true },
+        "cap.rfc.0001.extensions_capabilities.v1": {},
       },
     });
 
-    // Return with no extensions
+    // Return with extensions
     return candidates.take({
       count: 5,
       extensions: {
-        "cap.audit": { audit_take: true },
+        "cap.rfc.0001.extensions_capabilities.v1": {},
       },
     });
   },
