@@ -349,7 +349,9 @@ export function generateCapabilitiesTs(capabilities: CapabilityEntry[], digest: 
   lines.push("          const value = payloadObj[key];");
   lines.push("          // typeof null === 'object', so check null explicitly");
   lines.push("          const actualType = value === null ? \"null\" : Array.isArray(value) ? \"array\" : typeof value;");
-  lines.push("          if (propSchema.type !== actualType) {");
+  lines.push("          // Normalize JSON Schema 'integer' to 'number' for comparison");
+  lines.push("          const expectedType = propSchema.type === \"integer\" ? \"number\" : propSchema.type;");
+  lines.push("          if (expectedType !== actualType) {");
   lines.push("            return `Capability ${capId} payload property ${key} must be ${propSchema.type}, got ${actualType}`;");
   lines.push("          }");
   lines.push("        }");
