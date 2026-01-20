@@ -990,6 +990,22 @@ function generateTaskImplTs(registry: TaskRegistry): string {
     '  if (value === undefined) throw new Error(`${name} is undefined`);',
     "}",
     "",
+    "function assertInteger(value: unknown, name: string): asserts value is number {",
+    "  if (typeof value !== \"number\" || !Number.isInteger(value)) {",
+    "    throw new Error(`${name} must be an integer, got ${typeof value === \"number\" ? value : typeof value}`);",
+    "  }",
+    "}",
+    "",
+    "function assertKeyToken(value: unknown, name: string): void {",
+    "  if (value === null || typeof value !== \"object\") {",
+    "    throw new Error(`${name} must be a KeyToken, got ${value === null ? \"null\" : typeof value}`);",
+    "  }",
+    "  const token = value as Record<string, unknown>;",
+    "  if (typeof token.id !== \"number\" || !Number.isInteger(token.id)) {",
+    "    throw new Error(`${name}.id must be an integer, got ${typeof token.id === \"number\" ? token.id : typeof token.id}`);",
+    "  }",
+    "}",
+    "",
     "function checkNoUndefined(obj: Record<string, unknown>, context: string): void {",
     "  for (const [key, value] of Object.entries(obj)) {",
     "    if (value === undefined) {",
@@ -1040,6 +1056,10 @@ function generateTaskImplTs(registry: TaskRegistry): string {
         if (param.required) {
           const tsName = cppNameToTsName(param.name);
           lines.push(`  assertNotUndefined(opts.${tsName}, "${methodName}({ ${tsName} })");`);
+          // Add type-specific validation
+          if (param.type === "int") {
+            lines.push(`  assertInteger(opts.${tsName}, "${methodName}({ ${tsName} })");`);
+          }
         }
       }
       lines.push(`  const { extensions, ...rest } = opts;`);
@@ -1124,6 +1144,13 @@ function generateTaskImplTs(registry: TaskRegistry): string {
           if (param.required) {
             const tsName = cppNameToTsName(param.name);
             lines.push(`  assertNotUndefined(opts.${tsName}, "${methodName}({ ${tsName} })");`);
+            // Add type-specific validation
+            if (param.name === "out_key") {
+              // out_key is a KeyToken, validate it has valid .id
+              lines.push(`  assertKeyToken(opts.${tsName}, "${methodName}({ ${tsName} })");`);
+            } else if (param.type === "int") {
+              lines.push(`  assertInteger(opts.${tsName}, "${methodName}({ ${tsName} })");`);
+            }
           }
         }
         lines.push(`  const { extensions, ...rest } = opts;`);

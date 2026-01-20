@@ -42,6 +42,22 @@ function assertNotUndefined<T>(value: T | undefined, name: string): asserts valu
   if (value === undefined) throw new Error(`${name} is undefined`);
 }
 
+function assertInteger(value: unknown, name: string): asserts value is number {
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    throw new Error(`${name} must be an integer, got ${typeof value === "number" ? value : typeof value}`);
+  }
+}
+
+function assertKeyToken(value: unknown, name: string): void {
+  if (value === null || typeof value !== "object") {
+    throw new Error(`${name} must be a KeyToken, got ${value === null ? "null" : typeof value}`);
+  }
+  const token = value as Record<string, unknown>;
+  if (typeof token.id !== "number" || !Number.isInteger(token.id)) {
+    throw new Error(`${name}.id must be an integer, got ${typeof token.id === "number" ? token.id : typeof token.id}`);
+  }
+}
+
 function checkNoUndefined(obj: Record<string, unknown>, context: string): void {
   for (const [key, value] of Object.entries(obj)) {
     if (value === undefined) {
@@ -69,6 +85,7 @@ export function fetch_cached_recommendationImpl(
 ): string {
   assertNotUndefined(opts, "fetch_cached_recommendation(opts)");
   assertNotUndefined(opts.fanout, "fetch_cached_recommendation({ fanout })");
+  assertInteger(opts.fanout, "fetch_cached_recommendation({ fanout })");
   const { extensions, ...rest } = opts;
   checkNoUndefined(rest as Record<string, unknown>, "fetch_cached_recommendation(opts)");
 
@@ -91,6 +108,7 @@ export function followImpl(
 ): string {
   assertNotUndefined(opts, "follow(opts)");
   assertNotUndefined(opts.fanout, "follow({ fanout })");
+  assertInteger(opts.fanout, "follow({ fanout })");
   const { extensions, ...rest } = opts;
   checkNoUndefined(rest as Record<string, unknown>, "follow(opts)");
 
@@ -168,6 +186,7 @@ export function takeImpl(
 ): string {
   assertNotUndefined(opts, "take(opts)");
   assertNotUndefined(opts.count, "take({ count })");
+  assertInteger(opts.count, "take({ count })");
   const { extensions, ...rest } = opts;
   checkNoUndefined(rest as Record<string, unknown>, "take(opts)");
 
@@ -193,6 +212,7 @@ export function vmImpl(
   assertNotUndefined(opts, "vm(opts)");
   assertNotUndefined(opts.expr, "vm({ expr })");
   assertNotUndefined(opts.outKey, "vm({ outKey })");
+  assertKeyToken(opts.outKey, "vm({ outKey })");
   const { extensions, ...rest } = opts;
   checkNoUndefined(rest as Record<string, unknown>, "vm(opts)");
 
