@@ -180,6 +180,40 @@ export class CandidateSet {
   }
 
   /**
+   * sort: reorder rows by a key (permutation only, no materialization).
+   */
+  sort(opts: {
+    by: KeyToken;
+    order?: "asc" | "desc";
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    assertNotUndefined(opts, "sort(opts)");
+    assertNotUndefined(opts.by, "sort({ by })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest as Record<string, unknown>, "sort(opts)");
+    if (
+      opts.order !== undefined &&
+      opts.order !== "asc" &&
+      opts.order !== "desc"
+    ) {
+      throw new Error('sort({ order }) must be "asc" or "desc" when provided');
+    }
+
+    const newNodeId = this.ctx.addNode(
+      "sort",
+      [this.nodeId],
+      {
+        by: opts.by.id,
+        order: opts.order ?? "asc",
+        trace: opts.trace ?? null,
+      },
+      extensions
+    );
+    return new CandidateSet(this.ctx, newNodeId);
+  }
+
+  /**
    * take: limit to first N rows.
    */
   take(opts: {

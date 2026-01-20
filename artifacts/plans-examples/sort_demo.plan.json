@@ -1,7 +1,7 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "caf81109019dadc0",
+    "bundle_digest": "269bcd9ce9963b36",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
@@ -12,15 +12,8 @@
         "op": "key_ref"
       },
       "b": {
-        "a": {
-          "op": "param_ref",
-          "param_id": 1
-        },
-        "b": {
-          "op": "const_number",
-          "value": 0.2
-        },
-        "op": "coalesce"
+        "op": "const_number",
+        "value": 0.1
       },
       "op": "mul"
     }
@@ -31,7 +24,7 @@
       "node_id": "n0",
       "op": "viewer.follow",
       "params": {
-        "fanout": 10,
+        "fanout": 7,
         "trace": "src"
       }
     },
@@ -44,7 +37,7 @@
       "params": {
         "expr_id": "e0",
         "out_key": 2001,
-        "trace": "vm_final"
+        "trace": "score"
       }
     },
     {
@@ -52,10 +45,11 @@
         "n1"
       ],
       "node_id": "n2",
-      "op": "filter",
+      "op": "sort",
       "params": {
-        "pred_id": "p0",
-        "trace": "filter"
+        "by": 2001,
+        "order": "desc",
+        "trace": "sort"
       }
     },
     {
@@ -73,20 +67,6 @@
   "outputs": [
     "n3"
   ],
-  "plan_name": "reels_plan_a",
-  "pred_table": {
-    "p0": {
-      "a": {
-        "key_id": 2001,
-        "op": "key_ref"
-      },
-      "b": {
-        "op": "const_number",
-        "value": 0.6
-      },
-      "cmp": ">=",
-      "op": "cmp"
-    }
-  },
+  "plan_name": "sort_demo",
   "schema_version": 1
 }

@@ -4,7 +4,7 @@
     {
       "name": "concat_plan",
       "path": "concat_plan.plan.json",
-      "digest": "sha256:d7a4908e1e188acfc19864f21117fad3567b89871df6cad0ef5a9df118f3901d",
+      "digest": "sha256:878f19aa047ec01b78dbdc5ea10b928eb8c1da2fdbf27011d9038770e428d9c4",
       "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",
@@ -15,7 +15,7 @@
     {
       "name": "reels_plan_a",
       "path": "reels_plan_a.plan.json",
-      "digest": "sha256:e73b723a6aefdc7c3f2f62b6437d96ae5c546e26181d901b1af7df926a31a498",
+      "digest": "sha256:98ceb9541c5997a772ce38447a9add5a95312d756ab244ba970c4024c5e311fa",
       "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",
@@ -26,7 +26,18 @@
     {
       "name": "regex_plan",
       "path": "regex_plan.plan.json",
-      "digest": "sha256:5d2682e36742da4bceadf335fa8268f6b4d33e2315de89f9a7f66f006ccbd811",
+      "digest": "sha256:df745810f033840ca40192443ddf9266875e9bcee509536dfe29969c43578de7",
+      "capabilities_digest": "",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "sort_demo",
+      "path": "sort_demo.plan.json",
+      "digest": "sha256:27e905bcfce867a965b39135e4aacd2b8925f35e9f06aa5ca6062290cf0566ed",
       "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",

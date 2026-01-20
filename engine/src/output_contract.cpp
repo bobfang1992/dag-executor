@@ -1,5 +1,6 @@
 #include "output_contract.h"
 #include "task_registry.h"
+#include <algorithm>
 #include <sstream>
 #include <stdexcept>
 
@@ -15,6 +16,8 @@ const char *outputPatternToString(OutputPattern pattern) {
     return "StableFilter";
   case OutputPattern::PrefixOfInput:
     return "PrefixOfInput";
+  case OutputPattern::PermutationOfInput:
+    return "PermutationOfInput";
   case OutputPattern::ConcatDense:
     return "ConcatDense";
   }
@@ -75,6 +78,20 @@ static bool isPrefix(const RowSet &input, const RowSet &output,
     }
   }
   return true;
+}
+
+// Helper: check if active rows are a permutation (same multiset)
+static bool isPermutation(const RowSet &input, const RowSet &output) {
+  auto inActive = input.activeRows().toVector(input.rowCount());
+  auto outActive = output.activeRows().toVector(output.rowCount());
+
+  if (inActive.size() != outActive.size()) {
+    return false;
+  }
+
+  std::sort(inActive.begin(), inActive.end());
+  std::sort(outActive.begin(), outActive.end());
+  return inActive == outActive;
 }
 
 void validateTaskOutput(const std::string &node_id, const std::string &op,
@@ -164,6 +181,23 @@ void validateTaskOutput(const std::string &node_id, const std::string &op,
       oss << "PrefixOfInput requires output activeRows to be first " << expected_k
           << " of input[0] activeRows";
       makeError(oss.str());
+    }
+    break;
+  }
+
+  case OutputPattern::PermutationOfInput: {
+    if (inputs.empty()) {
+      makeError("PermutationOfInput requires at least 1 input");
+    }
+    if (output.rowCount() != inputs[0].rowCount()) {
+      std::ostringstream oss;
+      oss << "expected out.rowCount=" << inputs[0].rowCount()
+          << " (PermutationOfInput), got " << output.rowCount();
+      makeError(oss.str());
+    }
+    if (!isPermutation(inputs[0], output)) {
+      makeError("PermutationOfInput requires output activeRows to be a "
+                "permutation of input[0]");
     }
     break;
   }

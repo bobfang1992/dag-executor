@@ -41,7 +41,12 @@ struct ValidatedParams;
 //    - Output activeRows() must be first K of input[0].activeRows()
 //      where K = min(params["count"], input[0].logicalSize())
 //
-// 5) ConcatDense
+// 5) PermutationOfInput
+//    - For tasks that reorder active rows without changing membership (e.g., sort)
+//    - Output rowCount() must equal input[0].rowCount()
+//    - Output activeRows() must be a permutation of input[0].activeRows()
+//
+// 6) ConcatDense
 //    - For concat tasks that merge two inputs into a new dense batch
 //    - Must have exactly 2 inputs
 //    - Output rowCount() must equal |lhs.active| + |rhs.active|
@@ -54,6 +59,7 @@ enum class OutputPattern {
   UnaryPreserveView,  // vm: same physical rowCount, same active order
   StableFilter,       // filter: output active is subsequence of input active
   PrefixOfInput,      // take: output active is prefix of input active (count)
+  PermutationOfInput, // sort: same active rows, different order allowed
   ConcatDense         // concat: out rowCount = |lhs.active| + |rhs.active|
 };
 

@@ -3,6 +3,7 @@
   "plans": [
     "examples/plans/concat_plan.plan.ts",
     "examples/plans/reels_plan_a.plan.ts",
-    "examples/plans/regex_plan.plan.ts"
+    "examples/plans/regex_plan.plan.ts",
+    "examples/plans/sort_demo.plan.ts"
   ]
 }

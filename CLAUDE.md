@@ -386,7 +386,7 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 | filter | ✅ | ✅ `.filter()` | Predicate evaluation |
 | take | ✅ | ✅ `.take()` | |
 | concat | ✅ | ✅ `.concat()` | |
-| sort | ❌ | ❌ | Not implemented |
+| sort | ✅ | ✅ `.sort()` | Updates permutation only (no materialization) |
 | dedupe | ❌ | ❌ | Not implemented |
 | join | ❌ | ❌ | Not implemented |
 
