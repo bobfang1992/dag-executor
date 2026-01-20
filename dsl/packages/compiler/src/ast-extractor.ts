@@ -1,19 +1,24 @@
 /**
- * AST Extractor: finds task calls with natural expressions and extracts/rewrites them.
+ * AST Extractor: finds task calls with natural expressions/predicates and extracts/rewrites them.
  *
  * All task calls use named arguments: .task({ name: value, ... })
- * Extracts any object argument with { expr: naturalExpr } property.
+ * Extracts:
+ * - { expr: naturalExpr } → ExprIR for vm() calls
+ * - { pred: naturalPred } → PredIR for filter() calls
  *
  * Detection:
- * - Builder-style (skip): E.mul(...), E.key(...), { op: "...", ... }
- * - Natural (extract): Key.x * P.y, coalesce(a, b), 123, null, -x
+ * - Builder-style (skip): E.mul(...), E.key(...), Pred.and(...), { op: "...", ... }
+ * - Natural expr (extract): Key.x * P.y, coalesce(a, b), 123, null, -x
+ * - Natural pred (extract): Key.x > 0 && Key.y != null, regex(Key.z, "pattern")
  *
  * Rewrites natural expressions with { __expr_id: N } placeholders.
+ * Rewrites natural predicates with { __pred_id: N } placeholders.
  */
 
 import ts from "typescript";
 import { compileExpr, getNodeLocation } from "./expr-compiler.js";
-import type { ExprNode } from "@ranking-dsl/runtime";
+import { compilePred } from "./pred-compiler.js";
+import type { ExprNode, PredNode } from "@ranking-dsl/runtime";
 import { Key, P } from "@ranking-dsl/generated";
 
 export interface ExtractionError {
@@ -25,6 +30,7 @@ export interface ExtractionError {
 export interface ExtractionResult {
   rewrittenSource: string;
   extractedExprs: Map<number, ExprNode>;
+  extractedPreds: Map<number, PredNode>;
   errors: ExtractionError[];
 }
 
@@ -45,7 +51,7 @@ for (const [name, token] of Object.entries(P)) {
  * - E.something(...) - calls on E object
  * - { op: "...", ... } - object literals with op property
  */
-function isBuilderStyle(node: ts.Expression, sourceFile: ts.SourceFile): boolean {
+function isExprBuilderStyle(node: ts.Expression, sourceFile: ts.SourceFile): boolean {
   // Check for E.something(...) pattern
   if (ts.isCallExpression(node)) {
     if (ts.isPropertyAccessExpression(node.expression)) {
@@ -71,11 +77,42 @@ function isBuilderStyle(node: ts.Expression, sourceFile: ts.SourceFile): boolean
 }
 
 /**
+ * Check if a predicate is builder-style (should be skipped).
+ * Builder-style predicates:
+ * - Pred.something(...) - calls on Pred object
+ * - { op: "...", ... } - object literals with op property
+ */
+function isPredBuilderStyle(node: ts.Expression, sourceFile: ts.SourceFile): boolean {
+  // Check for Pred.something(...) pattern
+  if (ts.isCallExpression(node)) {
+    if (ts.isPropertyAccessExpression(node.expression)) {
+      const objName = node.expression.expression.getText(sourceFile);
+      if (objName === "Pred") {
+        return true;
+      }
+    }
+  }
+
+  // Check for object literal with op property
+  if (ts.isObjectLiteralExpression(node)) {
+    for (const prop of node.properties) {
+      if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {
+        if (prop.name.text === "op") {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * Check if an expression is a natural expression that should be extracted.
  * Natural expressions are valid ExprIR candidates that aren't builder-style.
  */
 function isNaturalExpr(node: ts.Expression, sourceFile: ts.SourceFile): boolean {
-  if (isBuilderStyle(node, sourceFile)) {
+  if (isExprBuilderStyle(node, sourceFile)) {
     return false;
   }
 
@@ -105,17 +142,81 @@ function isNaturalExpr(node: ts.Expression, sourceFile: ts.SourceFile): boolean 
   return false;
 }
 
-interface Replacement {
-  start: number;
-  end: number;
-  exprId: number;
+/**
+ * Check if an expression is a natural predicate that should be extracted.
+ * Natural predicates are valid PredIR candidates that aren't builder-style.
+ */
+function isNaturalPred(node: ts.Expression, sourceFile: ts.SourceFile): boolean {
+  if (isPredBuilderStyle(node, sourceFile)) {
+    return false;
+  }
+
+  // Check if it's a valid predicate type for extraction
+  // We support: true/false, &&, ||, !, comparisons, regex()
+  if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
+  if (node.kind === ts.SyntaxKind.FalseKeyword) return true;
+
+  // Unwrap parentheses and check inner expression
+  if (ts.isParenthesizedExpression(node)) {
+    return isNaturalPred(node.expression, sourceFile);
+  }
+
+  // Prefix unary: !a
+  if (ts.isPrefixUnaryExpression(node)) {
+    if (node.operator === ts.SyntaxKind.ExclamationToken) {
+      return true;
+    }
+  }
+
+  // Binary expressions: &&, ||, comparisons
+  if (ts.isBinaryExpression(node)) {
+    const opKind = node.operatorToken.kind;
+    // Logical operators
+    if (opKind === ts.SyntaxKind.AmpersandAmpersandToken) return true;
+    if (opKind === ts.SyntaxKind.BarBarToken) return true;
+    // Comparison operators
+    if (opKind === ts.SyntaxKind.EqualsEqualsToken) return true;
+    if (opKind === ts.SyntaxKind.EqualsEqualsEqualsToken) return true;
+    if (opKind === ts.SyntaxKind.ExclamationEqualsToken) return true;
+    if (opKind === ts.SyntaxKind.ExclamationEqualsEqualsToken) return true;
+    if (opKind === ts.SyntaxKind.LessThanToken) return true;
+    if (opKind === ts.SyntaxKind.LessThanEqualsToken) return true;
+    if (opKind === ts.SyntaxKind.GreaterThanToken) return true;
+    if (opKind === ts.SyntaxKind.GreaterThanEqualsToken) return true;
+  }
+
+  // Call expression: regex(Key.x, "pattern")
+  if (ts.isCallExpression(node)) {
+    const fnName = node.expression.getText(sourceFile);
+    return fnName === "regex";
+  }
+
+  return false;
 }
 
+interface ExprReplacement {
+  kind: "expr";
+  start: number;
+  end: number;
+  id: number;
+}
+
+interface PredReplacement {
+  kind: "pred";
+  start: number;
+  end: number;
+  id: number;
+}
+
+type Replacement = ExprReplacement | PredReplacement;
+
 /**
- * Extract natural expressions from task calls and rewrite the source.
+ * Extract natural expressions and predicates from task calls and rewrite the source.
  *
  * All task calls use named arguments: .task({ name: value, ... })
- * Extracts any object argument with { expr: naturalExpr } property.
+ * Extracts:
+ * - { expr: naturalExpr } → ExprIR
+ * - { pred: naturalPred } → PredIR
  */
 export function extractExpressions(
   sourceCode: string,
@@ -130,16 +231,18 @@ export function extractExpressions(
   );
 
   const extractedExprs = new Map<number, ExprNode>();
+  const extractedPreds = new Map<number, PredNode>();
   const errors: ExtractionError[] = [];
   const replacements: Replacement[] = [];
   let exprCounter = 0;
+  let predCounter = 0;
 
   /**
    * Try to extract and record a natural expression.
    * Returns true if extraction was successful or skipped (builder-style).
    * Returns false and records error if compilation failed.
    */
-  function tryExtract(exprNode: ts.Expression): boolean {
+  function tryExtractExpr(exprNode: ts.Expression): boolean {
     if (!isNaturalExpr(exprNode, sourceFile)) {
       return true; // Skip builder-style, not an error
     }
@@ -158,9 +261,42 @@ export function extractExpressions(
     const exprId = exprCounter++;
     extractedExprs.set(exprId, result.expr);
     replacements.push({
+      kind: "expr",
       start: exprNode.getStart(sourceFile),
       end: exprNode.getEnd(),
-      exprId,
+      id: exprId,
+    });
+    return true;
+  }
+
+  /**
+   * Try to extract and record a natural predicate.
+   * Returns true if extraction was successful or skipped (builder-style).
+   * Returns false and records error if compilation failed.
+   */
+  function tryExtractPred(predNode: ts.Expression): boolean {
+    if (!isNaturalPred(predNode, sourceFile)) {
+      return true; // Skip builder-style, not an error
+    }
+
+    const result = compilePred(predNode, keyLookup, paramLookup, sourceFile);
+    if ("error" in result) {
+      const loc = getNodeLocation(result.node, sourceFile);
+      errors.push({
+        message: result.error,
+        line: loc.line,
+        column: loc.column,
+      });
+      return false;
+    }
+
+    const predId = predCounter++;
+    extractedPreds.set(predId, result.pred);
+    replacements.push({
+      kind: "pred",
+      start: predNode.getStart(sourceFile),
+      end: predNode.getEnd(),
+      id: predId,
     });
     return true;
   }
@@ -179,13 +315,15 @@ export function extractExpressions(
 
   function processMethodCall(_methodName: string, call: ts.CallExpression): void {
     // All task calls use named arguments: .task({ name: value, ... })
-    // Extract any object argument with { expr: naturalExpr } property
+    // Extract { expr: naturalExpr } and { pred: naturalPred }
     for (const arg of call.arguments) {
       if (ts.isObjectLiteralExpression(arg)) {
         for (const prop of arg.properties) {
           if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {
             if (prop.name.text === "expr") {
-              tryExtract(prop.initializer);
+              tryExtractExpr(prop.initializer);
+            } else if (prop.name.text === "pred") {
+              tryExtractPred(prop.initializer);
             }
           }
         }
@@ -200,6 +338,7 @@ export function extractExpressions(
     return {
       rewrittenSource: sourceCode,
       extractedExprs,
+      extractedPreds,
       errors,
     };
   }
@@ -209,7 +348,9 @@ export function extractExpressions(
 
   let rewrittenSource = sourceCode;
   for (const r of replacements) {
-    const placeholder = `{ __expr_id: ${r.exprId} }`;
+    const placeholder = r.kind === "expr"
+      ? `{ __expr_id: ${r.id} }`
+      : `{ __pred_id: ${r.id} }`;
     rewrittenSource =
       rewrittenSource.slice(0, r.start) +
       placeholder +
@@ -219,6 +360,7 @@ export function extractExpressions(
   return {
     rewrittenSource,
     extractedExprs,
+    extractedPreds,
     errors,
   };
 }

@@ -81,6 +81,12 @@ export type PredNode = {
     pattern: RegexPattern;
     flags: string;
 };
+/** PredPlaceholder - compile-time placeholder for natural predicate syntax */
+export interface PredPlaceholder {
+    __pred_id: number;
+}
+/** PredInput - predicate input type for tasks (builder or natural syntax) */
+export type PredInput = PredNode | PredPlaceholder;
 export interface ViewerFetchCachedRecommendationOpts {
     fanout: number;
     trace?: string | null;
@@ -96,7 +102,7 @@ export interface ConcatOpts {
     extensions?: Record<string, unknown>;
 }
 export interface FilterOpts {
-    pred: PredNode;
+    pred: PredInput;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }

@@ -49,6 +49,14 @@ export type PredNode =
   | { op: "not_null"; x: ExprNode }
   | { op: "regex"; key_id: number; pattern: RegexPattern; flags: string };
 
+/** PredPlaceholder - compile-time placeholder for natural predicate syntax */
+export interface PredPlaceholder {
+  __pred_id: number;
+}
+
+/** PredInput - predicate input type for tasks (builder or natural syntax) */
+export type PredInput = PredNode | PredPlaceholder;
+
 // =====================================================
 // Source task option interfaces
 // =====================================================
@@ -75,7 +83,7 @@ export interface ConcatOpts {
 }
 
 export interface FilterOpts {
-  pred: PredNode;
+  pred: PredInput;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
