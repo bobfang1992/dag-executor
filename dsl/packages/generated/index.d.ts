@@ -3,4 +3,5 @@ export { P, ParamToken, ParamType, PARAM_REGISTRY_DIGEST, PARAM_COUNT } from "./
 export { Feat, FeatureToken, FeatureType, FEATURE_REGISTRY_DIGEST, FEATURE_COUNT } from "./features.js";
 export * from "./validation.js";
 export * from "./capabilities.js";
+export * from "./tasks.js";
 //# sourceMappingURL=index.d.ts.map

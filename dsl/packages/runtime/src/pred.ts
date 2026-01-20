@@ -3,30 +3,11 @@
  * Produces PredIR matching engine's pred_table format.
  */
 
-import type { KeyToken, ParamToken } from "@ranking-dsl/generated";
+import type { KeyToken, ParamToken, ExprNode, PredNode, RegexPattern } from "@ranking-dsl/generated";
 import { assertNotUndefined } from "./guards.js";
-import type { ExprNode } from "./expr.js";
 
-/**
- * PredNode - matches engine's PredIR format.
- */
-export type PredNode =
-  | { op: "const_bool"; value: boolean }
-  | { op: "and"; a: PredNode; b: PredNode }
-  | { op: "or"; a: PredNode; b: PredNode }
-  | { op: "not"; x: PredNode }
-  | { op: "cmp"; cmp: "==" | "!=" | "<" | "<=" | ">" | ">="; a: ExprNode; b: ExprNode }
-  | { op: "in"; lhs: ExprNode; list: (number | string)[] }
-  | { op: "is_null"; x: ExprNode }
-  | { op: "not_null"; x: ExprNode }
-  | { op: "regex"; key_id: number; pattern: RegexPattern; flags: string };
-
-/**
- * Regex pattern - can be a literal string or a param reference.
- */
-export type RegexPattern =
-  | { kind: "literal"; value: string }
-  | { kind: "param"; param_id: number };
+// Re-export types from generated for consumers
+export type { PredNode, RegexPattern } from "@ranking-dsl/generated";
 
 /**
  * Predicate builder API.

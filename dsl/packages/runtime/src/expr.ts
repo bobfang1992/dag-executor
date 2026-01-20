@@ -3,31 +3,14 @@
  * Produces ExprIR matching engine's expr_table format.
  */
 
-import type { KeyToken, ParamToken } from "@ranking-dsl/generated";
+import type { KeyToken, ParamToken, ExprNode, ExprPlaceholder } from "@ranking-dsl/generated";
 import { assertNotUndefined } from "./guards.js";
 
-/**
- * ExprNode - matches engine's ExprIR format.
- */
-export type ExprNode =
-  | { op: "const_number"; value: number }
-  | { op: "const_null" }
-  | { op: "key_ref"; key_id: number }
-  | { op: "param_ref"; param_id: number }
-  | { op: "add"; a: ExprNode; b: ExprNode }
-  | { op: "sub"; a: ExprNode; b: ExprNode }
-  | { op: "mul"; a: ExprNode; b: ExprNode }
-  | { op: "neg"; x: ExprNode }
-  | { op: "coalesce"; a: ExprNode; b: ExprNode };
+// Re-export types from generated for consumers
+export type { ExprNode, ExprPlaceholder, ExprInput } from "@ranking-dsl/generated";
 
-/**
- * StaticExprToken - placeholder for AST-extracted expressions.
- * The compiler replaces natural expressions with { __expr_id: N } and
- * then post-processes to merge them into the expr_table.
- */
-export interface StaticExprToken {
-  __expr_id: number;
-}
+/** @deprecated Use ExprPlaceholder instead */
+export type StaticExprToken = ExprPlaceholder;
 
 /**
  * Expression builder API.

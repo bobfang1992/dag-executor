@@ -594,7 +594,7 @@ with open("/tmp/ci-writes-eval-55.json") as f:
 # Must have nodes array
 assert "nodes" in data, "Missing nodes array"
 nodes = data["nodes"]
-assert len(nodes) == 4, f"Expected 4 nodes, got {len(nodes)}"
+assert len(nodes) == 5, f"Expected 5 nodes, got {len(nodes)}"
 
 # Check each node has writes_eval
 for node in nodes:
@@ -611,9 +611,12 @@ assert source_node["writes_eval"]["kind"] == "Exact"
 assert 3001 in source_node["writes_eval"]["keys"]  # features_esr_score
 assert 3002 in source_node["writes_eval"]["keys"]  # features_lsr_score
 
-vm_node = next(n for n in nodes if n["op"] == "vm")
-assert vm_node["writes_eval"]["kind"] == "Exact"
-assert vm_node["writes_eval"]["keys"] == [2001]  # final_score
+# Both vm nodes write to final_score (2001)
+vm_nodes = [n for n in nodes if n["op"] == "vm"]
+assert len(vm_nodes) == 2, f"Expected 2 vm nodes, got {len(vm_nodes)}"
+for vm_node in vm_nodes:
+    assert vm_node["writes_eval"]["kind"] == "Exact"
+    assert vm_node["writes_eval"]["keys"] == [2001]  # final_score
 
 filter_node = next(n for n in nodes if n["op"] == "filter")
 assert filter_node["writes_eval"]["kind"] == "Exact"
@@ -814,6 +817,54 @@ fi
 run_bg "Test 63: Production plans pass ESLint" bash -c '
 # Run ESLint on production plan files - should all pass
 ./node_modules/.bin/eslint "plans/**/*.plan.ts" "examples/plans/**/*.plan.ts" --config eslint.config.js 2>&1
+'
+wait_all
+
+# Batch 14: Task manifest tests
+echo "--- Batch 14: Task manifest tests ---"
+run_bg "Test 64: tasks.toml in sync with C++" bash -c '
+# Generate fresh TOML from C++
+engine/bin/rankd --print-task-manifest > /tmp/tasks_generated.toml
+
+# Compare with committed file
+if diff registry/tasks.toml /tmp/tasks_generated.toml > /tmp/tasks_diff.txt 2>&1; then
+    exit 0
+else
+    echo "ERROR: registry/tasks.toml out of sync with C++ TaskSpec"
+    echo "Diff:"
+    cat /tmp/tasks_diff.txt
+    echo ""
+    echo "Run: engine/bin/rankd --print-task-manifest > registry/tasks.toml"
+    exit 1
+fi
+'
+
+run_bg "Test 65: Task manifest digest parity (TS == C++)" bash -c '
+# Get TS digest from generated tasks.ts
+TS_DIGEST=$(grep "TASK_MANIFEST_DIGEST" dsl/packages/generated/tasks.ts | sed "s/.*\"\(.*\)\".*/\1/")
+
+# Get C++ digest from tasks.toml
+CPP_DIGEST=$(grep "manifest_digest" registry/tasks.toml | sed "s/.*\"\(.*\)\".*/\1/")
+
+if [ "$TS_DIGEST" = "$CPP_DIGEST" ]; then
+    exit 0
+else
+    echo "Task manifest digest mismatch: TS=$TS_DIGEST C++=$CPP_DIGEST"
+    exit 1
+fi
+'
+
+run_bg "Test 66: tasks.ts exports task count" bash -c '
+# Check that TASK_COUNT is exported and matches num_tasks
+TS_COUNT=$(grep "TASK_COUNT" dsl/packages/generated/tasks.ts | sed "s/.*= \([0-9]*\).*/\1/")
+CPP_COUNT=$(engine/bin/rankd --print-registry | python3 -c "import json,sys; print(json.load(sys.stdin)[\"num_tasks\"])")
+
+if [ "$TS_COUNT" = "$CPP_COUNT" ]; then
+    exit 0
+else
+    echo "Task count mismatch: TS=$TS_COUNT C++=$CPP_COUNT"
+    exit 1
+fi
 '
 wait_all
 

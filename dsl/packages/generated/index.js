@@ -5,3 +5,4 @@ export { P, PARAM_REGISTRY_DIGEST, PARAM_COUNT } from "./params.js";
 export { Feat, FEATURE_REGISTRY_DIGEST, FEATURE_COUNT } from "./features.js";
 export * from "./validation.js";
 export * from "./capabilities.js";
+export * from "./tasks.js";

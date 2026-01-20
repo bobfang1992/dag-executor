@@ -427,6 +427,8 @@ static RowSet run(const std::vector<RowSet>& inputs, ...) {
 |-----------|----------|
 | Task implementations | `engine/src/tasks/*.cpp` |
 | TaskSpec/TaskRegistry | `engine/include/task_registry.h` |
+| Task manifest (generated) | `registry/tasks.toml` |
+| Generated TS types | `dsl/packages/generated/tasks.ts` |
 | writes_effect types | `engine/include/writes_effect.h` |
 | RowSet/ColumnBatch | `engine/include/rowset.h`, `column_batch.h` |
 | Key registry | `engine/include/key_registry.h` |
@@ -449,7 +451,13 @@ static RowSet run(const std::vector<RowSet>& inputs, ...) {
   - No writes → both empty/omitted
 - [ ] Choose correct `output_pattern` (row shape)
 - [ ] Add unit tests
-- [ ] Add DSL bindings (if user-facing)
+- [ ] Regenerate TypeScript types:
+  ```bash
+  cmake --build engine/build --parallel
+  engine/bin/rankd --print-task-manifest > registry/tasks.toml
+  pnpm run gen
+  ```
+- [ ] Add DSL bindings in `plan.ts` (if user-facing)
 - [ ] Run `./scripts/ci.sh`
 
 ---

@@ -1,22 +1,20 @@
 /**
  * Plan authoring API: CandidateSet, PlanCtx, definePlan.
+ *
+ * Types (ExprNode, PredNode, ExprInput, etc.) are imported from @ranking-dsl/generated
+ * to ensure generated task option interfaces (VmOpts, FilterOpts) are compatible.
  */
 
-import type { KeyToken } from "@ranking-dsl/generated";
+import type { KeyToken, ExprNode, ExprPlaceholder, PredNode, ExprInput } from "@ranking-dsl/generated";
 import { assertNotUndefined, checkNoUndefined } from "./guards.js";
-import type { ExprNode, StaticExprToken } from "./expr.js";
-import type { PredNode } from "./pred.js";
 
-/** Type for expression that can be passed to vm() */
-type VmExpr = ExprNode | StaticExprToken;
-
-/** Check if value is a StaticExprToken (AST-extracted placeholder) */
-function isStaticExprToken(value: unknown): value is StaticExprToken {
+/** Check if value is an ExprPlaceholder (AST-extracted placeholder) */
+function isExprPlaceholder(value: unknown): value is ExprPlaceholder {
   return (
     value !== null &&
     typeof value === "object" &&
     "__expr_id" in value &&
-    typeof (value as StaticExprToken).__expr_id === "number"
+    typeof (value as ExprPlaceholder).__expr_id === "number"
   );
 }
 
@@ -45,7 +43,7 @@ export class PlanCtx {
   readonly viewer = {
     follow: (opts: {
       fanout: number;
-      trace?: string;
+      trace?: string | null;
       extensions?: Record<string, unknown>;
     }): CandidateSet => {
       assertNotUndefined(opts, "viewer.follow(opts)");
@@ -70,7 +68,7 @@ export class PlanCtx {
 
     fetch_cached_recommendation: (opts: {
       fanout: number;
-      trace?: string;
+      trace?: string | null;
       extensions?: Record<string, unknown>;
     }): CandidateSet => {
       assertNotUndefined(opts, "viewer.fetch_cached_recommendation(opts)");
@@ -195,8 +193,8 @@ export class CandidateSet {
    */
   vm(opts: {
     outKey: KeyToken;
-    expr: VmExpr;
-    trace?: string;
+    expr: ExprInput;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
     assertNotUndefined(opts, "vm(opts)");
@@ -205,9 +203,9 @@ export class CandidateSet {
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest as Record<string, unknown>, "vm(opts)");
 
-    // Handle StaticExprToken vs regular ExprNode
+    // Handle ExprPlaceholder vs regular ExprNode
     let exprId: string;
-    if (isStaticExprToken(opts.expr)) {
+    if (isExprPlaceholder(opts.expr)) {
       // AST-extracted expression - use special prefix for later remapping
       exprId = `__static_e${opts.expr.__expr_id}`;
     } else {
@@ -233,7 +231,7 @@ export class CandidateSet {
    */
   filter(opts: {
     pred: PredNode;
-    trace?: string;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
     assertNotUndefined(opts, "filter(opts)");
@@ -259,7 +257,7 @@ export class CandidateSet {
    */
   take(opts: {
     count: number;
-    trace?: string;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
     assertNotUndefined(opts, "take(opts)");
@@ -284,7 +282,7 @@ export class CandidateSet {
    */
   concat(
     rhs: CandidateSet,
-    opts?: { trace?: string; extensions?: Record<string, unknown> }
+    opts?: { trace?: string | null; extensions?: Record<string, unknown> }
   ): CandidateSet {
     assertNotUndefined(rhs, "concat(rhs)");
     if (rhs.ctx !== this.ctx) {

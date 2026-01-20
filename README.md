@@ -37,6 +37,9 @@ engine/bin/rankd --list-plans
 
 # Print registry digests
 engine/bin/rankd --print-registry
+
+# Print task manifest (for regenerating tasks.toml)
+engine/bin/rankd --print-task-manifest
 ```
 
 ### CI
@@ -155,11 +158,11 @@ engine/                  # C++23 execution engine
   src/                   # Source files
   include/               # Headers
   bin/                   # Built binaries (rankd)
-registry/                # Key/Param/Feature definitions (TOML)
+registry/                # Key/Param/Feature/Task definitions (TOML)
 dsl/packages/
   runtime/               # Plan authoring API (E, Pred, definePlan)
   compiler/              # dslc compiler (QuickJS-based sandbox)
-  generated/             # Generated Key/Param/Feature tokens
+  generated/             # Generated Key/Param/Feature/Task tokens
 plans/                   # Official .plan.ts files → artifacts/plans/
 examples/plans/          # Example .plan.ts files → artifacts/plans-examples/
 artifacts/

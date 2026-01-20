@@ -41,11 +41,11 @@ Security: QuickJS sandbox disables eval, Function constructor, and all Node glob
 
 ### Repository Layout
 ```
-registry/           # TOML definitions (keys.toml, params.toml, features.toml)
+registry/           # TOML definitions (keys.toml, params.toml, features.toml, tasks.toml)
 dsl/packages/
   runtime/          # TS DSL runtime APIs for plan authors
   compiler/         # dslc CLI (QuickJS-based sandbox)
-  generated/        # Auto-generated keys/params/features/task bindings
+  generated/        # Auto-generated keys/params/features/tasks bindings
 engine/             # C++23 execution engine
 plans/              # Official plans (CI, production) → artifacts/plans/
 examples/plans/     # Example/tutorial plans → artifacts/plans-examples/
@@ -87,19 +87,34 @@ Use `unknown` for untyped inputs and validate into typed structures. ESLint enfo
 
 ### C++ TaskSpec is SSOT for Task Definitions
 
-**Current state:** Task methods in `dsl/packages/runtime/src/plan.ts` (vm, filter, take, concat, etc.) are manually written and must be kept in sync with C++ TaskSpec definitions in `engine/src/task_registry.cpp`.
+Task parameters, types, and output patterns are defined in C++ TaskSpec. TypeScript option types are generated from this source of truth.
 
-**Future work:** Generate TS task bindings from C++ TaskSpec to ensure:
-1. Task method signatures match C++ param schemas (required/optional, types)
-2. All task calls use named args: `.task({ param1: value, param2: value })`
-3. No positional args allowed - enforced by generated types
-4. Parity between C++ validation and TS types
+**Workflow for TaskSpec changes:**
+```bash
+# 1. Modify C++ TaskSpec in engine/src/tasks/*.cpp
+# 2. Rebuild engine
+cmake --build engine/build --parallel
+
+# 3. Regenerate tasks.toml from C++
+engine/bin/rankd --print-task-manifest > registry/tasks.toml
+
+# 4. Regenerate TypeScript
+pnpm run gen
+
+# 5. Commit all changes
+```
+
+**CI verification:**
+- `tasks.toml` must match C++ `--print-task-manifest` output
+- `TASK_MANIFEST_DIGEST` must match between TS and C++
+- `gen:check` verifies `tasks.ts` is in sync with `tasks.toml`
 
 | Component | Location | Role |
 |-----------|----------|------|
-| C++ TaskSpec (SSOT) | `engine/src/task_registry.cpp` | Defines task params, types, reads/writes |
-| TS task methods | `dsl/packages/runtime/src/plan.ts` | Plan authoring surface (currently manual) |
-| Generated bindings | `dsl/packages/generated/tasks.ts` | Future: auto-generated from TaskSpec |
+| C++ TaskSpec (SSOT) | `engine/src/tasks/*.cpp` | Defines task params, types, reads/writes |
+| Task manifest | `registry/tasks.toml` | Generated from C++, human-readable, committed |
+| Generated types | `dsl/packages/generated/tasks.ts` | Option interfaces for plan authoring |
+| TS task methods | `dsl/packages/runtime/src/plan.ts` | Plan authoring surface |
 
 ### Plan Import Restrictions
 
@@ -245,11 +260,29 @@ row._debug.get("key")      // Debug-only string access
 ```
 
 ### ExprIR (vm expressions)
+
+**Expression Types** (defined in `@ranking-dsl/generated`):
+- `ExprNode` - Builder-style expression tree (e.g., `E.key(Key.x)`)
+- `ExprPlaceholder` - Compile-time placeholder for natural syntax
+- `ExprInput = ExprNode | ExprPlaceholder` - Union accepted by `vm()` task
+
+**Natural syntax** (preferred, AST-extracted at compile time):
 ```typescript
-c.vm(Key.final_score,
-     Key.model_score_1 + Key.model_score_2 * 3 - Key.media_age * P.media_age_penalty_weight,
-     { trace: "vm_final" });
+c.vm({
+  outKey: Key.final_score,
+  expr: Key.model_score_1 + Key.model_score_2 * 3 - Key.media_age * P.weight,
+  trace: "vm_final",
+});
 ```
+
+**Builder syntax** (explicit, no AST extraction needed):
+```typescript
+c.vm({
+  outKey: Key.final_score,
+  expr: E.sub(E.add(E.key(Key.model_score_1), E.mul(E.key(Key.model_score_2), E.const(3))),
+              E.mul(E.key(Key.media_age), E.param(P.weight))),
+  trace: "vm_final",
+});
 
 ### PredIR (filter predicates)
 ```typescript
@@ -392,6 +425,9 @@ engine/bin/rankd --list-plans
 
 # Print registry digests
 engine/bin/rankd --print-registry
+
+# Print task manifest TOML (for regenerating tasks.toml)
+engine/bin/rankd --print-task-manifest
 
 # Print plan info (capabilities, writes_eval per node)
 engine/bin/rankd --print-plan-info --plan_name reels_plan_a
@@ -814,7 +850,7 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - [x] Sandbox security (no eval, no Function, no Node globals)
 - [x] AST extraction for natural expressions in vm() (Key.x * coalesce(P.y, 0.2))
 - [ ] Fragment authoring surface
-- [ ] C++ TaskSpec → TS task definitions codegen (single source of truth)
+- [x] C++ TaskSpec → TS task definitions codegen (single source of truth)
 
 **Engine Core (§9)**
 - [x] ColumnBatch (SoA storage) - id + float columns with validity
