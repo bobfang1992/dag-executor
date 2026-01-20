@@ -6,6 +6,9 @@ import { dracula } from '../theme';
 import { PromptModal, ConfirmModal } from './Modal';
 import Dropdown from './Dropdown';
 
+// Import generated DSL types for Monaco intellisense
+import { DSL_TYPES } from '@ranking-dsl/generated';
+
 // Import esbuild WASM for local bundling (no CDN dependency)
 // @ts-ignore - Vite handles ?url imports
 import esbuildWasmUrl from 'esbuild-wasm/esbuild.wasm?url';
@@ -105,99 +108,6 @@ export default definePlan({
     return scored.take({ count: 10 });
   },
 });
-`;
-
-// Type definitions for DSL (embedded for Monaco intellisense)
-const DSL_TYPES = `
-declare module '@ranking-dsl/runtime' {
-  export interface KeyToken { readonly id: number; readonly name: string; }
-  export interface ParamToken { readonly id: number; readonly name: string; }
-
-  export type ExprNode =
-    | { op: 'const_number'; value: number }
-    | { op: 'const_null' }
-    | { op: 'key_ref'; key_id: number }
-    | { op: 'param_ref'; param_id: number }
-    | { op: 'add'; a: ExprNode; b: ExprNode }
-    | { op: 'sub'; a: ExprNode; b: ExprNode }
-    | { op: 'mul'; a: ExprNode; b: ExprNode }
-    | { op: 'neg'; x: ExprNode }
-    | { op: 'coalesce'; a: ExprNode; b: ExprNode };
-
-  export type PredNode =
-    | { op: 'const_bool'; value: boolean }
-    | { op: 'and'; a: PredNode; b: PredNode }
-    | { op: 'or'; a: PredNode; b: PredNode }
-    | { op: 'not'; x: PredNode }
-    | { op: 'cmp'; cmp_op: string; a: ExprNode; b: ExprNode }
-    | { op: 'in'; key_id: number; values: number[] | string[] }
-    | { op: 'is_null'; key_id: number }
-    | { op: 'not_null'; key_id: number }
-    | { op: 'regex'; key_id: number; pattern: string };
-
-  export const E: {
-    const(value: number): ExprNode;
-    constNull(): ExprNode;
-    key(token: KeyToken): ExprNode;
-    param(token: ParamToken): ExprNode;
-    add(a: ExprNode, b: ExprNode): ExprNode;
-    sub(a: ExprNode, b: ExprNode): ExprNode;
-    mul(a: ExprNode, b: ExprNode): ExprNode;
-    neg(a: ExprNode): ExprNode;
-    coalesce(a: ExprNode, b: ExprNode): ExprNode;
-  };
-
-  export const Pred: {
-    constBool(value: boolean): PredNode;
-    and(a: PredNode, b: PredNode): PredNode;
-    or(a: PredNode, b: PredNode): PredNode;
-    not(x: PredNode): PredNode;
-    cmp(op: '==' | '!=' | '<' | '<=' | '>' | '>=', a: ExprNode, b: ExprNode): PredNode;
-    inList(token: KeyToken, values: number[] | string[]): PredNode;
-    isNull(token: KeyToken): PredNode;
-    notNull(token: KeyToken): PredNode;
-    regex(token: KeyToken, pattern: string): PredNode;
-  };
-
-  export interface PlanCtx {
-    viewer: {
-      follow(opts: { fanout: number; trace?: string }): CandidateSet;
-      fetch_cached_recommendation(opts: { fanout: number; trace?: string }): CandidateSet;
-    };
-    requireCapability(capId: string, payload?: unknown): void;
-  }
-
-  export interface CandidateSet {
-    vm(opts: { outKey: KeyToken; expr: ExprNode; trace?: string }): CandidateSet;
-    filter(opts: { pred: PredNode; trace?: string }): CandidateSet;
-    take(opts: { count: number; trace?: string }): CandidateSet;
-    concat(other: CandidateSet, opts?: { trace?: string }): CandidateSet;
-  }
-
-  export interface PlanConfig {
-    name: string;
-    build: (ctx: PlanCtx) => CandidateSet;
-  }
-
-  export function definePlan(config: PlanConfig): void;
-
-  export const Key: {
-    readonly id: KeyToken;
-    readonly model_score_1: KeyToken;
-    readonly model_score_2: KeyToken;
-    readonly final_score: KeyToken;
-    readonly country: KeyToken;
-    readonly title: KeyToken;
-    readonly features_esr: KeyToken;
-    readonly features_lsr: KeyToken;
-  };
-
-  export const P: {
-    readonly media_age_penalty_weight: ParamToken;
-    readonly blocklist_regex: ParamToken;
-    readonly esr_cutoff: ParamToken;
-  };
-}
 `;
 
 const styles: Record<string, React.CSSProperties> = {
