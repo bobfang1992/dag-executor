@@ -125,4 +125,13 @@ export interface VmOpts {
 }
 export declare const TASK_MANIFEST_DIGEST = "491ba7faf5e41c95710d2f32ca1ad489ac2e4c06b5ab447c8e22e20972be77fe";
 export declare const TASK_COUNT = 7;
+/** Extraction info for a task - which properties to extract as expr/pred */
+export interface TaskExtractionInfo {
+    /** Property name containing expression (for tasks with expr_id param) */
+    exprProp?: string;
+    /** Property name containing predicate (for tasks with pred_id param) */
+    predProp?: string;
+}
+/** Map from method name to extraction info */
+export declare const TASK_EXTRACTION_INFO: Record<string, TaskExtractionInfo>;
 //# sourceMappingURL=tasks.d.ts.map

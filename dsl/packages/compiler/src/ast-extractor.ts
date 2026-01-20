@@ -1,10 +1,13 @@
 /**
  * AST Extractor: finds task calls with natural expressions/predicates and extracts/rewrites them.
  *
+ * Task-based extraction: uses TASK_EXTRACTION_INFO to determine which task parameters
+ * should be extracted based on the task's declared param types (expr_id, pred_id).
+ *
  * All task calls use named arguments: .task({ name: value, ... })
  * Extracts:
- * - { expr: naturalExpr } → ExprIR for vm() calls
- * - { pred: naturalPred } → PredIR for filter() calls
+ * - vm({ expr: naturalExpr }) → ExprIR (because vm has expr_id param)
+ * - filter({ pred: naturalPred }) → PredIR (because filter has pred_id param)
  *
  * Detection:
  * - Builder-style (skip): E.mul(...), E.key(...), Pred.and(...), { op: "...", ... }
@@ -19,7 +22,7 @@ import ts from "typescript";
 import { compileExpr, getNodeLocation } from "./expr-compiler.js";
 import { compilePred } from "./pred-compiler.js";
 import type { ExprNode, PredNode } from "@ranking-dsl/runtime";
-import { Key, P } from "@ranking-dsl/generated";
+import { Key, P, TASK_EXTRACTION_INFO } from "@ranking-dsl/generated";
 
 export interface ExtractionError {
   message: string;
@@ -313,16 +316,24 @@ export function extractExpressions(
     ts.forEachChild(node, visit);
   }
 
-  function processMethodCall(_methodName: string, call: ts.CallExpression): void {
+  function processMethodCall(methodName: string, call: ts.CallExpression): void {
+    // Look up extraction info for this task based on method name
+    const extractionInfo = TASK_EXTRACTION_INFO[methodName];
+    if (!extractionInfo) {
+      // Task doesn't have expr_id or pred_id params - nothing to extract
+      return;
+    }
+
     // All task calls use named arguments: .task({ name: value, ... })
-    // Extract { expr: naturalExpr } and { pred: naturalPred }
+    // Extract based on task's declared param types
     for (const arg of call.arguments) {
       if (ts.isObjectLiteralExpression(arg)) {
         for (const prop of arg.properties) {
           if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {
-            if (prop.name.text === "expr") {
+            // Only extract if task declares this param type
+            if (extractionInfo.exprProp && prop.name.text === extractionInfo.exprProp) {
               tryExtractExpr(prop.initializer);
-            } else if (prop.name.text === "pred") {
+            } else if (extractionInfo.predProp && prop.name.text === extractionInfo.predProp) {
               tryExtractPred(prop.initializer);
             }
           }

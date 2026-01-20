@@ -6,3 +6,8 @@
 // =====================================================
 export const TASK_MANIFEST_DIGEST = "491ba7faf5e41c95710d2f32ca1ad489ac2e4c06b5ab447c8e22e20972be77fe";
 export const TASK_COUNT = 7;
+/** Map from method name to extraction info */
+export const TASK_EXTRACTION_INFO = {
+    "filter": { predProp: "pred" },
+    "vm": { exprProp: "expr" },
+};

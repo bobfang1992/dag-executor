@@ -853,6 +853,54 @@ function generateTasksTs(registry: TaskRegistry): string {
   lines.push(`export const TASK_COUNT = ${registry.tasks.length};`);
   lines.push("");
 
+  // Generate task extraction metadata for AST extractor
+  // Maps method name -> which properties should be extracted
+  lines.push("// =====================================================");
+  lines.push("// Task extraction metadata (for AST extractor)");
+  lines.push("// =====================================================");
+  lines.push("");
+  lines.push("/** Extraction info for a task - which properties to extract as expr/pred */");
+  lines.push("export interface TaskExtractionInfo {");
+  lines.push("  /** Property name containing expression (for tasks with expr_id param) */");
+  lines.push("  exprProp?: string;");
+  lines.push("  /** Property name containing predicate (for tasks with pred_id param) */");
+  lines.push("  predProp?: string;");
+  lines.push("}");
+  lines.push("");
+  lines.push("/** Map from method name to extraction info */");
+  lines.push("export const TASK_EXTRACTION_INFO: Record<string, TaskExtractionInfo> = {");
+
+  for (const task of registry.tasks) {
+    // Method name: for "viewer.foo" it's "foo", otherwise it's the op itself
+    const methodName = task.op.startsWith("viewer.")
+      ? task.op.slice("viewer.".length)
+      : task.op;
+
+    // Check if task has expr_id or pred_id params
+    let exprProp: string | null = null;
+    let predProp: string | null = null;
+
+    for (const param of task.params) {
+      if (param.type === "expr_id") {
+        exprProp = cppNameToTsName(param.name); // "expr_id" -> "expr"
+      }
+      if (param.type === "pred_id") {
+        predProp = cppNameToTsName(param.name); // "pred_id" -> "pred"
+      }
+    }
+
+    // Only add entry if task has extraction targets
+    if (exprProp || predProp) {
+      const props: string[] = [];
+      if (exprProp) props.push(`exprProp: "${exprProp}"`);
+      if (predProp) props.push(`predProp: "${predProp}"`);
+      lines.push(`  "${methodName}": { ${props.join(", ")} },`);
+    }
+  }
+
+  lines.push("};");
+  lines.push("");
+
   return lines.join("\n");
 }
 

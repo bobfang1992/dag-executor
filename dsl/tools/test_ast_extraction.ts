@@ -29,8 +29,9 @@ function assertEqual<T>(actual: T, expected: T, msg: string) {
   }
 }
 
-// Test 1: Generic extraction - any method with { expr: ... }
-test("extracts expr from arbitrary method (not just vm)", () => {
+// Test 1: Task-based extraction - only extract from known tasks (vm, filter)
+// NOT from arbitrary methods with { expr: ... }
+test("does NOT extract expr from arbitrary/unknown methods", () => {
   const source = `
     import { definePlan, Key, P, coalesce } from "@ranking-dsl/runtime";
     export default definePlan({
@@ -48,9 +49,8 @@ test("extracts expr from arbitrary method (not just vm)", () => {
   `;
   const result = extractExpressions(source, "test.plan.ts");
   assertEqual(result.errors.length, 0, "errors");
-  assertEqual(result.extractedExprs.size, 1, "extracted count");
-  const expr = result.extractedExprs.get(0);
-  assertEqual(expr?.op, "mul", "expr op");
+  // Should NOT extract - someFakeMethod is not a known task with expr_id param
+  assertEqual(result.extractedExprs.size, 0, "should not extract from unknown method");
 });
 
 // Test 2: vm with variable outKey (object form)
