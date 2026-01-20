@@ -145,23 +145,28 @@ const matching = candidates.filter({
 
 ### Compute Scores (vm)
 
+**Natural expression syntax** (preferred):
+```typescript
+const scored = candidates.vm({
+  outKey: Key.final_score,
+  expr: Key.model_score_1 + Key.model_score_2 * P.boost_weight,
+});
+```
+
+**Builder syntax** (explicit, for complex cases):
 ```typescript
 import { E } from "@ranking-dsl/runtime";
 
 const scored = candidates.vm({
-  key: Key.final_score,
+  outKey: Key.final_score,
   expr: E.add(
     E.key(Key.model_score_1),
     E.mul(E.key(Key.model_score_2), E.param(P.boost_weight))
   ),
 });
-
-// Or using operator overloads
-const scored2 = candidates.vm({
-  key: Key.final_score,
-  expr: Key.model_score_1 + Key.model_score_2 * P.boost_weight,
-});
 ```
+
+**Note:** Natural expressions are extracted at compile time by the dslc compiler. They must be inline in the task call (not via variables).
 
 ### Concatenate Sources
 
@@ -196,6 +201,25 @@ Override at runtime:
 ```
 
 ## Troubleshooting
+
+### IDE shows type errors on natural expressions
+
+You may see errors like:
+- `ts(2362): The left-hand side of an arithmetic operation must be...`
+- `ts(2322): Type 'number' is not assignable to type 'ExprInput'`
+
+These are expected. Natural expression syntax (`Key.x * coalesce(P.y, 0.2)`) uses compile-time AST extraction, not TypeScript operator overloading.
+
+**Solution:** The `@ranking-dsl/ts-plugin` suppresses these errors in `.plan.ts` files. To enable it:
+
+1. Ensure your `tsconfig.json` includes the plugin:
+   ```json
+   { "compilerOptions": { "plugins": [{ "name": "@ranking-dsl/ts-plugin" }] } }
+   ```
+2. In VS Code, use the workspace TypeScript version (Cmd+Shift+P → "TypeScript: Select TypeScript Version" → "Use Workspace Version")
+3. Restart the TS server (Cmd+Shift+P → "TypeScript: Restart TS Server")
+
+The dslc compiler handles these expressions correctly regardless of IDE errors.
 
 ### "Plan name doesn't match filename"
 
