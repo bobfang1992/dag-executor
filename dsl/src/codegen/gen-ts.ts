@@ -346,7 +346,8 @@ export function generateCapabilitiesTs(capabilities: CapabilityEntry[], digest: 
   lines.push("      for (const [key, propSchema] of Object.entries(schemaFull.properties)) {");
   lines.push("        if (key in payloadObj && propSchema.type) {");
   lines.push("          const value = payloadObj[key];");
-  lines.push("          const actualType = Array.isArray(value) ? \"array\" : typeof value;");
+  lines.push("          // typeof null === 'object', so check null explicitly");
+  lines.push("          const actualType = value === null ? \"null\" : Array.isArray(value) ? \"array\" : typeof value;");
   lines.push("          if (propSchema.type !== actualType) {");
   lines.push("            return `Capability ${capId} payload property ${key} must be ${propSchema.type}, got ${actualType}`;");
   lines.push("          }");

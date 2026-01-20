@@ -76,7 +76,8 @@ export function validatePayload(capId, payload) {
             for (const [key, propSchema] of Object.entries(schemaFull.properties)) {
                 if (key in payloadObj && propSchema.type) {
                     const value = payloadObj[key];
-                    const actualType = Array.isArray(value) ? "array" : typeof value;
+                    // typeof null === 'object', so check null explicitly
+                    const actualType = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
                     if (propSchema.type !== actualType) {
                         return `Capability ${capId} payload property ${key} must be ${propSchema.type}, got ${actualType}`;
                     }
