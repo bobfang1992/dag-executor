@@ -104,6 +104,9 @@ public:
         if (null_cmp.has_value()) {
           return *null_cmp;
         }
+        if (a_null && b_null) {
+          return false; // both null: treat as equal
+        }
         int64_t av = input.batch().getId(a);
         int64_t bv = input.batch().getId(b);
         if (av == bv) {
@@ -127,6 +130,9 @@ public:
         auto null_cmp = null_first_cmp(a_null, b_null);
         if (null_cmp.has_value()) {
           return *null_cmp;
+        }
+        if (a_null && b_null) {
+          return false; // both null: treat as equal
         }
         double av = col->values[a];
         double bv = col->values[b];
@@ -160,9 +166,14 @@ public:
       auto comp = [&](RowIndex a, RowIndex b) {
         auto a_val = string_at(a);
         auto b_val = string_at(b);
-        auto null_cmp = null_first_cmp(!a_val.has_value(), !b_val.has_value());
+        bool a_null = !a_val.has_value();
+        bool b_null = !b_val.has_value();
+        auto null_cmp = null_first_cmp(a_null, b_null);
         if (null_cmp.has_value()) {
           return *null_cmp;
+        }
+        if (a_null && b_null) {
+          return false; // both null: treat as equal
         }
         if (*a_val == *b_val) {
           return false;

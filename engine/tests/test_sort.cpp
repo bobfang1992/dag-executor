@@ -89,6 +89,39 @@ TEST_CASE("sort respects selection/order for strings and desc ordering", "[sort]
   REQUIRE(ordered == std::vector<RowIndex>{1, 0, 2});
 }
 
+TEST_CASE("sort handles string null-null comparisons safely", "[sort][task]") {
+  auto &registry = TaskRegistry::instance();
+  auto ctx = make_test_ctx();
+
+  auto base = std::make_shared<ColumnBatch>(2);
+  base->setId(0, 1);
+  base->setId(1, 2);
+
+  auto dict = std::make_shared<std::vector<std::string>>(
+      std::initializer_list<std::string>{"x"});
+  auto codes = std::make_shared<std::vector<int32_t>>(
+      std::initializer_list<int32_t>{0, 0});
+  auto valid = std::make_shared<std::vector<uint8_t>>(
+      std::initializer_list<uint8_t>{0, 0}); // both null
+  auto str_col = std::make_shared<StringDictColumn>(dict, codes, valid);
+
+  auto batch =
+      std::make_shared<ColumnBatch>(base->withStringColumn(key_id(KeyId::country), str_col));
+  RowSet input(batch);
+
+  nlohmann::json params;
+  params["by"] = key_id(KeyId::country);
+  auto validated = registry.validate_params("sort", params);
+
+  RowSet result = registry.execute("sort", {input}, validated, ctx);
+  REQUIRE(result.rowCount() == 2);
+  REQUIRE(result.logicalSize() == 2);
+
+  // Both nulls are equal; stable_sort keeps original order
+  auto ordered = result.activeRows().toVector(result.rowCount());
+  REQUIRE(ordered == std::vector<RowIndex>{0, 1});
+}
+
 TEST_CASE("sort rejects invalid params or unsupported keys", "[sort][task]") {
   auto &registry = TaskRegistry::instance();
   auto ctx = make_test_ctx();
