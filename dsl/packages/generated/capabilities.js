@@ -23,9 +23,9 @@ export const SUPPORTED_CAPABILITIES = new Set(Object.entries(CAPABILITY_REGISTRY
     .map(([id]) => id));
 export const CAPABILITY_REGISTRY_DIGEST = "3537d0e4f5fe759dd852f53a81972534f50d14cb6e6a7772b5bf12cadb81d4c8";
 export const CAPABILITY_COUNT = 2;
-// ============================================================
+// =====================================================
 // Simple JSON Schema validator (subset for capability payloads)
-// ============================================================
+// =====================================================
 export function validatePayload(capId, payload) {
     const meta = CAPABILITY_REGISTRY[capId];
     if (!meta)
