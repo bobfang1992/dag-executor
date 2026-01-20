@@ -1,7 +1,7 @@
 // Monaco type definitions generator
 
 import type { KeyEntry, ParamEntry, TaskRegistry, TaskEntry } from "./types.js";
-import { cppNameToTsName } from "./utils.js";
+import { friendlyParamName } from "./utils.js";
 
 /**
  * Generate inline opts type for Monaco intellisense.
@@ -13,7 +13,7 @@ function generateMonacoOptsType(task: TaskEntry): string {
     // Skip trace param (handled separately)
     if (param.name === "trace") continue;
 
-    const tsName = cppNameToTsName(param.name);
+    const tsName = friendlyParamName(param.name, param.type);
     let tsType: string;
 
     switch (param.type) {

@@ -53,8 +53,8 @@ export function validatePayload(capId, payload) {
             return `Capability ${capId} payload must be an object`;
         }
         // Check additionalProperties: false
-        if (schema.additionalProperties === false && schema.properties) {
-            const allowedKeys = new Set(Object.keys(schema.properties));
+        if (schema.additionalProperties === false) {
+            const allowedKeys = new Set(schema.properties ? Object.keys(schema.properties) : []);
             for (const key of Object.keys(payload)) {
                 if (!allowedKeys.has(key)) {
                     return `Capability ${capId} payload has unexpected property: ${key}`;

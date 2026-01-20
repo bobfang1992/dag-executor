@@ -316,8 +316,8 @@ export function generateCapabilitiesTs(capabilities: CapabilityEntry[], digest: 
   lines.push("    }");
   lines.push("");
   lines.push("    // Check additionalProperties: false");
-  lines.push("    if (schema.additionalProperties === false && schema.properties) {");
-  lines.push("      const allowedKeys = new Set(Object.keys(schema.properties));");
+  lines.push("    if (schema.additionalProperties === false) {");
+  lines.push("      const allowedKeys = new Set(schema.properties ? Object.keys(schema.properties) : []);");
   lines.push("      for (const key of Object.keys(payload as object)) {");
   lines.push("        if (!allowedKeys.has(key)) {");
   lines.push("          return `Capability ${capId} payload has unexpected property: ${key}`;");
