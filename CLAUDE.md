@@ -311,7 +311,7 @@ export const esr = defineFragment({
 
 ### Task Categories
 - **Source**: `viewer.follow()`, `viewer.fetch_cached_recommendation()`
-- **Composition**: `concat(a, b)`
+- **Composition**: `a.concat({ rhs: b })` (uses NodeRef param)
 - **Feature/Model**: `fetch_features()`, `call_models()`
 - **Transform**: `vm()`, `filter()`, `dedupe()`, `sort()`, `take()`, `extract_features()`
 - **Join**: `lhs.join(rhs, { how, by, select, map })`
