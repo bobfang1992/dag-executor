@@ -78,7 +78,8 @@ function decodeFromUrl(encoded: string): string | null {
   }
 }
 
-const DEFAULT_PLAN = `import { definePlan, E, Pred, Key, P, coalesce } from '@ranking-dsl/runtime';
+const DEFAULT_PLAN = `import { definePlan } from '@ranking-dsl/runtime';
+// Key, P, coalesce, regex are globals - no import needed
 
 export default definePlan({
   name: 'my_plan',
@@ -93,13 +94,19 @@ export default definePlan({
       expr: Key.model_score_1 + Key.model_score_2 * coalesce(P.media_age_penalty_weight, 0.2),
     });
 
-    // Filter: keep only high-scoring items
+    // Filter: natural predicate syntax (extracted at compile-time)
+    // Supports: &&, ||, !, comparisons (==, !=, <, <=, >, >=), null checks, regex()
+    const filtered = scored.filter({
+      pred: Key.final_score >= 0.5 && Key.country != null,
+    });
+
+    // Alternative: regex pattern matching
     // const filtered = scored.filter({
-    //   pred: Pred.cmp('>=', E.key(Key.final_score), E.const(0.5)),
+    //   pred: regex(Key.title, "^trending"),
     // });
 
     // Return top 10
-    return scored.take({ count: 10 });
+    return filtered.take({ count: 10 });
   },
 });
 `;
