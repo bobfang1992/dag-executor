@@ -64,15 +64,16 @@ pnpm -C tools/visualizer run test:headed   # Run tests in headed browser
 
 ### Step 01: Live Plan Editor ✅
 
-**Phase 1: Browser Compiler** ✅
-- QuickJS WASM compilation in browser (no server required)
-- esbuild-wasm for TypeScript bundling
-- Embedded runtime/generated source via Vite virtual modules
+**Phase 1: Server-Side Compiler** ✅
+- Compilation via Vite dev server API (`/api/compile`)
+- Uses real `dslc` CLI for full parity with production
+- AST extraction for natural expression syntax (`Key.x * P.y`)
 
 **Phase 2: Monaco Editor** ✅
 - Full TypeScript editor with syntax highlighting
-- DSL type definitions for intellisense
-- Auto-complete for `definePlan`, `Key`, `P`, etc.
+- DSL type definitions for intellisense (generated from registries)
+- Auto-complete for `definePlan`, `Key`, `P`, task methods, etc.
+- Suppresses arithmetic errors for natural expression syntax
 
 **Phase 3: Persistence & Sharing** ✅
 - Auto-save to localStorage (debounced)
@@ -184,10 +185,11 @@ tools/visualizer/
 - Buttons: Source toggle, Fit, Back
 
 ### Live Plan Editor (Step 01)
-- Click "New Plan" to open editor panel
+- Click "Create New Plan" to open editor panel
 - Monaco editor with TypeScript support and DSL intellisense
 - Click "Compile & Visualize" or press ⌘+Enter to compile
-- Plan compiles in-browser using QuickJS WASM (no server required)
+- Server-side compilation using real `dslc` CLI (full parity with production)
+- Natural expression syntax supported (`Key.x * P.y`, `coalesce()`)
 - Save plans to localStorage with "Save As" (⌘+S)
 - Share plans via URL hash encoding
 - Manage saved plans: rename, delete, switch between them
@@ -207,12 +209,48 @@ index.json → PlanSelector → loadPlanByName()
                          Canvas renders via PixiJS
 ```
 
+## Compilation Architecture
+
+The live editor uses **server-side compilation** for full parity with the production `dslc` compiler.
+
+```
+┌─────────────────────┐                              ┌──────────────────────┐
+│   Monaco Editor     │    POST /api/compile         │   Vite Dev Server    │
+│   (browser)         │  ───────────────────────►    │                      │
+│                     │    { source, filename }      │   ┌────────────────┐ │
+│                     │                              │   │  dslc CLI      │ │
+│                     │  ◄───────────────────────    │   │  (QuickJS +    │ │
+│                     │    { artifact } or           │   │   esbuild +    │ │
+└─────────────────────┘    { error, phase }          │   │   AST extract) │ │
+                                                     │   └────────────────┘ │
+                                                     └──────────────────────┘
+```
+
+**Why server-side?**
+- **Full parity**: Same compiler as production (AST extraction, all validations)
+- **Natural expressions**: `Key.x * P.y` syntax works correctly via AST extraction
+- **Smaller bundle**: No QuickJS WASM or esbuild-wasm in browser (~15MB saved)
+- **Single compiler path**: One codebase to maintain
+
+**API Endpoint** (`/api/compile`):
+1. Receives `{ source: string, filename: string }`
+2. Writes source to temp file
+3. Spawns `node dsl/packages/compiler/dist/cli.js build <file> --out <dir>`
+4. Returns `{ success: true, artifact }` or `{ success: false, error, phase }`
+5. Cleans up temp files
+
+**Monaco Type Definitions**:
+- Generated from registries (`dsl/packages/generated/monaco-types.ts`)
+- Includes all Keys, Params, and task methods from `tasks.toml`
+- Suppresses TypeScript errors 2362/2363/2322 for natural expression syntax
+
 ## Vite Config Notes
 
 - `publicDir` points to `../../artifacts` to serve plan JSONs at `/plans/`
 - Custom middleware serves `.plan.ts` sources at `/sources/<name>.plan.ts`
 - Searches both `plans/` and `examples/plans/` directories
-- **Security note**: The `/sources` middleware doesn't validate paths. This is acceptable since the visualizer is a local dev tool only (not deployed to production).
+- `/api/compile` endpoint for server-side plan compilation (uses real `dslc` CLI)
+- **Security note**: The middlewares don't validate paths. This is acceptable since the visualizer is a local dev tool only (not deployed to production).
 
 ## Screenshots
 
