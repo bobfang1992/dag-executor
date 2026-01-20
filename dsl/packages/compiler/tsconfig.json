@@ -7,10 +7,7 @@
     "declarationMap": true,
     "composite": true
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts"],
-  "exclude": [
-    "src/browser.ts"
-  ],
+  "include": ["src/**/*.ts"],
   "references": [
     { "path": "../runtime" },
     { "path": "../generated" }
