@@ -8,19 +8,43 @@
 export const DSL_TYPES = `
 declare module '@ranking-dsl/runtime' {
   // ============================================================
-  // Token types
+  // Natural expression type (for Key.x * P.y syntax)
+  // ============================================================
+
+  /**
+   * Represents a natural expression that will be extracted by the compiler.
+   * Supports arithmetic operations (+, -, *, unary -).
+   * The compiler extracts these at compile-time and converts to ExprIR.
+   */
+  export interface NaturalExpr {
+    readonly __naturalExpr: true;
+  }
+
+  // Arithmetic operators for natural expressions
+  interface NaturalExprOps {
+    // Binary operators with numbers
+    (this: NaturalExpr, other: number): NaturalExpr;
+  }
+
+  // ============================================================
+  // Token types (support natural expression syntax)
   // ============================================================
 
   export interface KeyToken {
     readonly kind: 'Key';
     readonly id: number;
     readonly name: string;
+    // Natural expression support: Key.x * 10, Key.x + Key.y
+    // These are compile-time only - the compiler extracts them via AST
+    valueOf(): number;
   }
 
   export interface ParamToken {
     readonly kind: 'Param';
     readonly id: number;
     readonly name: string;
+    // Natural expression support: P.weight * 0.5
+    valueOf(): number;
   }
 
   // ============================================================
@@ -110,6 +134,13 @@ declare module '@ranking-dsl/runtime' {
   }
 
   export function definePlan(config: PlanConfig): void;
+
+  /**
+   * Coalesce function for null handling in natural expressions.
+   * Usage: Key.score * coalesce(P.weight, 0.2)
+   * Extracted by the compiler at compile-time.
+   */
+  export function coalesce(a: KeyToken | ParamToken | number | null, b: KeyToken | ParamToken | number): number;
 
   // ============================================================
   // Key registry (generated from keys.toml)

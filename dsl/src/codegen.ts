@@ -1984,12 +1984,17 @@ function generateMonacoTypes(
     "    readonly kind: 'Key';",
     "    readonly id: number;",
     "    readonly name: string;",
+    "    // Natural expression support: Key.x * 10, Key.x + Key.y",
+    "    // These are compile-time only - the compiler extracts them via AST",
+    "    valueOf(): number;",
     "  }",
     "",
     "  export interface ParamToken {",
     "    readonly kind: 'Param';",
     "    readonly id: number;",
     "    readonly name: string;",
+    "    // Natural expression support: P.weight * 0.5",
+    "    valueOf(): number;",
     "  }",
     "",
     "  // =====================================================",
@@ -2097,6 +2102,13 @@ function generateMonacoTypes(
   lines.push("  }");
   lines.push("");
   lines.push("  export function definePlan(config: PlanConfig): void;");
+  lines.push("");
+  lines.push("  /**");
+  lines.push("   * Coalesce function for null handling in natural expressions.");
+  lines.push("   * Usage: Key.score * coalesce(P.weight, 0.2)");
+  lines.push("   * Extracted by the compiler at compile-time.");
+  lines.push("   */");
+  lines.push("  export function coalesce(a: KeyToken | ParamToken | number | null, b: KeyToken | ParamToken | number): number;");
   lines.push("");
 
   // Generate Key object with all keys
