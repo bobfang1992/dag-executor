@@ -255,7 +255,7 @@ export function sortImpl(
   ctx: TaskContext,
   inputNodeId: string,
   opts: {
-    by: number;
+    by: KeyToken;
     order?: string;
     trace?: string | null;
     extensions?: Record<string, unknown>;
@@ -263,7 +263,7 @@ export function sortImpl(
 ): string {
   assertNotUndefined(opts, "sort(opts)");
   assertNotUndefined(opts.by, "sort({ by })");
-  assertInteger(opts.by, "sort({ by })");
+  assertKeyToken(opts.by, "sort({ by })");
   const { extensions, ...rest } = opts;
   checkNoUndefined(rest as Record<string, unknown>, "sort(opts)");
 
@@ -273,7 +273,7 @@ export function sortImpl(
   }
 
   const params: Record<string, unknown> = {
-    by: opts.by,
+    by: opts.by.id,
     order: opts.order,
     trace: opts.trace ?? null,
   };

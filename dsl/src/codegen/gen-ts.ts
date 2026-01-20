@@ -376,8 +376,8 @@ function paramTypeToTsType(param: TaskParamEntry): string {
   let baseType: string;
   switch (type) {
     case "int":
-      // Special case: out_key is KeyToken
-      if (param.name === "out_key") {
+      // Special case: key references are KeyToken (out_key for vm, by for sort)
+      if (param.name === "out_key" || param.name === "by") {
         baseType = "KeyToken";
       } else {
         baseType = "number";
@@ -843,7 +843,7 @@ export function generateTaskImplTs(registry: TaskRegistry): string {
           const tsName = friendlyParamName(param.name, param.type);
           lines.push(`  assertNotUndefined(opts.${tsName}, "${methodName}({ ${tsName} })");`);
           // Add type-specific validation
-          if (param.name === "out_key") {
+          if (param.name === "out_key" || param.name === "by") {
             lines.push(`  assertKeyToken(opts.${tsName}, "${methodName}({ ${tsName} })");`);
           } else if (param.type === "int") {
             lines.push(`  assertInteger(opts.${tsName}, "${methodName}({ ${tsName} })");`);
@@ -916,7 +916,7 @@ export function generateTaskImplTs(registry: TaskRegistry): string {
           lines.push(`    ${cppName}: predId,`);
         } else if (param.type === "node_ref") {
           lines.push(`    ${cppName}: opts.${tsName}.getNodeId(),`);
-        } else if (param.name === "out_key") {
+        } else if (param.name === "out_key" || param.name === "by") {
           lines.push(`    ${cppName}: opts.${tsName}.id,`);
         } else if (param.name === "trace") {
           lines.push(`    ${cppName}: opts.${tsName} ?? null,`);

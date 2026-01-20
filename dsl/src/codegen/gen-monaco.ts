@@ -18,7 +18,8 @@ function generateMonacoOptsType(task: TaskEntry): string {
 
     switch (param.type) {
       case "int":
-        tsType = param.name === "out_key" ? "KeyToken" : "number";
+        // Key references are KeyToken (out_key for vm, by for sort)
+        tsType = (param.name === "out_key" || param.name === "by") ? "KeyToken" : "number";
         break;
       case "float":
         tsType = "number";

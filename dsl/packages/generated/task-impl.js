@@ -172,7 +172,7 @@ export function filterImpl(ctx, inputNodeId, opts) {
 export function sortImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "sort(opts)");
     assertNotUndefined(opts.by, "sort({ by })");
-    assertInteger(opts.by, "sort({ by })");
+    assertKeyToken(opts.by, "sort({ by })");
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest, "sort(opts)");
     // Validate trace
@@ -180,7 +180,7 @@ export function sortImpl(ctx, inputNodeId, opts) {
         assertStringOrNull(opts.trace, "sort({ trace })");
     }
     const params = {
-        by: opts.by,
+        by: opts.by.id,
         order: opts.order,
         trace: opts.trace ?? null,
     };

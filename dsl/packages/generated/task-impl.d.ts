@@ -36,7 +36,7 @@ export declare function filterImpl(ctx: TaskContext, inputNodeId: string, opts: 
 }): string;
 /** Implementation for sort */
 export declare function sortImpl(ctx: TaskContext, inputNodeId: string, opts: {
-    by: number;
+    by: KeyToken;
     order?: string;
     trace?: string | null;
     extensions?: Record<string, unknown>;

@@ -99,7 +99,7 @@ export interface FilterOpts {
 }
 
 export interface SortOpts {
-  by: number;
+  by: KeyToken;
   order?: string;
   trace?: string | null;
   extensions?: Record<string, unknown>;
