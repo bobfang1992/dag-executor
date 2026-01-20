@@ -87,6 +87,10 @@ export interface PredPlaceholder {
 }
 /** PredInput - predicate input type for tasks (builder or natural syntax) */
 export type PredInput = PredNode | PredPlaceholder;
+/** Interface for CandidateSet used by NodeRef params (avoids circular dep with runtime) */
+export interface CandidateSetLike {
+    getNodeId(): string;
+}
 export interface ViewerFetchCachedRecommendationOpts {
     fanout: number;
     trace?: string | null;
@@ -98,6 +102,7 @@ export interface ViewerFollowOpts {
     extensions?: Record<string, unknown>;
 }
 export interface ConcatOpts {
+    rhs: CandidateSetLike;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
@@ -123,7 +128,7 @@ export interface VmOpts {
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
-export declare const TASK_MANIFEST_DIGEST = "491ba7faf5e41c95710d2f32ca1ad489ac2e4c06b5ab447c8e22e20972be77fe";
+export declare const TASK_MANIFEST_DIGEST = "c02b01d9e7d4f7c0a2ef2734f12b16c76f83c6f8d0e12b6426cf816debe839c0";
 export declare const TASK_COUNT = 7;
 /** Extraction info for a task - which properties to extract as expr/pred */
 export interface TaskExtractionInfo {

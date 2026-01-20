@@ -19,6 +19,6 @@ export default definePlan({
   build: (ctx) => {
     const a = ctx.viewer.follow({ fanout: 4, trace: "L" });
     const b = ctx.viewer.fetch_cached_recommendation({ fanout: 4, trace: "R" });
-    return a.concat(b, { trace: "C" }).take({ count: 8, trace: "T" });
+    return a.concat({ rhs: b, trace: "C" }).take({ count: 8, trace: "T" });
   },
 });

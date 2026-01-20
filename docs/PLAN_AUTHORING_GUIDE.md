@@ -174,7 +174,7 @@ const scored = candidates.vm({
 const source1 = ctx.viewer.follow({ fanout: 50 });
 const source2 = ctx.viewer.fetch_cached_recommendation({ fanout: 50 });
 
-const combined = source1.concat(source2);
+const combined = source1.concat({ rhs: source2 });
 ```
 
 ### Use Parameters

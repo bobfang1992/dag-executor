@@ -24,8 +24,9 @@ enum class TaskParamType {
   Float,
   Bool,
   String,
-  ExprId, // Reference to expr_table entry (validated at plan load)
-  PredId  // Reference to pred_table entry (validated at plan load)
+  ExprId,  // Reference to expr_table entry (validated at plan load)
+  PredId,  // Reference to pred_table entry (validated at plan load)
+  NodeRef  // Reference to another node in the DAG (resolved by executor)
 };
 
 // Default value type for task params
@@ -71,6 +72,7 @@ struct ValidatedParams {
   std::unordered_map<std::string, double> float_params;
   std::unordered_map<std::string, bool> bool_params;
   std::unordered_map<std::string, std::string> string_params;
+  std::unordered_map<std::string, std::string> node_ref_params;  // NodeRef: param name -> node_id
 
   bool has_int(const std::string &name) const {
     return int_params.find(name) != int_params.end();
@@ -84,6 +86,9 @@ struct ValidatedParams {
   bool has_string(const std::string &name) const {
     return string_params.find(name) != string_params.end();
   }
+  bool has_node_ref(const std::string &name) const {
+    return node_ref_params.find(name) != node_ref_params.end();
+  }
 
   int64_t get_int(const std::string &name) const {
     return int_params.at(name);
@@ -94,6 +99,9 @@ struct ValidatedParams {
   bool get_bool(const std::string &name) const { return bool_params.at(name); }
   const std::string &get_string(const std::string &name) const {
     return string_params.at(name);
+  }
+  const std::string &get_node_ref(const std::string &name) const {
+    return node_ref_params.at(name);
   }
 };
 

@@ -4,7 +4,7 @@
   "nodes": [
     {"node_id": "n0", "op": "viewer.follow", "inputs": [], "params": {"fanout": 4, "trace": "L"}},
     {"node_id": "n1", "op": "viewer.fetch_cached_recommendation", "inputs": [], "params": {"fanout": 4, "trace": "R"}},
-    {"node_id": "n2", "op": "concat", "inputs": ["n0", "n1"], "params": {"trace": "C"}},
+    {"node_id": "n2", "op": "concat", "inputs": ["n0"], "params": {"rhs": "n1", "trace": "C"}},
     {"node_id": "n3", "op": "take", "inputs": ["n2"], "params": {"count": 8, "trace": "T"}}
   ],
   "outputs": ["n3"],

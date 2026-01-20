@@ -58,6 +58,15 @@ export interface PredPlaceholder {
 export type PredInput = PredNode | PredPlaceholder;
 
 // =====================================================
+// Node reference types (for tasks like concat)
+// =====================================================
+
+/** Interface for CandidateSet used by NodeRef params (avoids circular dep with runtime) */
+export interface CandidateSetLike {
+  getNodeId(): string;
+}
+
+// =====================================================
 // Source task option interfaces
 // =====================================================
 
@@ -78,6 +87,7 @@ export interface ViewerFollowOpts {
 // =====================================================
 
 export interface ConcatOpts {
+  rhs: CandidateSetLike;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
@@ -112,7 +122,7 @@ export interface VmOpts {
 // Metadata
 // =====================================================
 
-export const TASK_MANIFEST_DIGEST = "491ba7faf5e41c95710d2f32ca1ad489ac2e4c06b5ab447c8e22e20972be77fe";
+export const TASK_MANIFEST_DIGEST = "c02b01d9e7d4f7c0a2ef2734f12b16c76f83c6f8d0e12b6426cf816debe839c0";
 export const TASK_COUNT = 7;
 
 // =====================================================

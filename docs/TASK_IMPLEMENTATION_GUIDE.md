@@ -80,6 +80,7 @@ struct ParamField {
 | `TaskParamType::String` | string | `params.get_string("name")` |
 | `TaskParamType::ExprId` | string | Reference to `expr_table` entry |
 | `TaskParamType::PredId` | string | Reference to `pred_table` entry |
+| `TaskParamType::NodeRef` | string (node_id) | `ctx.resolved_node_refs->at("name")` |
 
 **Common Pattern - trace param:**
 ```cpp
@@ -96,7 +97,7 @@ Declares the **row shape** contract for task output:
 | `UnaryPreserveView` | 1 input, same rows, may add columns | `vm` |
 | `UnarySubsetView` | 1 input, subset of rows | `filter` |
 | `PrefixOfInput` | 1 input, first N rows | `take` |
-| `BinaryConcat` | 2 inputs, concatenated | `concat` |
+| `ConcatDense` | 1 input + NodeRef rhs, concatenated | `concat` |
 
 ### Default Budget
 

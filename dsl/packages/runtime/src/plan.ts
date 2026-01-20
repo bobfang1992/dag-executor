@@ -228,17 +228,19 @@ export class CandidateSet {
   /**
    * concat: concatenate two candidate sets.
    */
-  concat(
-    rhs: CandidateSet,
-    opts?: { trace?: string | null; extensions?: Record<string, unknown> }
-  ): CandidateSet {
-    assertNotUndefined(rhs, "concat(rhs)");
-    if (rhs.ctx !== this.ctx) {
+  concat(opts: {
+    rhs: CandidateSet;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    assertNotUndefined(opts, "concat(opts)");
+    assertNotUndefined(opts.rhs, "concat({ rhs })");
+    if (opts.rhs.ctx !== this.ctx) {
       throw new Error(
         "concat: CandidateSets must belong to the same PlanCtx"
       );
     }
-    const newNodeId = concatImpl(this.ctx, this.nodeId, rhs.nodeId, opts);
+    const newNodeId = concatImpl(this.ctx, this.nodeId, opts);
     return new CandidateSet(this.ctx, newNodeId);
   }
 

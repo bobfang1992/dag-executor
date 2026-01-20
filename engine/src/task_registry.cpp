@@ -122,6 +122,9 @@ TaskRegistry::validate_params(const std::string &op,
     case TaskParamType::PredId:
       result.string_params[field.name] = std::get<std::string>(def);
       break;
+    case TaskParamType::NodeRef:
+      result.node_ref_params[field.name] = std::get<std::string>(def);
+      break;
     }
   };
 
@@ -215,6 +218,17 @@ TaskRegistry::validate_params(const std::string &op,
       result.string_params[field.name] = value.get<std::string>();
       break;
     }
+    case TaskParamType::NodeRef: {
+      // NodeRef is stored as string (node_id); validation against
+      // existing nodes happens in validate_plan
+      if (!value.is_string()) {
+        throw std::runtime_error("Invalid params for op '" + op +
+                                 "': field '" + field.name +
+                                 "' must be string (node_id)");
+      }
+      result.node_ref_params[field.name] = value.get<std::string>();
+      break;
+    }
     }
   }
 
@@ -292,6 +306,9 @@ std::string TaskRegistry::compute_manifest_digest() const {
         break;
       case TaskParamType::PredId:
         pj["type"] = "pred_id";
+        break;
+      case TaskParamType::NodeRef:
+        pj["type"] = "node_ref";
         break;
       }
       params_json.push_back(pj);
@@ -392,6 +409,9 @@ std::string TaskRegistry::to_toml() const {
         break;
       case TaskParamType::PredId:
         out << "  type = \"pred_id\"\n";
+        break;
+      case TaskParamType::NodeRef:
+        out << "  type = \"node_ref\"\n";
         break;
       }
 
