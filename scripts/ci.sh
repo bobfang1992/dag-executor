@@ -63,7 +63,7 @@ pnpm -C dsl run gen:check
 echo ""
 echo "=== Phase 3: Build DSL + Engine (parallel) ==="
 run_bg "Build DSL + compile plans" pnpm run build
-run_bg "Build engine" bash -c "cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build engine/build --parallel"
+run_bg "Build engine" bash -c "cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build engine/build --parallel 4"
 wait_all
 
 echo ""

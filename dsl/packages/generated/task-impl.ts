@@ -222,6 +222,37 @@ export function filterImpl(
   return ctx.addNode("filter", [inputNodeId], params, extensions);
 }
 
+/** Implementation for sort */
+export function sortImpl(
+  ctx: TaskContext,
+  inputNodeId: string,
+  opts: {
+    by: number;
+    order?: string;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "sort(opts)");
+  assertNotUndefined(opts.by, "sort({ by })");
+  assertInteger(opts.by, "sort({ by })");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "sort(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "sort({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    by: opts.by,
+    order: opts.order,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("sort", [inputNodeId], params, extensions);
+}
+
 /** Implementation for take */
 export function takeImpl(
   ctx: TaskContext,
@@ -300,5 +331,5 @@ export function vmImpl(
 
 export const GENERATED_TASKS = {
   source: ["fetch_cached_recommendation", "follow"],
-  transform: ["concat", "filter", "take", "vm"],
+  transform: ["concat", "filter", "sort", "take", "vm"],
 } as const;
