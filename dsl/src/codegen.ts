@@ -1006,6 +1006,33 @@ function generateTaskImplTs(registry: TaskRegistry): string {
     "  }",
     "}",
     "",
+    "function assertStringOrNull(value: unknown, name: string): void {",
+    "  if (value !== null && typeof value !== \"string\") {",
+    "    throw new Error(`${name} must be a string or null, got ${typeof value}`);",
+    "  }",
+    "}",
+    "",
+    "function assertExprInput(value: unknown, name: string): void {",
+    "  if (value === null || typeof value !== \"object\") {",
+    "    throw new Error(`${name} must be an ExprNode or ExprPlaceholder, got ${value === null ? \"null\" : typeof value}`);",
+    "  }",
+    "  const obj = value as Record<string, unknown>;",
+    "  // ExprPlaceholder has __expr_id, ExprNode has op",
+    "  if (typeof obj.__expr_id !== \"number\" && typeof obj.op !== \"string\") {",
+    "    throw new Error(`${name} must be an ExprNode (with 'op') or ExprPlaceholder (with '__expr_id')`);",
+    "  }",
+    "}",
+    "",
+    "function assertPredNode(value: unknown, name: string): void {",
+    "  if (value === null || typeof value !== \"object\") {",
+    "    throw new Error(`${name} must be a PredNode, got ${value === null ? \"null\" : typeof value}`);",
+    "  }",
+    "  const obj = value as Record<string, unknown>;",
+    "  if (typeof obj.op !== \"string\") {",
+    "    throw new Error(`${name} must be a PredNode with 'op' field`);",
+    "  }",
+    "}",
+    "",
     "function checkNoUndefined(obj: Record<string, unknown>, context: string): void {",
     "  for (const [key, value] of Object.entries(obj)) {",
     "    if (value === undefined) {",
@@ -1065,6 +1092,16 @@ function generateTaskImplTs(registry: TaskRegistry): string {
       lines.push(`  const { extensions, ...rest } = opts;`);
       lines.push(`  checkNoUndefined(rest as Record<string, unknown>, "${methodName}(opts)");`);
       lines.push("");
+
+      // Validate trace if present
+      const hasTrace = task.params.some(p => p.name === "trace");
+      if (hasTrace) {
+        lines.push(`  // Validate trace`);
+        lines.push(`  if (opts.trace !== undefined) {`);
+        lines.push(`    assertStringOrNull(opts.trace, "${methodName}({ trace })");`);
+        lines.push(`  }`);
+        lines.push("");
+      }
 
       // Generate params object
       lines.push(`  const params: Record<string, unknown> = {`);
@@ -1161,9 +1198,21 @@ function generateTaskImplTs(registry: TaskRegistry): string {
       // Handle expr_id and pred_id params (table management)
       const hasExprId = task.params.some(p => p.type === "expr_id");
       const hasPredId = task.params.some(p => p.type === "pred_id");
+      const hasTrace = task.params.some(p => p.name === "trace");
+
+      // Validate trace if present (use optional chaining for arity 2 where opts is optional)
+      if (hasTrace) {
+        const optAccess = arity === 2 ? "opts?.trace" : "opts.trace";
+        lines.push(`  // Validate trace`);
+        lines.push(`  if (${optAccess} !== undefined) {`);
+        lines.push(`    assertStringOrNull(${optAccess}, "${methodName}({ trace })");`);
+        lines.push(`  }`);
+        lines.push("");
+      }
 
       if (hasExprId) {
-        lines.push(`  // Handle expression table`);
+        lines.push(`  // Validate and handle expression table`);
+        lines.push(`  assertExprInput(opts.expr, "${methodName}({ expr })");`);
         lines.push(`  let exprId: string;`);
         lines.push(`  if (isExprPlaceholder(opts.expr)) {`);
         lines.push(`    // AST-extracted expression - use special prefix for later remapping`);
@@ -1176,7 +1225,8 @@ function generateTaskImplTs(registry: TaskRegistry): string {
       }
 
       if (hasPredId) {
-        lines.push(`  // Handle predicate table`);
+        lines.push(`  // Validate and handle predicate table`);
+        lines.push(`  assertPredNode(opts.pred, "${methodName}({ pred })");`);
         lines.push(`  const predId = ctx.addPred(opts.pred);`);
         lines.push("");
       }

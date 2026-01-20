@@ -58,6 +58,33 @@ function assertKeyToken(value: unknown, name: string): void {
   }
 }
 
+function assertStringOrNull(value: unknown, name: string): void {
+  if (value !== null && typeof value !== "string") {
+    throw new Error(`${name} must be a string or null, got ${typeof value}`);
+  }
+}
+
+function assertExprInput(value: unknown, name: string): void {
+  if (value === null || typeof value !== "object") {
+    throw new Error(`${name} must be an ExprNode or ExprPlaceholder, got ${value === null ? "null" : typeof value}`);
+  }
+  const obj = value as Record<string, unknown>;
+  // ExprPlaceholder has __expr_id, ExprNode has op
+  if (typeof obj.__expr_id !== "number" && typeof obj.op !== "string") {
+    throw new Error(`${name} must be an ExprNode (with 'op') or ExprPlaceholder (with '__expr_id')`);
+  }
+}
+
+function assertPredNode(value: unknown, name: string): void {
+  if (value === null || typeof value !== "object") {
+    throw new Error(`${name} must be a PredNode, got ${value === null ? "null" : typeof value}`);
+  }
+  const obj = value as Record<string, unknown>;
+  if (typeof obj.op !== "string") {
+    throw new Error(`${name} must be a PredNode with 'op' field`);
+  }
+}
+
 function checkNoUndefined(obj: Record<string, unknown>, context: string): void {
   for (const [key, value] of Object.entries(obj)) {
     if (value === undefined) {
@@ -89,6 +116,11 @@ export function fetch_cached_recommendationImpl(
   const { extensions, ...rest } = opts;
   checkNoUndefined(rest as Record<string, unknown>, "fetch_cached_recommendation(opts)");
 
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "fetch_cached_recommendation({ trace })");
+  }
+
   const params: Record<string, unknown> = {
     fanout: opts.fanout,
     trace: opts.trace ?? null,
@@ -111,6 +143,11 @@ export function followImpl(
   assertInteger(opts.fanout, "follow({ fanout })");
   const { extensions, ...rest } = opts;
   checkNoUndefined(rest as Record<string, unknown>, "follow(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "follow({ trace })");
+  }
 
   const params: Record<string, unknown> = {
     fanout: opts.fanout,
@@ -141,6 +178,11 @@ export function concatImpl(
     checkNoUndefined(rest as Record<string, unknown>, "concat(opts)");
   }
 
+  // Validate trace
+  if (opts?.trace !== undefined) {
+    assertStringOrNull(opts?.trace, "concat({ trace })");
+  }
+
   const params: Record<string, unknown> = {
     trace: opts?.trace ?? null,
   };
@@ -163,7 +205,13 @@ export function filterImpl(
   const { extensions, ...rest } = opts;
   checkNoUndefined(rest as Record<string, unknown>, "filter(opts)");
 
-  // Handle predicate table
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "filter({ trace })");
+  }
+
+  // Validate and handle predicate table
+  assertPredNode(opts.pred, "filter({ pred })");
   const predId = ctx.addPred(opts.pred);
 
   const params: Record<string, unknown> = {
@@ -189,6 +237,11 @@ export function takeImpl(
   assertInteger(opts.count, "take({ count })");
   const { extensions, ...rest } = opts;
   checkNoUndefined(rest as Record<string, unknown>, "take(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "take({ trace })");
+  }
 
   const params: Record<string, unknown> = {
     count: opts.count,
@@ -216,7 +269,13 @@ export function vmImpl(
   const { extensions, ...rest } = opts;
   checkNoUndefined(rest as Record<string, unknown>, "vm(opts)");
 
-  // Handle expression table
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "vm({ trace })");
+  }
+
+  // Validate and handle expression table
+  assertExprInput(opts.expr, "vm({ expr })");
   let exprId: string;
   if (isExprPlaceholder(opts.expr)) {
     // AST-extracted expression - use special prefix for later remapping

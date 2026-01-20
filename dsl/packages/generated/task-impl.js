@@ -32,6 +32,30 @@ function assertKeyToken(value, name) {
         throw new Error(`${name}.id must be an integer, got ${typeof token.id === "number" ? token.id : typeof token.id}`);
     }
 }
+function assertStringOrNull(value, name) {
+    if (value !== null && typeof value !== "string") {
+        throw new Error(`${name} must be a string or null, got ${typeof value}`);
+    }
+}
+function assertExprInput(value, name) {
+    if (value === null || typeof value !== "object") {
+        throw new Error(`${name} must be an ExprNode or ExprPlaceholder, got ${value === null ? "null" : typeof value}`);
+    }
+    const obj = value;
+    // ExprPlaceholder has __expr_id, ExprNode has op
+    if (typeof obj.__expr_id !== "number" && typeof obj.op !== "string") {
+        throw new Error(`${name} must be an ExprNode (with 'op') or ExprPlaceholder (with '__expr_id')`);
+    }
+}
+function assertPredNode(value, name) {
+    if (value === null || typeof value !== "object") {
+        throw new Error(`${name} must be a PredNode, got ${value === null ? "null" : typeof value}`);
+    }
+    const obj = value;
+    if (typeof obj.op !== "string") {
+        throw new Error(`${name} must be a PredNode with 'op' field`);
+    }
+}
 function checkNoUndefined(obj, context) {
     for (const [key, value] of Object.entries(obj)) {
         if (value === undefined) {
@@ -53,6 +77,10 @@ export function fetch_cached_recommendationImpl(ctx, opts) {
     assertInteger(opts.fanout, "fetch_cached_recommendation({ fanout })");
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest, "fetch_cached_recommendation(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "fetch_cached_recommendation({ trace })");
+    }
     const params = {
         fanout: opts.fanout,
         trace: opts.trace ?? null,
@@ -66,6 +94,10 @@ export function followImpl(ctx, opts) {
     assertInteger(opts.fanout, "follow({ fanout })");
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest, "follow(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "follow({ trace })");
+    }
     const params = {
         fanout: opts.fanout,
         trace: opts.trace ?? null,
@@ -83,6 +115,10 @@ export function concatImpl(ctx, lhsNodeId, rhsNodeId, opts) {
         extensions = ext;
         checkNoUndefined(rest, "concat(opts)");
     }
+    // Validate trace
+    if (opts?.trace !== undefined) {
+        assertStringOrNull(opts?.trace, "concat({ trace })");
+    }
     const params = {
         trace: opts?.trace ?? null,
     };
@@ -94,7 +130,12 @@ export function filterImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts.pred, "filter({ pred })");
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest, "filter(opts)");
-    // Handle predicate table
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "filter({ trace })");
+    }
+    // Validate and handle predicate table
+    assertPredNode(opts.pred, "filter({ pred })");
     const predId = ctx.addPred(opts.pred);
     const params = {
         pred_id: predId,
@@ -109,6 +150,10 @@ export function takeImpl(ctx, inputNodeId, opts) {
     assertInteger(opts.count, "take({ count })");
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest, "take(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "take({ trace })");
+    }
     const params = {
         count: opts.count,
         trace: opts.trace ?? null,
@@ -123,7 +168,12 @@ export function vmImpl(ctx, inputNodeId, opts) {
     assertKeyToken(opts.outKey, "vm({ outKey })");
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest, "vm(opts)");
-    // Handle expression table
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "vm({ trace })");
+    }
+    // Validate and handle expression table
+    assertExprInput(opts.expr, "vm({ expr })");
     let exprId;
     if (isExprPlaceholder(opts.expr)) {
         // AST-extracted expression - use special prefix for later remapping
