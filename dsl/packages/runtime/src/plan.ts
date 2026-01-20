@@ -3,20 +3,21 @@
  *
  * Types (ExprNode, PredNode, ExprInput, etc.) are imported from @ranking-dsl/generated
  * to ensure generated task option interfaces (VmOpts, FilterOpts) are compatible.
+ *
+ * Task implementations are generated from registry/tasks.toml via codegen.
+ * This file only contains the PlanCtx, CandidateSet wrappers, and definePlan.
  */
 
-import type { KeyToken, ExprNode, ExprPlaceholder, PredNode, ExprInput } from "@ranking-dsl/generated";
+import type { KeyToken, ExprNode, PredNode, ExprInput } from "@ranking-dsl/generated";
+import {
+  followImpl,
+  fetch_cached_recommendationImpl,
+  vmImpl,
+  filterImpl,
+  takeImpl,
+  concatImpl,
+} from "@ranking-dsl/generated";
 import { assertNotUndefined, checkNoUndefined } from "./guards.js";
-
-/** Check if value is an ExprPlaceholder (AST-extracted placeholder) */
-function isExprPlaceholder(value: unknown): value is ExprPlaceholder {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    "__expr_id" in value &&
-    typeof (value as ExprPlaceholder).__expr_id === "number"
-  );
-}
 
 /**
  * Internal node representation (before JSON serialization).
@@ -46,23 +47,7 @@ export class PlanCtx {
       trace?: string | null;
       extensions?: Record<string, unknown>;
     }): CandidateSet => {
-      assertNotUndefined(opts, "viewer.follow(opts)");
-      assertNotUndefined(opts.fanout, "viewer.follow({ fanout })");
-      const { extensions, ...rest } = opts;
-      checkNoUndefined(rest as Record<string, unknown>, "viewer.follow(opts)");
-
-      const nodeId = this.allocateNodeId();
-      const node: PlanNode = {
-        node_id: nodeId,
-        op: "viewer.follow",
-        inputs: [],
-        params: { fanout: opts.fanout, trace: opts.trace ?? null },
-      };
-      if (extensions !== undefined && Object.keys(extensions).length > 0) {
-        checkNoUndefined(extensions, `node[${nodeId}].extensions`);
-        node.extensions = extensions;
-      }
-      this.nodes.push(node);
+      const nodeId = followImpl(this, opts);
       return new CandidateSet(this, nodeId);
     },
 
@@ -71,26 +56,7 @@ export class PlanCtx {
       trace?: string | null;
       extensions?: Record<string, unknown>;
     }): CandidateSet => {
-      assertNotUndefined(opts, "viewer.fetch_cached_recommendation(opts)");
-      assertNotUndefined(opts.fanout, "viewer.fetch_cached_recommendation({ fanout })");
-      const { extensions, ...rest } = opts;
-      checkNoUndefined(
-        rest as Record<string, unknown>,
-        "viewer.fetch_cached_recommendation(opts)"
-      );
-
-      const nodeId = this.allocateNodeId();
-      const node: PlanNode = {
-        node_id: nodeId,
-        op: "viewer.fetch_cached_recommendation",
-        inputs: [],
-        params: { fanout: opts.fanout, trace: opts.trace ?? null },
-      };
-      if (extensions !== undefined && Object.keys(extensions).length > 0) {
-        checkNoUndefined(extensions, `node[${nodeId}].extensions`);
-        node.extensions = extensions;
-      }
-      this.nodes.push(node);
+      const nodeId = fetch_cached_recommendationImpl(this, opts);
       return new CandidateSet(this, nodeId);
     },
   };
@@ -197,32 +163,7 @@ export class CandidateSet {
     trace?: string | null;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
-    assertNotUndefined(opts, "vm(opts)");
-    assertNotUndefined(opts.outKey, "vm({ outKey })");
-    assertNotUndefined(opts.expr, "vm({ expr })");
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest as Record<string, unknown>, "vm(opts)");
-
-    // Handle ExprPlaceholder vs regular ExprNode
-    let exprId: string;
-    if (isExprPlaceholder(opts.expr)) {
-      // AST-extracted expression - use special prefix for later remapping
-      exprId = `__static_e${opts.expr.__expr_id}`;
-    } else {
-      // Regular builder-style expression
-      exprId = this.ctx.addExpr(opts.expr);
-    }
-
-    const newNodeId = this.ctx.addNode(
-      "vm",
-      [this.nodeId],
-      {
-        out_key: opts.outKey.id,
-        expr_id: exprId,
-        trace: opts.trace ?? null,
-      },
-      extensions
-    );
+    const newNodeId = vmImpl(this.ctx, this.nodeId, opts);
     return new CandidateSet(this.ctx, newNodeId);
   }
 
@@ -234,21 +175,7 @@ export class CandidateSet {
     trace?: string | null;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
-    assertNotUndefined(opts, "filter(opts)");
-    assertNotUndefined(opts.pred, "filter({ pred })");
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest as Record<string, unknown>, "filter(opts)");
-
-    const predId = this.ctx.addPred(opts.pred);
-    const newNodeId = this.ctx.addNode(
-      "filter",
-      [this.nodeId],
-      {
-        pred_id: predId,
-        trace: opts.trace ?? null,
-      },
-      extensions
-    );
+    const newNodeId = filterImpl(this.ctx, this.nodeId, opts);
     return new CandidateSet(this.ctx, newNodeId);
   }
 
@@ -260,20 +187,7 @@ export class CandidateSet {
     trace?: string | null;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
-    assertNotUndefined(opts, "take(opts)");
-    assertNotUndefined(opts.count, "take({ count })");
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest as Record<string, unknown>, "take(opts)");
-
-    const newNodeId = this.ctx.addNode(
-      "take",
-      [this.nodeId],
-      {
-        count: opts.count,
-        trace: opts.trace ?? null,
-      },
-      extensions
-    );
+    const newNodeId = takeImpl(this.ctx, this.nodeId, opts);
     return new CandidateSet(this.ctx, newNodeId);
   }
 
@@ -290,21 +204,7 @@ export class CandidateSet {
         "concat: CandidateSets must belong to the same PlanCtx"
       );
     }
-    let extensions: Record<string, unknown> | undefined;
-    if (opts !== undefined) {
-      const { extensions: ext, ...rest } = opts;
-      extensions = ext;
-      checkNoUndefined(rest as Record<string, unknown>, "concat(opts)");
-    }
-
-    const newNodeId = this.ctx.addNode(
-      "concat",
-      [this.nodeId, rhs.nodeId],
-      {
-        trace: opts?.trace ?? null,
-      },
-      extensions
-    );
+    const newNodeId = concatImpl(this.ctx, this.nodeId, rhs.nodeId, opts);
     return new CandidateSet(this.ctx, newNodeId);
   }
 

@@ -45,7 +45,7 @@ registry/           # TOML definitions (keys.toml, params.toml, features.toml, t
 dsl/packages/
   runtime/          # TS DSL runtime APIs for plan authors
   compiler/         # dslc CLI (QuickJS-based sandbox)
-  generated/        # Auto-generated keys/params/features/tasks bindings
+  generated/        # Auto-generated keys/params/features/tasks types + task impls
 engine/             # C++23 execution engine
 plans/              # Official plans (CI, production) → artifacts/plans/
 examples/plans/     # Example/tutorial plans → artifacts/plans-examples/
@@ -114,7 +114,8 @@ pnpm run gen
 | C++ TaskSpec (SSOT) | `engine/src/tasks/*.cpp` | Defines task params, types, reads/writes |
 | Task manifest | `registry/tasks.toml` | Generated from C++, human-readable, committed |
 | Generated types | `dsl/packages/generated/tasks.ts` | Option interfaces for plan authoring |
-| TS task methods | `dsl/packages/runtime/src/plan.ts` | Plan authoring surface |
+| Generated impls | `dsl/packages/generated/task-impl.ts` | Task method implementations (validation, node creation) |
+| Plan API | `dsl/packages/runtime/src/plan.ts` | PlanCtx/CandidateSet wrappers (delegates to generated impls) |
 
 ### Plan Import Restrictions
 

@@ -868,5 +868,57 @@ fi
 '
 wait_all
 
+# Batch 15: Type validation tests (compile-time rejection)
+echo "--- Batch 15: Type validation tests ---"
+run_bg "Test 67: Reject invalid outKey type" bash -c '
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_outkey_type.plan.ts --out /tmp/ci-type-67 2>&1 | grep -q "must be a KeyToken"; then
+    exit 0
+else
+    echo "Expected rejection with KeyToken error"
+    exit 1
+fi
+'
+run_bg "Test 68: Reject string fanout" bash -c '
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_fanout_type.plan.ts --out /tmp/ci-type-68 2>&1 | grep -q "must be an integer"; then
+    exit 0
+else
+    echo "Expected rejection with integer error"
+    exit 1
+fi
+'
+run_bg "Test 69: Reject null count" bash -c '
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_count_type.plan.ts --out /tmp/ci-type-69 2>&1 | grep -q "must be an integer"; then
+    exit 0
+else
+    echo "Expected rejection with integer error"
+    exit 1
+fi
+'
+run_bg "Test 70: Reject invalid expr type" bash -c '
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_expr_type.plan.ts --out /tmp/ci-type-70 2>&1 | grep -q "must be an ExprNode or ExprPlaceholder"; then
+    exit 0
+else
+    echo "Expected rejection with ExprNode error"
+    exit 1
+fi
+'
+run_bg "Test 71: Reject invalid pred type" bash -c '
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_pred_type.plan.ts --out /tmp/ci-type-71 2>&1 | grep -q "must be a PredNode"; then
+    exit 0
+else
+    echo "Expected rejection with PredNode error"
+    exit 1
+fi
+'
+run_bg "Test 72: Reject numeric trace" bash -c '
+if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_trace_type.plan.ts --out /tmp/ci-type-72 2>&1 | grep -q "must be a string or null"; then
+    exit 0
+else
+    echo "Expected rejection with string error"
+    exit 1
+fi
+'
+wait_all
+
 echo ""
 echo "=== All CI tests passed ==="

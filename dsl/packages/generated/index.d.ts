@@ -4,4 +4,5 @@ export { Feat, FeatureToken, FeatureType, FEATURE_REGISTRY_DIGEST, FEATURE_COUNT
 export * from "./validation.js";
 export * from "./capabilities.js";
 export * from "./tasks.js";
+export * from "./task-impl.js";
 //# sourceMappingURL=index.d.ts.map
