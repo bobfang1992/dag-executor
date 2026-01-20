@@ -64,17 +64,22 @@ export function validatePayload(capId: string, payload: unknown): string | null 
     return null;
   }
 
-  // Validate object type
+  // Validate object type (reject arrays, null, non-objects)
   if (schema.type === "object") {
-    if (typeof payload !== "object" || payload === null) {
+    if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
       return `Capability ${capId} payload must be an object`;
     }
 
     const payloadObj = payload as Record<string, unknown>;
+    const schemaFull = schema as {
+      properties?: Record<string, { type?: string }>;
+      required?: string[];
+      additionalProperties?: boolean;
+    };
 
     // Check additionalProperties: false
-    if (schema.additionalProperties === false) {
-      const allowedKeys = new Set(schema.properties ? Object.keys(schema.properties) : []);
+    if (schemaFull.additionalProperties === false) {
+      const allowedKeys = new Set(schemaFull.properties ? Object.keys(schemaFull.properties) : []);
       for (const key of Object.keys(payloadObj)) {
         if (!allowedKeys.has(key)) {
           return `Capability ${capId} payload has unexpected property: ${key}`;
@@ -83,11 +88,23 @@ export function validatePayload(capId: string, payload: unknown): string | null 
     }
 
     // Check required properties
-    const schemaWithReq = schema as { required?: string[] };
-    if (schemaWithReq.required) {
-      for (const key of schemaWithReq.required) {
+    if (schemaFull.required) {
+      for (const key of schemaFull.required) {
         if (!(key in payloadObj)) {
           return `Capability ${capId} payload missing required property: ${key}`;
+        }
+      }
+    }
+
+    // Check property types
+    if (schemaFull.properties) {
+      for (const [key, propSchema] of Object.entries(schemaFull.properties)) {
+        if (key in payloadObj && propSchema.type) {
+          const value = payloadObj[key];
+          const actualType = Array.isArray(value) ? "array" : typeof value;
+          if (propSchema.type !== actualType) {
+            return `Capability ${capId} payload property ${key} must be ${propSchema.type}, got ${actualType}`;
+          }
         }
       }
     }
