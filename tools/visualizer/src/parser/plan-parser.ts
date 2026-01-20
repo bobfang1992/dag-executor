@@ -57,6 +57,16 @@ export function parsePlan(plan: PlanJson): VisGraph {
         hidden: false,
       });
     }
+
+    // Build edges from NodeRef params (e.g., concat's rhs)
+    if (node.params && typeof node.params.rhs === 'string') {
+      edges.push({
+        id: `${node.params.rhs}->${node.node_id}:rhs`,
+        from: node.params.rhs,
+        to: node.node_id,
+        hidden: false,
+      });
+    }
   }
 
   return { nodes, edges };

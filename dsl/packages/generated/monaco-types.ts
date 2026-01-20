@@ -104,7 +104,7 @@ declare module '@ranking-dsl/runtime' {
   }
 
   export interface CandidateSet {
-    concat(other: CandidateSet, opts?: { trace?: string }): CandidateSet;
+    concat(opts: { rhs: CandidateSet; trace?: string }): CandidateSet;
     filter(opts: { pred: PredNode; trace?: string }): CandidateSet;
     sort(opts: { by: number; order?: string; trace?: string }): CandidateSet;
     take(opts: { count: number; trace?: string }): CandidateSet;

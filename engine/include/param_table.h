@@ -237,12 +237,17 @@ struct ExecStats {
   uint64_t regex_re2_calls = 0; // Number of RE2 regex evaluations (per dict entry)
 };
 
+// Forward declaration for RowSet
+class RowSet;
+
 // Execution context passed to task run functions
 struct ExecCtx {
   const ParamTable *params = nullptr;
   const std::unordered_map<std::string, ExprNodePtr> *expr_table = nullptr;
   const std::unordered_map<std::string, PredNodePtr> *pred_table = nullptr;
   ExecStats *stats = nullptr; // nullable, for instrumentation
+  // Resolved NodeRef params: param_name -> RowSet from referenced node
+  const std::unordered_map<std::string, RowSet> *resolved_node_refs = nullptr;
   // Future: request_id, engine_request_id, mode, logger, budgets...
 };
 

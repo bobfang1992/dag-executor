@@ -5,7 +5,7 @@
 // This file contains the generated task implementations.
 // It is used by plan.ts to implement task methods without manual code.
 
-import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput } from "./tasks.js";
+import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput, CandidateSetLike } from "./tasks.js";
 import type { KeyToken } from "./keys.js";
 
 // =====================================================
@@ -96,6 +96,16 @@ function assertPredInput(value: unknown, name: string): void {
   }
 }
 
+function assertCandidateSet(value: unknown, name: string): void {
+  if (value === null || typeof value !== "object") {
+    throw new Error(`${name} must be a CandidateSet, got ${value === null ? "null" : typeof value}`);
+  }
+  const obj = value as Record<string, unknown>;
+  if (typeof obj.getNodeId !== "function") {
+    throw new Error(`${name} must be a CandidateSet with 'getNodeId' method`);
+  }
+}
+
 function checkNoUndefined(obj: Record<string, unknown>, context: string): void {
   for (const [key, value] of Object.entries(obj)) {
     if (value === undefined) {
@@ -175,30 +185,30 @@ export function followImpl(
 /** Implementation for concat */
 export function concatImpl(
   ctx: TaskContext,
-  lhsNodeId: string,
-  rhsNodeId: string,
-  opts?: {
+  inputNodeId: string,
+  opts: {
+    rhs: CandidateSetLike;
     trace?: string | null;
     extensions?: Record<string, unknown>;
   }
 ): string {
-  let extensions: Record<string, unknown> | undefined;
-  if (opts !== undefined) {
-    const { extensions: ext, ...rest } = opts;
-    extensions = ext;
-    checkNoUndefined(rest as Record<string, unknown>, "concat(opts)");
-  }
+  assertNotUndefined(opts, "concat(opts)");
+  assertNotUndefined(opts.rhs, "concat({ rhs })");
+  assertCandidateSet(opts.rhs, "concat({ rhs })");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "concat(opts)");
 
   // Validate trace
-  if (opts?.trace !== undefined) {
-    assertStringOrNull(opts?.trace, "concat({ trace })");
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "concat({ trace })");
   }
 
   const params: Record<string, unknown> = {
-    trace: opts?.trace ?? null,
+    rhs: opts.rhs.getNodeId(),
+    trace: opts.trace ?? null,
   };
 
-  return ctx.addNode("concat", [lhsNodeId, rhsNodeId], params, extensions);
+  return ctx.addNode("concat", [inputNodeId], params, extensions);
 }
 
 /** Implementation for filter */

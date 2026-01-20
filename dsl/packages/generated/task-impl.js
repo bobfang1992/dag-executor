@@ -64,6 +64,15 @@ function assertPredInput(value, name) {
         throw new Error(`${name} must be a PredNode (with 'op') or PredPlaceholder (with '__pred_id')`);
     }
 }
+function assertCandidateSet(value, name) {
+    if (value === null || typeof value !== "object") {
+        throw new Error(`${name} must be a CandidateSet, got ${value === null ? "null" : typeof value}`);
+    }
+    const obj = value;
+    if (typeof obj.getNodeId !== "function") {
+        throw new Error(`${name} must be a CandidateSet with 'getNodeId' method`);
+    }
+}
 function checkNoUndefined(obj, context) {
     for (const [key, value] of Object.entries(obj)) {
         if (value === undefined) {
@@ -116,21 +125,21 @@ export function followImpl(ctx, opts) {
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
 /** Implementation for concat */
-export function concatImpl(ctx, lhsNodeId, rhsNodeId, opts) {
-    let extensions;
-    if (opts !== undefined) {
-        const { extensions: ext, ...rest } = opts;
-        extensions = ext;
-        checkNoUndefined(rest, "concat(opts)");
-    }
+export function concatImpl(ctx, inputNodeId, opts) {
+    assertNotUndefined(opts, "concat(opts)");
+    assertNotUndefined(opts.rhs, "concat({ rhs })");
+    assertCandidateSet(opts.rhs, "concat({ rhs })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "concat(opts)");
     // Validate trace
-    if (opts?.trace !== undefined) {
-        assertStringOrNull(opts?.trace, "concat({ trace })");
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "concat({ trace })");
     }
     const params = {
-        trace: opts?.trace ?? null,
+        rhs: opts.rhs.getNodeId(),
+        trace: opts.trace ?? null,
     };
-    return ctx.addNode("concat", [lhsNodeId, rhsNodeId], params, extensions);
+    return ctx.addNode("concat", [inputNodeId], params, extensions);
 }
 /** Implementation for filter */
 export function filterImpl(ctx, inputNodeId, opts) {

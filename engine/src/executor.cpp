@@ -78,7 +78,7 @@ void validate_plan(Plan &plan) {
     // Get TaskSpec for this node
     const auto &spec = registry.get_spec(node.op);
 
-    // Validate ExprId/PredId references against plan tables
+    // Validate ExprId/PredId/NodeRef references
     for (const auto &field : spec.params_schema) {
       if (!node.params.contains(field.name) || !node.params[field.name].is_string()) {
         continue;
@@ -96,6 +96,13 @@ void validate_plan(Plan &plan) {
           throw std::runtime_error("Node '" + node.node_id +
                                    "': pred_id '" + ref +
                                    "' not found in pred_table");
+        }
+      } else if (field.type == TaskParamType::NodeRef) {
+        // NodeRef must reference an existing node
+        if (node_index.find(ref) == node_index.end()) {
+          throw std::runtime_error("Node '" + node.node_id +
+                                   "': node_ref '" + field.name +
+                                   "' references missing node: " + ref);
         }
       }
     }
@@ -118,6 +125,7 @@ void validate_plan(Plan &plan) {
   }
 
   // Check for cycles using Kahn's algorithm
+  // Dependencies include both inputs and NodeRef params
   std::unordered_map<std::string, int> in_degree;
   std::unordered_map<std::string, std::vector<std::string>> successors;
 
@@ -125,8 +133,18 @@ void validate_plan(Plan &plan) {
     if (in_degree.find(node.node_id) == in_degree.end()) {
       in_degree[node.node_id] = 0;
     }
-    for (const auto &inp : node.inputs) {
-      successors[inp].push_back(node.node_id);
+    // Collect all dependencies: inputs + NodeRef params
+    std::vector<std::string> deps = node.inputs;
+    const auto &spec = registry.get_spec(node.op);
+    for (const auto &field : spec.params_schema) {
+      if (field.type == TaskParamType::NodeRef &&
+          node.params.contains(field.name) &&
+          node.params[field.name].is_string()) {
+        deps.push_back(node.params[field.name].get<std::string>());
+      }
+    }
+    for (const auto &dep : deps) {
+      successors[dep].push_back(node.node_id);
       in_degree[node.node_id]++;
     }
   }
@@ -156,8 +174,10 @@ void validate_plan(Plan &plan) {
   }
 }
 
-ExecutionResult execute_plan(const Plan &plan, const ExecCtx &ctx) {
+ExecutionResult execute_plan(const Plan &plan, const ExecCtx &base_ctx) {
   ExecutionResult result;
+
+  const auto &registry = TaskRegistry::instance();
 
   // Build node_id -> index map
   std::unordered_map<std::string, size_t> node_index;
@@ -166,6 +186,7 @@ ExecutionResult execute_plan(const Plan &plan, const ExecCtx &ctx) {
   }
 
   // Topological sort using Kahn's algorithm
+  // Dependencies include both inputs and NodeRef params
   std::unordered_map<std::string, int> in_degree;
   std::unordered_map<std::string, std::vector<std::string>> successors;
 
@@ -173,8 +194,18 @@ ExecutionResult execute_plan(const Plan &plan, const ExecCtx &ctx) {
     if (in_degree.find(node.node_id) == in_degree.end()) {
       in_degree[node.node_id] = 0;
     }
-    for (const auto &inp : node.inputs) {
-      successors[inp].push_back(node.node_id);
+    // Collect all dependencies: inputs + NodeRef params
+    std::vector<std::string> deps = node.inputs;
+    const auto &spec = registry.get_spec(node.op);
+    for (const auto &field : spec.params_schema) {
+      if (field.type == TaskParamType::NodeRef &&
+          node.params.contains(field.name) &&
+          node.params[field.name].is_string()) {
+        deps.push_back(node.params[field.name].get<std::string>());
+      }
+    }
+    for (const auto &dep : deps) {
+      successors[dep].push_back(node.node_id);
       in_degree[node.node_id]++;
     }
   }
@@ -200,7 +231,6 @@ ExecutionResult execute_plan(const Plan &plan, const ExecCtx &ctx) {
   }
 
   // Execute in topological order
-  const auto &registry = TaskRegistry::instance();
   std::unordered_map<std::string, RowSet> results;
 
   for (const auto &node_id : topo_order) {
@@ -212,22 +242,40 @@ ExecutionResult execute_plan(const Plan &plan, const ExecCtx &ctx) {
     }
 
     auto validated_params = registry.validate_params(node.op, node.params);
+
+    // Resolve NodeRef params and build execution context
+    std::unordered_map<std::string, RowSet> resolved_node_refs;
+    for (const auto &[param_name, ref_node_id] : validated_params.node_ref_params) {
+      resolved_node_refs.emplace(param_name, results.at(ref_node_id));
+    }
+
+    // Create execution context with resolved NodeRefs
+    ExecCtx ctx = base_ctx;
+    ctx.resolved_node_refs = resolved_node_refs.empty() ? nullptr : &resolved_node_refs;
+
     RowSet output = registry.execute(node.op, inputs, validated_params, ctx);
 
     // Validate output against task's output contract
     const auto &spec = registry.get_spec(node.op);
-    validateTaskOutput(node_id, node.op, spec.output_pattern, inputs,
+    // For ConcatDense, we need to provide the rhs RowSet as a virtual input
+    std::vector<RowSet> contract_inputs = inputs;
+    if (spec.output_pattern == OutputPattern::ConcatDense && !resolved_node_refs.empty()) {
+      // Add resolved rhs to contract inputs for validation
+      contract_inputs.push_back(resolved_node_refs.at("rhs"));
+    }
+    validateTaskOutput(node_id, node.op, spec.output_pattern, contract_inputs,
                        validated_params, output);
 
     // RFC0005: Compute schema delta for this node (runtime audit)
+    // Use contract_inputs (which includes resolved NodeRefs) for schema delta
     // Fast path: if unary op with same batch pointer, schema is unchanged
-    if (!is_same_batch(inputs, output)) {
-      SchemaDelta delta = compute_schema_delta(inputs, output);
+    if (!is_same_batch(contract_inputs, output)) {
+      SchemaDelta delta = compute_schema_delta(contract_inputs, output);
       result.schema_deltas.push_back({node_id, delta});
     } else {
       // Same batch: no schema change
       SchemaDelta delta;
-      delta.in_keys_union = collect_keys(inputs[0].batch());
+      delta.in_keys_union = collect_keys(contract_inputs[0].batch());
       delta.out_keys = delta.in_keys_union;
       // new_keys and removed_keys remain empty
       result.schema_deltas.push_back({node_id, delta});

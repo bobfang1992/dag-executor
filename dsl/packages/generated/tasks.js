@@ -4,7 +4,7 @@
 // =====================================================
 // Metadata
 // =====================================================
-export const TASK_MANIFEST_DIGEST = "491ba7faf5e41c95710d2f32ca1ad489ac2e4c06b5ab447c8e22e20972be77fe";
+export const TASK_MANIFEST_DIGEST = "c02b01d9e7d4f7c0a2ef2734f12b16c76f83c6f8d0e12b6426cf816debe839c0";
 export const TASK_COUNT = 7;
 /** Map from method name to extraction info */
 export const TASK_EXTRACTION_INFO = {

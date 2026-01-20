@@ -1,4 +1,4 @@
-import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput } from "./tasks.js";
+import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput, CandidateSetLike } from "./tasks.js";
 import type { KeyToken } from "./keys.js";
 /** Interface for expression placeholder detection */
 export declare function isExprPlaceholder(value: unknown): value is ExprPlaceholder;
@@ -23,7 +23,8 @@ export declare function followImpl(ctx: TaskContext, opts: {
     extensions?: Record<string, unknown>;
 }): string;
 /** Implementation for concat */
-export declare function concatImpl(ctx: TaskContext, lhsNodeId: string, rhsNodeId: string, opts?: {
+export declare function concatImpl(ctx: TaskContext, inputNodeId: string, opts: {
+    rhs: CandidateSetLike;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;

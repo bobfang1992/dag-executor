@@ -1,7 +1,7 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "7a156530f6c95109",
+    "bundle_digest": "bd8ab3e481ce46cb",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
@@ -26,12 +26,12 @@
     },
     {
       "inputs": [
-        "n0",
-        "n1"
+        "n0"
       ],
       "node_id": "n2",
       "op": "concat",
       "params": {
+        "rhs": "n1",
         "trace": "C"
       }
     },

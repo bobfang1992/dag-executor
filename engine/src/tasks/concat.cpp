@@ -1,4 +1,5 @@
 #include "task_registry.h"
+#include "param_table.h"
 #include <set>
 #include <stdexcept>
 #include <unordered_map>
@@ -12,6 +13,9 @@ public:
         .op = "concat",
         .params_schema =
             {
+                {.name = "rhs",
+                 .type = TaskParamType::NodeRef,
+                 .required = true},
                 {.name = "trace",
                  .type = TaskParamType::String,
                  .required = false,
@@ -27,15 +31,18 @@ public:
 
   static RowSet run(const std::vector<RowSet> &inputs,
                     [[maybe_unused]] const ValidatedParams &params,
-                    [[maybe_unused]] const ExecCtx &ctx) {
-    if (inputs.size() != 2) {
+                    const ExecCtx &ctx) {
+    if (inputs.size() != 1) {
       throw std::runtime_error(
-          "Error: op 'concat' expects exactly 2 inputs, got " +
+          "Error: op 'concat' expects exactly 1 input, got " +
           std::to_string(inputs.size()));
+    }
+    if (!ctx.resolved_node_refs || ctx.resolved_node_refs->find("rhs") == ctx.resolved_node_refs->end()) {
+      throw std::runtime_error("Error: op 'concat' missing resolved 'rhs' NodeRef");
     }
 
     const auto &lhs = inputs[0];
-    const auto &rhs = inputs[1];
+    const auto &rhs = ctx.resolved_node_refs->at("rhs");
 
     // Materialize active indices
     auto lhsIdx = lhs.activeRows().toVector(lhs.rowCount());

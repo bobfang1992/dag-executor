@@ -73,7 +73,7 @@ interface ValidationRules {
   enums: Record<string, string[]>;
 }
 
-type TaskParamType = "int" | "float" | "bool" | "string" | "expr_id" | "pred_id";
+type TaskParamType = "int" | "float" | "bool" | "string" | "expr_id" | "pred_id" | "node_ref";
 
 interface TaskParamEntry {
   name: string;
@@ -104,7 +104,7 @@ const PARAM_TYPES: readonly string[] = ["int", "float", "string", "bool"];
 const FEATURE_TYPES: readonly string[] = ["int", "float", "string", "bool"];
 const STATUSES: readonly string[] = ["active", "deprecated", "blocked"];
 const CAPABILITY_STATUSES: readonly string[] = ["implemented", "draft", "deprecated", "blocked"];
-const TASK_PARAM_TYPES: readonly string[] = ["int", "float", "bool", "string", "expr_id", "pred_id"];
+const TASK_PARAM_TYPES: readonly string[] = ["int", "float", "bool", "string", "expr_id", "pred_id", "node_ref"];
 
 function isKeyType(v: unknown): v is KeyType {
   return typeof v === "string" && KEY_TYPES.includes(v);
@@ -784,6 +784,15 @@ function generateTasksTs(registry: TaskRegistry): string {
     "/** PredInput - predicate input type for tasks (builder or natural syntax) */",
     "export type PredInput = PredNode | PredPlaceholder;",
     "",
+    "// =====================================================",
+    "// Node reference types (for tasks like concat)",
+    "// =====================================================",
+    "",
+    "/** Interface for CandidateSet used by NodeRef params (avoids circular dep with runtime) */",
+    "export interface CandidateSetLike {",
+    "  getNodeId(): string;",
+    "}",
+    "",
   ];
 
   // Classify tasks: viewer.* are source tasks, others are transform tasks
@@ -964,6 +973,9 @@ function paramTypeToTsType(param: TaskParamEntry): string {
     case "pred_id":
       baseType = "PredInput";
       break;
+    case "node_ref":
+      baseType = "CandidateSetLike";
+      break;
     default:
       baseType = "unknown";
   }
@@ -979,12 +991,10 @@ function paramTypeToTsType(param: TaskParamEntry): string {
 /**
  * Get input arity for a task op.
  * - viewer.*: 0 (source task, no inputs)
- * - concat: 2 (binary, lhs and rhs)
- * - others: 1 (unary transform)
+ * - others: 1 (unary transform, including concat which uses NodeRef for rhs)
  */
 function getTaskArity(op: string): number {
   if (op.startsWith("viewer.")) return 0;
-  if (op === "concat") return 2;
   return 1;
 }
 
@@ -1014,7 +1024,7 @@ function generateTaskImplTs(registry: TaskRegistry): string {
     '// This file contains the generated task implementations.',
     '// It is used by plan.ts to implement task methods without manual code.',
     "",
-    'import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput } from "./tasks.js";',
+    'import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput, CandidateSetLike } from "./tasks.js";',
     'import type { KeyToken } from "./keys.js";',
     "",
     "// =====================================================",
@@ -1102,6 +1112,16 @@ function generateTaskImplTs(registry: TaskRegistry): string {
     "  // PredPlaceholder has __pred_id, PredNode has op",
     "  if (typeof obj.__pred_id !== \"number\" && typeof obj.op !== \"string\") {",
     "    throw new Error(`${name} must be a PredNode (with 'op') or PredPlaceholder (with '__pred_id')`);",
+    "  }",
+    "}",
+    "",
+    "function assertCandidateSet(value: unknown, name: string): void {",
+    "  if (value === null || typeof value !== \"object\") {",
+    "    throw new Error(`${name} must be a CandidateSet, got ${value === null ? \"null\" : typeof value}`);",
+    "  }",
+    "  const obj = value as Record<string, unknown>;",
+    "  if (typeof obj.getNodeId !== \"function\") {",
+    "    throw new Error(`${name} must be a CandidateSet with 'getNodeId' method`);",
     "  }",
     "}",
     "",
@@ -1238,33 +1258,26 @@ function generateTaskImplTs(registry: TaskRegistry): string {
       lines.push(`): string {`);
 
       // Generate validation
-      if (arity === 2) {
-        // Binary task - opts is optional
-        lines.push(`  let extensions: Record<string, unknown> | undefined;`);
-        lines.push(`  if (opts !== undefined) {`);
-        lines.push(`    const { extensions: ext, ...rest } = opts;`);
-        lines.push(`    extensions = ext;`);
-        lines.push(`    checkNoUndefined(rest as Record<string, unknown>, "${methodName}(opts)");`);
-        lines.push(`  }`);
-      } else {
-        // Unary task
-        lines.push(`  assertNotUndefined(opts, "${methodName}(opts)");`);
-        for (const param of task.params) {
-          if (param.required) {
-            const tsName = cppNameToTsName(param.name);
-            lines.push(`  assertNotUndefined(opts.${tsName}, "${methodName}({ ${tsName} })");`);
-            // Add type-specific validation
-            if (param.name === "out_key") {
-              // out_key is a KeyToken, validate it has valid .id
-              lines.push(`  assertKeyToken(opts.${tsName}, "${methodName}({ ${tsName} })");`);
-            } else if (param.type === "int") {
-              lines.push(`  assertInteger(opts.${tsName}, "${methodName}({ ${tsName} })");`);
-            }
+      // Unary task
+      lines.push(`  assertNotUndefined(opts, "${methodName}(opts)");`);
+      for (const param of task.params) {
+        if (param.required) {
+          const tsName = cppNameToTsName(param.name);
+          lines.push(`  assertNotUndefined(opts.${tsName}, "${methodName}({ ${tsName} })");`);
+          // Add type-specific validation
+          if (param.name === "out_key") {
+            // out_key is a KeyToken, validate it has valid .id
+            lines.push(`  assertKeyToken(opts.${tsName}, "${methodName}({ ${tsName} })");`);
+          } else if (param.type === "int") {
+            lines.push(`  assertInteger(opts.${tsName}, "${methodName}({ ${tsName} })");`);
+          } else if (param.type === "node_ref") {
+            // NodeRef is a CandidateSet, validate it has a getNodeId method
+            lines.push(`  assertCandidateSet(opts.${tsName}, "${methodName}({ ${tsName} })");`);
           }
         }
-        lines.push(`  const { extensions, ...rest } = opts;`);
-        lines.push(`  checkNoUndefined(rest as Record<string, unknown>, "${methodName}(opts)");`);
       }
+      lines.push(`  const { extensions, ...rest } = opts;`);
+      lines.push(`  checkNoUndefined(rest as Record<string, unknown>, "${methodName}(opts)");`);
       lines.push("");
 
       // Handle expr_id and pred_id params (table management)
@@ -1272,12 +1285,11 @@ function generateTaskImplTs(registry: TaskRegistry): string {
       const hasPredId = task.params.some(p => p.type === "pred_id");
       const hasTrace = task.params.some(p => p.name === "trace");
 
-      // Validate trace if present (use optional chaining for arity 2 where opts is optional)
+      // Validate trace if present
       if (hasTrace) {
-        const optAccess = arity === 2 ? "opts?.trace" : "opts.trace";
         lines.push(`  // Validate trace`);
-        lines.push(`  if (${optAccess} !== undefined) {`);
-        lines.push(`    assertStringOrNull(${optAccess}, "${methodName}({ trace })");`);
+        lines.push(`  if (opts.trace !== undefined) {`);
+        lines.push(`    assertStringOrNull(opts.trace, "${methodName}({ trace })");`);
         lines.push(`  }`);
         lines.push("");
       }
@@ -1311,39 +1323,32 @@ function generateTaskImplTs(registry: TaskRegistry): string {
       }
 
       // Generate params object
-      if (arity === 2) {
-        lines.push(`  const params: Record<string, unknown> = {`);
-        lines.push(`    trace: opts?.trace ?? null,`);
-        lines.push(`  };`);
-      } else {
-        lines.push(`  const params: Record<string, unknown> = {`);
-        for (const param of task.params) {
-          const tsName = cppNameToTsName(param.name);
-          const cppName = param.name;
+      lines.push(`  const params: Record<string, unknown> = {`);
+      for (const param of task.params) {
+        const tsName = cppNameToTsName(param.name);
+        const cppName = param.name;
 
-          if (param.type === "expr_id") {
-            lines.push(`    ${cppName}: exprId,`);
-          } else if (param.type === "pred_id") {
-            lines.push(`    ${cppName}: predId,`);
-          } else if (param.name === "out_key") {
-            // KeyToken - extract .id
-            lines.push(`    ${cppName}: opts.${tsName}.id,`);
-          } else if (param.name === "trace") {
-            lines.push(`    ${cppName}: opts.${tsName} ?? null,`);
-          } else {
-            lines.push(`    ${cppName}: opts.${tsName},`);
-          }
+        if (param.type === "expr_id") {
+          lines.push(`    ${cppName}: exprId,`);
+        } else if (param.type === "pred_id") {
+          lines.push(`    ${cppName}: predId,`);
+        } else if (param.type === "node_ref") {
+          // CandidateSet - extract nodeId
+          lines.push(`    ${cppName}: opts.${tsName}.getNodeId(),`);
+        } else if (param.name === "out_key") {
+          // KeyToken - extract .id
+          lines.push(`    ${cppName}: opts.${tsName}.id,`);
+        } else if (param.name === "trace") {
+          lines.push(`    ${cppName}: opts.${tsName} ?? null,`);
+        } else {
+          lines.push(`    ${cppName}: opts.${tsName},`);
         }
-        lines.push(`  };`);
       }
+      lines.push(`  };`);
       lines.push("");
 
       // Create node
-      if (arity === 2) {
-        lines.push(`  return ctx.addNode("${task.op}", [lhsNodeId, rhsNodeId], params, extensions);`);
-      } else {
-        lines.push(`  return ctx.addNode("${task.op}", [inputNodeId], params, extensions);`);
-      }
+      lines.push(`  return ctx.addNode("${task.op}", [inputNodeId], params, extensions);`);
       lines.push(`}`);
       lines.push("");
     }
@@ -2165,13 +2170,8 @@ function generateMonacoTypes(
   // Generate CandidateSet interface with transform task methods
   lines.push("  export interface CandidateSet {");
   for (const task of transformTasks) {
-    // concat is special: takes another CandidateSet
-    if (task.op === "concat") {
-      lines.push("    concat(other: CandidateSet, opts?: { trace?: string }): CandidateSet;");
-    } else {
-      const optsType = generateMonacoOptsType(task);
-      lines.push(`    ${task.op}(opts: ${optsType}): CandidateSet;`);
-    }
+    const optsType = generateMonacoOptsType(task);
+    lines.push(`    ${task.op}(opts: ${optsType}): CandidateSet;`);
   }
   lines.push("  }");
   lines.push("");
@@ -2254,6 +2254,9 @@ function generateMonacoOptsType(task: TaskEntry): string {
         break;
       case "pred_id":
         tsType = "PredNode";
+        break;
+      case "node_ref":
+        tsType = "CandidateSet";
         break;
       default:
         tsType = "unknown";

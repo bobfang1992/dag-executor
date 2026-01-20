@@ -35,10 +35,18 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
     auto fcp = registry.validate_params("viewer.fetch_cached_recommendation", fetch_params);
     RowSet rhs = registry.execute("viewer.fetch_cached_recommendation", {}, fcp, ctx);
 
-    // Concat them
+    // Concat them - now uses params.rhs instead of inputs[1]
     nlohmann::json concat_params;
+    concat_params["rhs"] = "rhs_node";  // node_id reference (not used in direct test)
     auto cp = registry.validate_params("concat", concat_params);
-    RowSet result = registry.execute("concat", {lhs, rhs}, cp, ctx);
+
+    // Set up resolved_node_refs for the task execution
+    std::unordered_map<std::string, RowSet> resolved_refs;
+    resolved_refs.emplace("rhs", rhs);
+    ExecCtx exec_ctx = ctx;
+    exec_ctx.resolved_node_refs = &resolved_refs;
+
+    RowSet result = registry.execute("concat", {lhs}, cp, exec_ctx);
 
     REQUIRE(result.rowCount() == 8);
     REQUIRE(result.logicalSize() == 8);
@@ -76,30 +84,35 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
     }
   }
 
-  SECTION("concat with wrong arity (1 input) throws") {
+  SECTION("concat missing rhs param throws at validate_params") {
+    nlohmann::json concat_params;
+    // No rhs param - should fail
+    REQUIRE_THROWS_WITH(
+        registry.validate_params("concat", concat_params),
+        "Invalid params for op 'concat': missing required field 'rhs'");
+  }
+
+  SECTION("concat with wrong input arity (0 inputs) throws") {
     nlohmann::json follow_params;
     follow_params["fanout"] = 4;
     auto fp = registry.validate_params("viewer.follow", follow_params);
-    RowSet lhs = registry.execute("viewer.follow", {}, fp, ctx);
+    RowSet rhs = registry.execute("viewer.follow", {}, fp, ctx);
 
     nlohmann::json concat_params;
+    concat_params["rhs"] = "rhs_node";
     auto cp = registry.validate_params("concat", concat_params);
 
-    REQUIRE_THROWS_WITH(
-        registry.execute("concat", {lhs}, cp, ctx),
-        "Error: op 'concat' expects exactly 2 inputs, got 1");
-  }
-
-  SECTION("concat with wrong arity (0 inputs) throws") {
-    nlohmann::json concat_params;
-    auto cp = registry.validate_params("concat", concat_params);
+    std::unordered_map<std::string, RowSet> resolved_refs;
+    resolved_refs.emplace("rhs", rhs);
+    ExecCtx exec_ctx = ctx;
+    exec_ctx.resolved_node_refs = &resolved_refs;
 
     REQUIRE_THROWS_WITH(
-        registry.execute("concat", {}, cp, ctx),
-        "Error: op 'concat' expects exactly 2 inputs, got 0");
+        registry.execute("concat", {}, cp, exec_ctx),
+        "Error: op 'concat' expects exactly 1 input, got 0");
   }
 
-  SECTION("concat with wrong arity (3 inputs) throws") {
+  SECTION("concat with wrong input arity (2 inputs) throws") {
     nlohmann::json follow_params;
     follow_params["fanout"] = 2;
     auto fp = registry.validate_params("viewer.follow", follow_params);
@@ -108,11 +121,33 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
     RowSet c = registry.execute("viewer.follow", {}, fp, ctx);
 
     nlohmann::json concat_params;
+    concat_params["rhs"] = "rhs_node";
     auto cp = registry.validate_params("concat", concat_params);
 
+    std::unordered_map<std::string, RowSet> resolved_refs;
+    resolved_refs.emplace("rhs", c);
+    ExecCtx exec_ctx = ctx;
+    exec_ctx.resolved_node_refs = &resolved_refs;
+
     REQUIRE_THROWS_WITH(
-        registry.execute("concat", {a, b, c}, cp, ctx),
-        "Error: op 'concat' expects exactly 2 inputs, got 3");
+        registry.execute("concat", {a, b}, cp, exec_ctx),
+        "Error: op 'concat' expects exactly 1 input, got 2");
+  }
+
+  SECTION("concat with missing resolved_node_refs throws") {
+    nlohmann::json follow_params;
+    follow_params["fanout"] = 4;
+    auto fp = registry.validate_params("viewer.follow", follow_params);
+    RowSet lhs = registry.execute("viewer.follow", {}, fp, ctx);
+
+    nlohmann::json concat_params;
+    concat_params["rhs"] = "rhs_node";
+    auto cp = registry.validate_params("concat", concat_params);
+
+    // No resolved_node_refs set - should fail
+    REQUIRE_THROWS_WITH(
+        registry.execute("concat", {lhs}, cp, ctx),
+        "Error: op 'concat' missing resolved 'rhs' NodeRef");
   }
 }
 
@@ -141,20 +176,11 @@ TEST_CASE("concat_demo.plan.json executes correctly", "[concat][plan]") {
   REQUIRE(ids == std::vector<int64_t>{1, 2, 3, 4, 1001, 1002, 1003, 1004});
 }
 
-TEST_CASE("concat_bad_arity.plan.json fails validation", "[concat][plan]") {
+TEST_CASE("concat_bad_arity.plan.json fails validation (missing rhs)", "[concat][plan]") {
   Plan plan = parse_plan("artifacts/plans/concat_bad_arity.plan.json");
 
-  // Validation should pass (input references are valid)
-  // But execution should fail with arity error
-  validate_plan(plan);
-
-  ExecCtx ctx;
-  ParamTable params;
-  ctx.params = &params;
-  ctx.expr_table = &plan.expr_table;
-  ctx.pred_table = &plan.pred_table;
-
+  // Validation should fail because rhs param is missing
   REQUIRE_THROWS_WITH(
-      execute_plan(plan, ctx),
-      "Error: op 'concat' expects exactly 2 inputs, got 1");
+      validate_plan(plan),
+      "Node 'n1': Invalid params for op 'concat': missing required field 'rhs'");
 }

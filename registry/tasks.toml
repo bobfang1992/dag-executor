@@ -1,11 +1,17 @@
 # AUTO-GENERATED from C++ TaskSpec - DO NOT EDIT
 # Regenerate with: engine/bin/rankd --print-task-manifest > registry/tasks.toml
 schema_version = 1
-manifest_digest = "491ba7faf5e41c95710d2f32ca1ad489ac2e4c06b5ab447c8e22e20972be77fe"
+manifest_digest = "c02b01d9e7d4f7c0a2ef2734f12b16c76f83c6f8d0e12b6426cf816debe839c0"
 
 [[task]]
 op = "concat"
 output_pattern = "ConcatDense"
+
+  [[task.param]]
+  name = "rhs"
+  type = "node_ref"
+  required = true
+  nullable = false
 
   [[task.param]]
   name = "trace"
