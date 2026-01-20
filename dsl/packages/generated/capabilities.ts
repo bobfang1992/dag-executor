@@ -38,7 +38,7 @@ export const ALL_CAPABILITY_IDS = [
   "cap.rfc.0005.key_effects_writes_exact.v1",
 ] as const;
 
-/** Set of capability IDs that are implemented and supported */
+/** Set of capability IDs that are supported (implemented + deprecated for backwards compat) */
 export const SUPPORTED_CAPABILITIES = new Set([
   "cap.rfc.0001.extensions_capabilities.v1",
 ]);

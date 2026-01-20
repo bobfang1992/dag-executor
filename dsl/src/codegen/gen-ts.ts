@@ -276,11 +276,12 @@ export function generateCapabilitiesTs(capabilities: CapabilityEntry[], digest: 
   lines.push("] as const;");
   lines.push("");
 
-  // Generate set of supported (implemented) capabilities
-  const implementedCaps = capabilities.filter(c => c.status === "implemented");
-  lines.push("/** Set of capability IDs that are implemented and supported */");
+  // Generate set of supported capabilities (implemented + deprecated for backwards compat)
+  // This matches engine behavior in capability_registry.cpp
+  const supportedCaps = capabilities.filter(c => c.status === "implemented" || c.status === "deprecated");
+  lines.push("/** Set of capability IDs that are supported (implemented + deprecated for backwards compat) */");
   lines.push("export const SUPPORTED_CAPABILITIES = new Set([");
-  for (const cap of implementedCaps) {
+  for (const cap of supportedCaps) {
     lines.push(`  "${cap.id}",`);
   }
   lines.push("]);");
