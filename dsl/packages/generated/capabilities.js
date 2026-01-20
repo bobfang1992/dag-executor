@@ -40,9 +40,9 @@ export function validatePayload(capId, payload) {
     if (!meta)
         return `Unknown capability: ${capId}`;
     const schema = meta.payload_schema;
-    // null schema means no payload allowed
+    // null schema means no payload allowed (only undefined/null accepted)
     if (schema === null) {
-        if (payload !== undefined && payload !== null && (typeof payload !== "object" || Object.keys(payload).length > 0)) {
+        if (payload !== undefined && payload !== null) {
             return `Capability ${capId} does not allow a payload`;
         }
         return null;
@@ -52,12 +52,22 @@ export function validatePayload(capId, payload) {
         if (typeof payload !== "object" || payload === null) {
             return `Capability ${capId} payload must be an object`;
         }
+        const payloadObj = payload;
         // Check additionalProperties: false
         if (schema.additionalProperties === false) {
             const allowedKeys = new Set(schema.properties ? Object.keys(schema.properties) : []);
-            for (const key of Object.keys(payload)) {
+            for (const key of Object.keys(payloadObj)) {
                 if (!allowedKeys.has(key)) {
                     return `Capability ${capId} payload has unexpected property: ${key}`;
+                }
+            }
+        }
+        // Check required properties
+        const schemaWithReq = schema;
+        if (schemaWithReq.required) {
+            for (const key of schemaWithReq.required) {
+                if (!(key in payloadObj)) {
+                    return `Capability ${capId} payload missing required property: ${key}`;
                 }
             }
         }
