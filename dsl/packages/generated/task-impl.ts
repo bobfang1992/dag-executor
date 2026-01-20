@@ -47,6 +47,10 @@ function checkNoUndefined(obj: Record<string, unknown>, context: string): void {
     if (value === undefined) {
       throw new Error(`${context}.${key} is undefined`);
     }
+    // Recursively check nested objects (but not arrays)
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      checkNoUndefined(value as Record<string, unknown>, `${context}.${key}`);
+    }
   }
 }
 
