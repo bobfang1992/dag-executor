@@ -49,7 +49,7 @@ export class PlanCtx {
   readonly viewer = {
     follow: (opts: {
       fanout: number;
-      trace?: string;
+      trace?: string | null;
       extensions?: Record<string, unknown>;
     }): CandidateSet => {
       assertNotUndefined(opts, "viewer.follow(opts)");
@@ -74,7 +74,7 @@ export class PlanCtx {
 
     fetch_cached_recommendation: (opts: {
       fanout: number;
-      trace?: string;
+      trace?: string | null;
       extensions?: Record<string, unknown>;
     }): CandidateSet => {
       assertNotUndefined(opts, "viewer.fetch_cached_recommendation(opts)");
@@ -200,7 +200,7 @@ export class CandidateSet {
   vm(opts: {
     outKey: KeyToken;
     expr: VmExpr;
-    trace?: string;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
     assertNotUndefined(opts, "vm(opts)");
@@ -237,7 +237,7 @@ export class CandidateSet {
    */
   filter(opts: {
     pred: PredNode;
-    trace?: string;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
     assertNotUndefined(opts, "filter(opts)");
@@ -263,7 +263,7 @@ export class CandidateSet {
    */
   take(opts: {
     count: number;
-    trace?: string;
+    trace?: string | null;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
     assertNotUndefined(opts, "take(opts)");
@@ -288,7 +288,7 @@ export class CandidateSet {
    */
   concat(
     rhs: CandidateSet,
-    opts?: { trace?: string; extensions?: Record<string, unknown> }
+    opts?: { trace?: string | null; extensions?: Record<string, unknown> }
   ): CandidateSet {
     assertNotUndefined(rhs, "concat(rhs)");
     if (rhs.ctx !== this.ctx) {
