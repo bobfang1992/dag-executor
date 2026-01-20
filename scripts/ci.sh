@@ -594,7 +594,7 @@ with open("/tmp/ci-writes-eval-55.json") as f:
 # Must have nodes array
 assert "nodes" in data, "Missing nodes array"
 nodes = data["nodes"]
-assert len(nodes) == 4, f"Expected 4 nodes, got {len(nodes)}"
+assert len(nodes) == 5, f"Expected 5 nodes, got {len(nodes)}"
 
 # Check each node has writes_eval
 for node in nodes:
@@ -611,9 +611,12 @@ assert source_node["writes_eval"]["kind"] == "Exact"
 assert 3001 in source_node["writes_eval"]["keys"]  # features_esr_score
 assert 3002 in source_node["writes_eval"]["keys"]  # features_lsr_score
 
-vm_node = next(n for n in nodes if n["op"] == "vm")
-assert vm_node["writes_eval"]["kind"] == "Exact"
-assert vm_node["writes_eval"]["keys"] == [2001]  # final_score
+# Both vm nodes write to final_score (2001)
+vm_nodes = [n for n in nodes if n["op"] == "vm"]
+assert len(vm_nodes) == 2, f"Expected 2 vm nodes, got {len(vm_nodes)}"
+for vm_node in vm_nodes:
+    assert vm_node["writes_eval"]["kind"] == "Exact"
+    assert vm_node["writes_eval"]["keys"] == [2001]  # final_score
 
 filter_node = next(n for n in nodes if n["op"] == "filter")
 assert filter_node["writes_eval"]["kind"] == "Exact"

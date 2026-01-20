@@ -3,7 +3,7 @@
  */
 
 export { E, coalesce } from "./expr.js";
-export type { ExprNode, StaticExprToken } from "./expr.js";
+export type { ExprNode, ExprPlaceholder, ExprInput, StaticExprToken } from "./expr.js";
 
 export { Pred } from "./pred.js";
 export type { PredNode, RegexPattern } from "./pred.js";

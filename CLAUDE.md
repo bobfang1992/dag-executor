@@ -260,11 +260,29 @@ row._debug.get("key")      // Debug-only string access
 ```
 
 ### ExprIR (vm expressions)
+
+**Expression Types** (defined in `@ranking-dsl/generated`):
+- `ExprNode` - Builder-style expression tree (e.g., `E.key(Key.x)`)
+- `ExprPlaceholder` - Compile-time placeholder for natural syntax
+- `ExprInput = ExprNode | ExprPlaceholder` - Union accepted by `vm()` task
+
+**Natural syntax** (preferred, AST-extracted at compile time):
 ```typescript
-c.vm(Key.final_score,
-     Key.model_score_1 + Key.model_score_2 * 3 - Key.media_age * P.media_age_penalty_weight,
-     { trace: "vm_final" });
+c.vm({
+  outKey: Key.final_score,
+  expr: Key.model_score_1 + Key.model_score_2 * 3 - Key.media_age * P.weight,
+  trace: "vm_final",
+});
 ```
+
+**Builder syntax** (explicit, no AST extraction needed):
+```typescript
+c.vm({
+  outKey: Key.final_score,
+  expr: E.sub(E.add(E.key(Key.model_score_1), E.mul(E.key(Key.model_score_2), E.const(3))),
+              E.mul(E.key(Key.media_age), E.param(P.weight))),
+  trace: "vm_final",
+});
 
 ### PredIR (filter predicates)
 ```typescript

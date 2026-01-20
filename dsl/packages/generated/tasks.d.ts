@@ -1,20 +1,86 @@
 import type { KeyToken } from "./keys.js";
-/** Expression node (structural type matching @ranking-dsl/runtime ExprNode) */
-export interface ExprNode {
-    readonly op: string;
-    [key: string]: unknown;
+/** ExprNode - matches engine's ExprIR format (builder-style) */
+export type ExprNode = {
+    op: "const_number";
+    value: number;
+} | {
+    op: "const_null";
+} | {
+    op: "key_ref";
+    key_id: number;
+} | {
+    op: "param_ref";
+    param_id: number;
+} | {
+    op: "add";
+    a: ExprNode;
+    b: ExprNode;
+} | {
+    op: "sub";
+    a: ExprNode;
+    b: ExprNode;
+} | {
+    op: "mul";
+    a: ExprNode;
+    b: ExprNode;
+} | {
+    op: "neg";
+    x: ExprNode;
+} | {
+    op: "coalesce";
+    a: ExprNode;
+    b: ExprNode;
+};
+/** ExprPlaceholder - compile-time placeholder for natural expression syntax */
+export interface ExprPlaceholder {
+    __expr_id: number;
 }
-/** AST-extracted expression placeholder */
-export interface StaticExprToken {
-    readonly __expr_id: number;
-}
-/** Expression type for vm task */
-export type VmExpr = ExprNode | StaticExprToken;
-/** Predicate node (structural type matching @ranking-dsl/runtime PredNode) */
-export interface PredNode {
-    readonly op: string;
-    [key: string]: unknown;
-}
+/** ExprInput - expression input type for tasks (builder or natural syntax) */
+export type ExprInput = ExprNode | ExprPlaceholder;
+/** Regex pattern - literal string or param reference */
+export type RegexPattern = {
+    kind: "literal";
+    value: string;
+} | {
+    kind: "param";
+    param_id: number;
+};
+/** PredNode - matches engine's PredIR format */
+export type PredNode = {
+    op: "const_bool";
+    value: boolean;
+} | {
+    op: "and";
+    a: PredNode;
+    b: PredNode;
+} | {
+    op: "or";
+    a: PredNode;
+    b: PredNode;
+} | {
+    op: "not";
+    x: PredNode;
+} | {
+    op: "cmp";
+    cmp: "==" | "!=" | "<" | "<=" | ">" | ">=";
+    a: ExprNode;
+    b: ExprNode;
+} | {
+    op: "in";
+    lhs: ExprNode;
+    list: (number | string)[];
+} | {
+    op: "is_null";
+    x: ExprNode;
+} | {
+    op: "not_null";
+    x: ExprNode;
+} | {
+    op: "regex";
+    key_id: number;
+    pattern: RegexPattern;
+    flags: string;
+};
 export interface ViewerFetchCachedRecommendationOpts {
     fanout: number;
     trace?: string | null;
@@ -40,7 +106,7 @@ export interface TakeOpts {
     extensions?: Record<string, unknown>;
 }
 export interface VmOpts {
-    expr: VmExpr;
+    expr: ExprInput;
     outKey: KeyToken;
     trace?: string | null;
     extensions?: Record<string, unknown>;
