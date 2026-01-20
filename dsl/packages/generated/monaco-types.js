@@ -7,28 +7,9 @@
  */
 export const DSL_TYPES = `
 declare module '@ranking-dsl/runtime' {
-  // ============================================================
-  // Natural expression type (for Key.x * P.y syntax)
-  // ============================================================
-
-  /**
-   * Represents a natural expression that will be extracted by the compiler.
-   * Supports arithmetic operations (+, -, *, unary -).
-   * The compiler extracts these at compile-time and converts to ExprIR.
-   */
-  export interface NaturalExpr {
-    readonly __naturalExpr: true;
-  }
-
-  // Arithmetic operators for natural expressions
-  interface NaturalExprOps {
-    // Binary operators with numbers
-    (this: NaturalExpr, other: number): NaturalExpr;
-  }
-
-  // ============================================================
-  // Token types (support natural expression syntax)
-  // ============================================================
+  // =====================================================
+  // Token types
+  // =====================================================
 
   export interface KeyToken {
     readonly kind: 'Key';
@@ -47,9 +28,9 @@ declare module '@ranking-dsl/runtime' {
     valueOf(): number;
   }
 
-  // ============================================================
+  // =====================================================
   // Expression types
-  // ============================================================
+  // =====================================================
 
   export type ExprNode =
     | { op: 'const_number'; value: number }
@@ -62,9 +43,9 @@ declare module '@ranking-dsl/runtime' {
     | { op: 'neg'; x: ExprNode }
     | { op: 'coalesce'; a: ExprNode; b: ExprNode };
 
-  // ============================================================
+  // =====================================================
   // Predicate types
-  // ============================================================
+  // =====================================================
 
   export type PredNode =
     | { op: 'const_bool'; value: boolean }
@@ -77,9 +58,9 @@ declare module '@ranking-dsl/runtime' {
     | { op: 'not_null'; x: ExprNode }
     | { op: 'regex'; key_id: number; pattern: { kind: 'literal'; value: string } | { kind: 'param'; param_id: number }; flags: string };
 
-  // ============================================================
+  // =====================================================
   // Expression builder (E)
-  // ============================================================
+  // =====================================================
 
   export const E: {
     const(value: number): ExprNode;
@@ -93,9 +74,9 @@ declare module '@ranking-dsl/runtime' {
     coalesce(a: ExprNode, b: ExprNode): ExprNode;
   };
 
-  // ============================================================
+  // =====================================================
   // Predicate builder (Pred)
-  // ============================================================
+  // =====================================================
 
   export const Pred: {
     constBool(value: boolean): PredNode;
@@ -109,9 +90,9 @@ declare module '@ranking-dsl/runtime' {
     regex(key: KeyToken, pattern: string | ParamToken, flags?: '' | 'i'): PredNode;
   };
 
-  // ============================================================
+  // =====================================================
   // Plan context and CandidateSet
-  // ============================================================
+  // =====================================================
 
   export interface PlanCtx {
     viewer: {
@@ -142,9 +123,9 @@ declare module '@ranking-dsl/runtime' {
    */
   export function coalesce(a: KeyToken | ParamToken | number | null, b: KeyToken | ParamToken | number): number;
 
-  // ============================================================
+  // =====================================================
   // Key registry (generated from keys.toml)
-  // ============================================================
+  // =====================================================
 
   export const Key: {
     readonly id: KeyToken;
@@ -157,9 +138,9 @@ declare module '@ranking-dsl/runtime' {
     readonly features_lsr: KeyToken;
   };
 
-  // ============================================================
+  // =====================================================
   // Param registry (generated from params.toml)
-  // ============================================================
+  // =====================================================
 
   export const P: {
     readonly media_age_penalty_weight: ParamToken;

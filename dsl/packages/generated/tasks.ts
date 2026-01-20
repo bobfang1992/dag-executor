@@ -4,9 +4,9 @@
 
 import type { KeyToken } from "./keys.js";
 
-// ============================================================
+// =====================================================
 // Expression types (narrow discriminated unions)
-// ============================================================
+// =====================================================
 
 /** ExprNode - matches engine's ExprIR format (builder-style) */
 export type ExprNode =
@@ -28,9 +28,9 @@ export interface ExprPlaceholder {
 /** ExprInput - expression input type for tasks (builder or natural syntax) */
 export type ExprInput = ExprNode | ExprPlaceholder;
 
-// ============================================================
+// =====================================================
 // Predicate types (narrow discriminated unions)
-// ============================================================
+// =====================================================
 
 /** Regex pattern - literal string or param reference */
 export type RegexPattern =
@@ -49,9 +49,9 @@ export type PredNode =
   | { op: "not_null"; x: ExprNode }
   | { op: "regex"; key_id: number; pattern: RegexPattern; flags: string };
 
-// ============================================================
+// =====================================================
 // Source task option interfaces
-// ============================================================
+// =====================================================
 
 export interface ViewerFetchCachedRecommendationOpts {
   fanout: number;
@@ -65,9 +65,9 @@ export interface ViewerFollowOpts {
   extensions?: Record<string, unknown>;
 }
 
-// ============================================================
+// =====================================================
 // Transform task option interfaces
-// ============================================================
+// =====================================================
 
 export interface ConcatOpts {
   trace?: string | null;
@@ -93,9 +93,9 @@ export interface VmOpts {
   extensions?: Record<string, unknown>;
 }
 
-// ============================================================
+// =====================================================
 // Metadata
-// ============================================================
+// =====================================================
 
 export const TASK_MANIFEST_DIGEST = "687d722c1814f1481da590256799d799e3d0e20478fb4760f39ec20b91594e22";
 export const TASK_COUNT = 6;

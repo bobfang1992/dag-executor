@@ -8,9 +8,9 @@
 import type { ExprNode, ExprPlaceholder, ExprInput, PredNode } from "./tasks.js";
 import type { KeyToken } from "./keys.js";
 
-// ============================================================
+// =====================================================
 // Types for plan context interface
-// ============================================================
+// =====================================================
 
 /** Interface for expression placeholder detection */
 export function isExprPlaceholder(value: unknown): value is ExprPlaceholder {
@@ -34,9 +34,9 @@ export interface TaskContext {
   addPred(pred: PredNode): string;
 }
 
-// ============================================================
+// =====================================================
 // Validation helpers
-// ============================================================
+// =====================================================
 
 function assertNotUndefined<T>(value: T | undefined, name: string): asserts value is T {
   if (value === undefined) throw new Error(`${name} is undefined`);
@@ -97,9 +97,9 @@ function checkNoUndefined(obj: Record<string, unknown>, context: string): void {
   }
 }
 
-// ============================================================
+// =====================================================
 // Source task implementations (for PlanCtx.viewer)
-// ============================================================
+// =====================================================
 
 /** Implementation for viewer.fetch_cached_recommendation */
 export function fetch_cached_recommendationImpl(
@@ -157,9 +157,9 @@ export function followImpl(
   return ctx.addNode("viewer.follow", [], params, extensions);
 }
 
-// ============================================================
+// =====================================================
 // Transform task implementations (for CandidateSet methods)
-// ============================================================
+// =====================================================
 
 /** Implementation for concat */
 export function concatImpl(
@@ -294,9 +294,9 @@ export function vmImpl(
   return ctx.addNode("vm", [inputNodeId], params, extensions);
 }
 
-// ============================================================
+// =====================================================
 // Task metadata for runtime use
-// ============================================================
+// =====================================================
 
 export const GENERATED_TASKS = {
   source: ["fetch_cached_recommendation", "follow"],

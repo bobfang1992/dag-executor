@@ -7,5 +7,6 @@ export type { FeatureToken, FeatureType } from "./features.js";
 export * from "./validation.js";
 export * from "./capabilities.js";
 export * from "./tasks.js";
+export * from "./task-impl.js";
 export { DSL_TYPES } from "./monaco-types.js";
 //# sourceMappingURL=index.d.ts.map
