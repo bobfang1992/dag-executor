@@ -112,3 +112,28 @@ export const Pred = {
     };
   },
 };
+
+/**
+ * Standalone regex function for natural predicate syntax.
+ *
+ * Usage in filter():
+ *   c.filter({ pred: regex(Key.title, "^test") })
+ *   c.filter({ pred: regex(Key.title, P.pattern, "i") })
+ *
+ * This function is recognized by the AST extractor and compiled to PredIR
+ * at compile time. It should never be called at runtime for valid plans.
+ * If called at runtime, it means the plan was not properly compiled.
+ *
+ * For builder-style usage, use Pred.regex() instead.
+ */
+export function regex(
+  _key: unknown,
+  _pattern: unknown,
+  _flags?: unknown
+): never {
+  throw new Error(
+    "regex() should only be used in filter() natural predicates. " +
+    "The compiler extracts these at compile time. " +
+    "For builder-style predicates, use Pred.regex() instead."
+  );
+}

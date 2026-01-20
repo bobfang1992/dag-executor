@@ -5,7 +5,7 @@
 // This file contains the generated task implementations.
 // It is used by plan.ts to implement task methods without manual code.
 
-import type { ExprNode, ExprPlaceholder, ExprInput, PredNode } from "./tasks.js";
+import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput } from "./tasks.js";
 import type { KeyToken } from "./keys.js";
 
 // =====================================================
@@ -19,6 +19,16 @@ export function isExprPlaceholder(value: unknown): value is ExprPlaceholder {
     typeof value === "object" &&
     "__expr_id" in value &&
     typeof (value as ExprPlaceholder).__expr_id === "number"
+  );
+}
+
+/** Interface for predicate placeholder detection */
+export function isPredPlaceholder(value: unknown): value is PredPlaceholder {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "__pred_id" in value &&
+    typeof (value as PredPlaceholder).__pred_id === "number"
   );
 }
 
@@ -75,13 +85,14 @@ function assertExprInput(value: unknown, name: string): void {
   }
 }
 
-function assertPredNode(value: unknown, name: string): void {
+function assertPredInput(value: unknown, name: string): void {
   if (value === null || typeof value !== "object") {
-    throw new Error(`${name} must be a PredNode, got ${value === null ? "null" : typeof value}`);
+    throw new Error(`${name} must be a PredNode or PredPlaceholder, got ${value === null ? "null" : typeof value}`);
   }
   const obj = value as Record<string, unknown>;
-  if (typeof obj.op !== "string") {
-    throw new Error(`${name} must be a PredNode with 'op' field`);
+  // PredPlaceholder has __pred_id, PredNode has op
+  if (typeof obj.__pred_id !== "number" && typeof obj.op !== "string") {
+    throw new Error(`${name} must be a PredNode (with 'op') or PredPlaceholder (with '__pred_id')`);
   }
 }
 
@@ -195,7 +206,7 @@ export function filterImpl(
   ctx: TaskContext,
   inputNodeId: string,
   opts: {
-    pred: PredNode;
+    pred: PredInput;
     trace?: string | null;
     extensions?: Record<string, unknown>;
   }
@@ -211,8 +222,15 @@ export function filterImpl(
   }
 
   // Validate and handle predicate table
-  assertPredNode(opts.pred, "filter({ pred })");
-  const predId = ctx.addPred(opts.pred);
+  assertPredInput(opts.pred, "filter({ pred })");
+  let predId: string;
+  if (isPredPlaceholder(opts.pred)) {
+    // AST-extracted predicate - use special prefix for later remapping
+    predId = `__static_p${opts.pred.__pred_id}`;
+  } else {
+    // Regular builder-style predicate
+    predId = ctx.addPred(opts.pred as PredNode);
+  }
 
   const params: Record<string, unknown> = {
     pred_id: predId,

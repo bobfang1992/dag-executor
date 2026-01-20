@@ -49,6 +49,14 @@ export type PredNode =
   | { op: "not_null"; x: ExprNode }
   | { op: "regex"; key_id: number; pattern: RegexPattern; flags: string };
 
+/** PredPlaceholder - compile-time placeholder for natural predicate syntax */
+export interface PredPlaceholder {
+  __pred_id: number;
+}
+
+/** PredInput - predicate input type for tasks (builder or natural syntax) */
+export type PredInput = PredNode | PredPlaceholder;
+
 // =====================================================
 // Source task option interfaces
 // =====================================================
@@ -75,7 +83,7 @@ export interface ConcatOpts {
 }
 
 export interface FilterOpts {
-  pred: PredNode;
+  pred: PredInput;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
@@ -106,3 +114,21 @@ export interface VmOpts {
 
 export const TASK_MANIFEST_DIGEST = "491ba7faf5e41c95710d2f32ca1ad489ac2e4c06b5ab447c8e22e20972be77fe";
 export const TASK_COUNT = 7;
+
+// =====================================================
+// Task extraction metadata (for AST extractor)
+// =====================================================
+
+/** Extraction info for a task - which properties to extract as expr/pred */
+export interface TaskExtractionInfo {
+  /** Property name containing expression (for tasks with expr_id param) */
+  exprProp?: string;
+  /** Property name containing predicate (for tasks with pred_id param) */
+  predProp?: string;
+}
+
+/** Map from method name to extraction info */
+export const TASK_EXTRACTION_INFO: Record<string, TaskExtractionInfo> = {
+  "filter": { predProp: "pred" },
+  "vm": { exprProp: "expr" },
+};

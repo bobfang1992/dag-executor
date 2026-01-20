@@ -22,7 +22,7 @@ import { executePlan } from "./executor.js";
 import { stableStringify } from "./stable-stringify.js";
 import { extractExpressions } from "./ast-extractor.js";
 import { isValidPlanName } from "@ranking-dsl/generated";
-import { validateArtifact, type ExprNode } from "@ranking-dsl/runtime";
+import { validateArtifact, type ExprNode, type PredNode } from "@ranking-dsl/runtime";
 
 // Read package version
 const __filename = fileURLToPath(import.meta.url);
@@ -124,8 +124,8 @@ async function compilePlan(
     // Step 1: Read source file
     const sourceCode = await readFile(absPath, "utf-8");
 
-    // Step 2: AST extraction - find natural expressions in vm() calls
-    const { rewrittenSource, extractedExprs, errors } = extractExpressions(
+    // Step 2: AST extraction - find natural expressions and predicates
+    const { rewrittenSource, extractedExprs, extractedPreds, errors } = extractExpressions(
       sourceCode,
       planFileName
     );
@@ -139,7 +139,7 @@ async function compilePlan(
     }
 
     // Step 3: Bundle with esbuild (use virtual entry if source was rewritten)
-    const hasExtractions = extractedExprs.size > 0;
+    const hasExtractions = extractedExprs.size > 0 || extractedPreds.size > 0;
     const { code, warnings } = await bundlePlan({
       entryPoint: absPath,
       repoRoot,
@@ -168,9 +168,12 @@ async function compilePlan(
     let validatedArtifact = artifact as Record<string, unknown>;
     const planName = (validatedArtifact as { plan_name: string }).plan_name;
 
-    // Step 6: Post-process - merge extracted expressions into expr_table
-    if (hasExtractions) {
+    // Step 6: Post-process - merge extracted expressions/predicates into tables
+    if (extractedExprs.size > 0) {
       validatedArtifact = mergeExtractedExprs(validatedArtifact, extractedExprs);
+    }
+    if (extractedPreds.size > 0) {
+      validatedArtifact = mergeExtractedPreds(validatedArtifact, extractedPreds);
     }
 
     // Step 7: Enforce plan_name matches filename and is valid
@@ -275,6 +278,62 @@ function mergeExtractedExprs(
   return {
     ...artifact,
     expr_table: exprTable,
+    nodes,
+  };
+}
+
+/**
+ * Merge AST-extracted predicates into artifact's pred_table and remap node params.
+ *
+ * The artifact has:
+ * - pred_table: { p0: {...}, p1: {...}, ... } (from builder-style predicates)
+ * - nodes[].params.pred_id: "__static_pN" (from natural predicates)
+ *
+ * This function:
+ * 1. Adds extracted predicates to pred_table with new IDs
+ * 2. Remaps __static_pN references in nodes to the new IDs
+ */
+function mergeExtractedPreds(
+  artifact: Record<string, unknown>,
+  extractedPreds: Map<number, PredNode>
+): Record<string, unknown> {
+  // Get or create pred_table
+  const predTable = (artifact.pred_table ?? {}) as Record<string, PredNode>;
+
+  // Count existing entries to determine next ID
+  let nextId = Object.keys(predTable).length;
+
+  // Map from __static_pN → pM
+  const idRemap = new Map<string, string>();
+
+  // Add extracted predicates to pred_table
+  for (const [staticId, pred] of extractedPreds) {
+    const newId = `p${nextId++}`;
+    predTable[newId] = pred;
+    idRemap.set(`__static_p${staticId}`, newId);
+  }
+
+  // Remap node params
+  const nodes = artifact.nodes as Array<{
+    params: Record<string, unknown>;
+    [key: string]: unknown;
+  }>;
+
+  for (const node of nodes) {
+    if (node.params && typeof node.params.pred_id === "string") {
+      const predId = node.params.pred_id;
+      if (predId.startsWith("__static_p")) {
+        const remapped = idRemap.get(predId);
+        if (remapped) {
+          node.params.pred_id = remapped;
+        }
+      }
+    }
+  }
+
+  return {
+    ...artifact,
+    pred_table: predTable,
     nodes,
   };
 }

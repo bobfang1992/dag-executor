@@ -776,6 +776,14 @@ function generateTasksTs(registry: TaskRegistry): string {
     '  | { op: "not_null"; x: ExprNode }',
     '  | { op: "regex"; key_id: number; pattern: RegexPattern; flags: string };',
     "",
+    "/** PredPlaceholder - compile-time placeholder for natural predicate syntax */",
+    "export interface PredPlaceholder {",
+    "  __pred_id: number;",
+    "}",
+    "",
+    "/** PredInput - predicate input type for tasks (builder or natural syntax) */",
+    "export type PredInput = PredNode | PredPlaceholder;",
+    "",
   ];
 
   // Classify tasks: viewer.* are source tasks, others are transform tasks
@@ -845,6 +853,54 @@ function generateTasksTs(registry: TaskRegistry): string {
   lines.push(`export const TASK_COUNT = ${registry.tasks.length};`);
   lines.push("");
 
+  // Generate task extraction metadata for AST extractor
+  // Maps method name -> which properties should be extracted
+  lines.push("// =====================================================");
+  lines.push("// Task extraction metadata (for AST extractor)");
+  lines.push("// =====================================================");
+  lines.push("");
+  lines.push("/** Extraction info for a task - which properties to extract as expr/pred */");
+  lines.push("export interface TaskExtractionInfo {");
+  lines.push("  /** Property name containing expression (for tasks with expr_id param) */");
+  lines.push("  exprProp?: string;");
+  lines.push("  /** Property name containing predicate (for tasks with pred_id param) */");
+  lines.push("  predProp?: string;");
+  lines.push("}");
+  lines.push("");
+  lines.push("/** Map from method name to extraction info */");
+  lines.push("export const TASK_EXTRACTION_INFO: Record<string, TaskExtractionInfo> = {");
+
+  for (const task of registry.tasks) {
+    // Method name: for "viewer.foo" it's "foo", otherwise it's the op itself
+    const methodName = task.op.startsWith("viewer.")
+      ? task.op.slice("viewer.".length)
+      : task.op;
+
+    // Check if task has expr_id or pred_id params
+    let exprProp: string | null = null;
+    let predProp: string | null = null;
+
+    for (const param of task.params) {
+      if (param.type === "expr_id") {
+        exprProp = cppNameToTsName(param.name); // "expr_id" -> "expr"
+      }
+      if (param.type === "pred_id") {
+        predProp = cppNameToTsName(param.name); // "pred_id" -> "pred"
+      }
+    }
+
+    // Only add entry if task has extraction targets
+    if (exprProp || predProp) {
+      const props: string[] = [];
+      if (exprProp) props.push(`exprProp: "${exprProp}"`);
+      if (predProp) props.push(`predProp: "${predProp}"`);
+      lines.push(`  "${methodName}": { ${props.join(", ")} },`);
+    }
+  }
+
+  lines.push("};");
+  lines.push("");
+
   return lines.join("\n");
 }
 
@@ -906,7 +962,7 @@ function paramTypeToTsType(param: TaskParamEntry): string {
       baseType = "ExprInput";
       break;
     case "pred_id":
-      baseType = "PredNode";
+      baseType = "PredInput";
       break;
     default:
       baseType = "unknown";
@@ -958,7 +1014,7 @@ function generateTaskImplTs(registry: TaskRegistry): string {
     '// This file contains the generated task implementations.',
     '// It is used by plan.ts to implement task methods without manual code.',
     "",
-    'import type { ExprNode, ExprPlaceholder, ExprInput, PredNode } from "./tasks.js";',
+    'import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput } from "./tasks.js";',
     'import type { KeyToken } from "./keys.js";',
     "",
     "// =====================================================",
@@ -972,6 +1028,16 @@ function generateTaskImplTs(registry: TaskRegistry): string {
     '    typeof value === "object" &&',
     '    "__expr_id" in value &&',
     "    typeof (value as ExprPlaceholder).__expr_id === \"number\"",
+    "  );",
+    "}",
+    "",
+    "/** Interface for predicate placeholder detection */",
+    "export function isPredPlaceholder(value: unknown): value is PredPlaceholder {",
+    "  return (",
+    '    value !== null &&',
+    '    typeof value === "object" &&',
+    '    "__pred_id" in value &&',
+    "    typeof (value as PredPlaceholder).__pred_id === \"number\"",
     "  );",
     "}",
     "",
@@ -1028,13 +1094,14 @@ function generateTaskImplTs(registry: TaskRegistry): string {
     "  }",
     "}",
     "",
-    "function assertPredNode(value: unknown, name: string): void {",
+    "function assertPredInput(value: unknown, name: string): void {",
     "  if (value === null || typeof value !== \"object\") {",
-    "    throw new Error(`${name} must be a PredNode, got ${value === null ? \"null\" : typeof value}`);",
+    "    throw new Error(`${name} must be a PredNode or PredPlaceholder, got ${value === null ? \"null\" : typeof value}`);",
     "  }",
     "  const obj = value as Record<string, unknown>;",
-    "  if (typeof obj.op !== \"string\") {",
-    "    throw new Error(`${name} must be a PredNode with 'op' field`);",
+    "  // PredPlaceholder has __pred_id, PredNode has op",
+    "  if (typeof obj.__pred_id !== \"number\" && typeof obj.op !== \"string\") {",
+    "    throw new Error(`${name} must be a PredNode (with 'op') or PredPlaceholder (with '__pred_id')`);",
     "  }",
     "}",
     "",
@@ -1231,8 +1298,15 @@ function generateTaskImplTs(registry: TaskRegistry): string {
 
       if (hasPredId) {
         lines.push(`  // Validate and handle predicate table`);
-        lines.push(`  assertPredNode(opts.pred, "${methodName}({ pred })");`);
-        lines.push(`  const predId = ctx.addPred(opts.pred);`);
+        lines.push(`  assertPredInput(opts.pred, "${methodName}({ pred })");`);
+        lines.push(`  let predId: string;`);
+        lines.push(`  if (isPredPlaceholder(opts.pred)) {`);
+        lines.push(`    // AST-extracted predicate - use special prefix for later remapping`);
+        lines.push(`    predId = \`__static_p\${opts.pred.__pred_id}\`;`);
+        lines.push(`  } else {`);
+        lines.push(`    // Regular builder-style predicate`);
+        lines.push(`    predId = ctx.addPred(opts.pred as PredNode);`);
+        lines.push(`  }`);
         lines.push("");
       }
 
@@ -1295,12 +1369,12 @@ function generatePlanGlobalsDts(): string {
     "// Generated by dsl/src/codegen.ts",
     "//",
     "// Global type declarations for plan authoring.",
-    "// Key, P, and coalesce are injected as globals by the dslc compiler.",
+    "// Key, P, coalesce, and regex are injected as globals by the dslc compiler.",
     "// This file provides TypeScript type information for editor support.",
     "",
     'import type { Key as KeyType } from "@ranking-dsl/generated";',
     'import type { P as PType } from "@ranking-dsl/generated";',
-    'import type { coalesce as coalesceType } from "@ranking-dsl/runtime";',
+    'import type { coalesce as coalesceType, regex as regexType } from "@ranking-dsl/runtime";',
     "",
     "declare global {",
     "  /**",
@@ -1321,6 +1395,13 @@ function generatePlanGlobalsDts(): string {
     "   * Injected by dslc compiler.",
     "   */",
     "  const coalesce: typeof coalesceType;",
+    "",
+    "  /**",
+    "   * Regex function for pattern matching in natural predicates.",
+    "   * Usage: regex(Key.title, \"^test\") or regex(Key.title, P.pattern, \"i\")",
+    "   * Injected by dslc compiler.",
+    "   */",
+    "  const regex: typeof regexType;",
     "}",
     "",
     "export {};",

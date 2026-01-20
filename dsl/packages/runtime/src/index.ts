@@ -5,7 +5,7 @@
 export { E, coalesce } from "./expr.js";
 export type { ExprNode, ExprPlaceholder, ExprInput, StaticExprToken } from "./expr.js";
 
-export { Pred } from "./pred.js";
+export { Pred, regex } from "./pred.js";
 export type { PredNode, RegexPattern } from "./pred.js";
 
 export { definePlan, PlanCtx, CandidateSet } from "./plan.js";
