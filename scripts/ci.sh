@@ -4,6 +4,15 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# =============================================================================
+# Expected registry counts (update when adding keys/params/features/tasks)
+# =============================================================================
+EXPECTED_KEYS=8
+EXPECTED_PARAMS=3
+EXPECTED_FEATURES=2
+EXPECTED_CAPABILITIES=2
+EXPECTED_TASKS=6
+
 # Create temp directory for parallel job outputs
 # Note: Don't use TMPDIR as variable name - it's a system env var on macOS
 CI_TEMP=$(mktemp -d)
@@ -167,8 +176,8 @@ run_bg "Test 4: Reject missing_input.plan.json" bash -c '
 if echo "{}" | engine/bin/rankd --plan artifacts/plans/missing_input.plan.json 2>/dev/null; then exit 1; fi
 '
 
-run_bg "Test 5: Print registry" bash -c '
-engine/bin/rankd --print-registry | python3 -c "
+run_bg "Test 5: Print registry" bash -c "
+engine/bin/rankd --print-registry | python3 -c '
 import sys, json
 r = json.load(sys.stdin)
 assert \"key_registry_digest\" in r
@@ -176,12 +185,12 @@ assert \"param_registry_digest\" in r
 assert \"feature_registry_digest\" in r
 assert \"capability_registry_digest\" in r
 assert \"task_manifest_digest\" in r
-assert r[\"num_keys\"] == 8
-assert r[\"num_params\"] == 3
-assert r[\"num_features\"] == 2
-assert r[\"num_capabilities\"] == 2
-assert r[\"num_tasks\"] == 6
-"'
+assert r[\"num_keys\"] == $EXPECTED_KEYS, f\"Expected $EXPECTED_KEYS keys, got {r[\"num_keys\"]}\"
+assert r[\"num_params\"] == $EXPECTED_PARAMS, f\"Expected $EXPECTED_PARAMS params, got {r[\"num_params\"]}\"
+assert r[\"num_features\"] == $EXPECTED_FEATURES, f\"Expected $EXPECTED_FEATURES features, got {r[\"num_features\"]}\"
+assert r[\"num_capabilities\"] == $EXPECTED_CAPABILITIES, f\"Expected $EXPECTED_CAPABILITIES capabilities, got {r[\"num_capabilities\"]}\"
+assert r[\"num_tasks\"] == $EXPECTED_TASKS, f\"Expected $EXPECTED_TASKS tasks, got {r[\"num_tasks\"]}\"
+'"
 wait_all
 
 # Batch 2: Param validation tests (parallel)
@@ -582,48 +591,8 @@ wait_all
 # Batch 12: writes_eval tests (RFC0005 Step 12.3a)
 echo "--- Batch 12: writes_eval tests ---"
 run_bg "Test 55: print-plan-info shows writes_eval" bash -c '
-# Get plan info and verify writes_eval is present and correct
 engine/bin/rankd --print-plan-info --plan_name reels_plan_a > /tmp/ci-writes-eval-55.json
-
-python3 << "PYEOF"
-import json
-
-with open("/tmp/ci-writes-eval-55.json") as f:
-    data = json.load(f)
-
-# Must have nodes array
-assert "nodes" in data, "Missing nodes array"
-nodes = data["nodes"]
-assert len(nodes) == 5, f"Expected 5 nodes, got {len(nodes)}"
-
-# Check each node has writes_eval
-for node in nodes:
-    node_id = node["node_id"]
-    assert "writes_eval" in node, f"Node {node_id} missing writes_eval"
-    we = node["writes_eval"]
-    assert "kind" in we, "writes_eval missing kind"
-    assert "keys" in we, "writes_eval missing keys"
-    assert we["kind"] in ["Exact", "May", "Unknown"], f"Invalid kind: {we['kind']}"
-
-# Check specific nodes
-source_node = next(n for n in nodes if n["op"] == "viewer.follow")
-assert source_node["writes_eval"]["kind"] == "Exact"
-assert 3001 in source_node["writes_eval"]["keys"]  # features_esr_score
-assert 3002 in source_node["writes_eval"]["keys"]  # features_lsr_score
-
-# Both vm nodes write to final_score (2001)
-vm_nodes = [n for n in nodes if n["op"] == "vm"]
-assert len(vm_nodes) == 2, f"Expected 2 vm nodes, got {len(vm_nodes)}"
-for vm_node in vm_nodes:
-    assert vm_node["writes_eval"]["kind"] == "Exact"
-    assert vm_node["writes_eval"]["keys"] == [2001]  # final_score
-
-filter_node = next(n for n in nodes if n["op"] == "filter")
-assert filter_node["writes_eval"]["kind"] == "Exact"
-assert filter_node["writes_eval"]["keys"] == []  # no writes
-
-print("writes_eval validation passed")
-PYEOF
+python3 scripts/ci-helpers/validate_writes_eval.py /tmp/ci-writes-eval-55.json
 '
 
 run_bg "Test 56: print-plan-info error on unsupported caps" bash -c '
@@ -651,91 +620,16 @@ PYEOF
 '
 
 run_bg "Test 57: dump-run-trace shows schema_deltas" bash -c '
-# Run plan with --dump-run-trace and verify schema_deltas
 echo "{\"request_id\": \"test\"}" | engine/bin/rankd --plan engine/tests/fixtures/plan_info/vm_and_row_ops.plan.json --dump-run-trace > /tmp/ci-schema-deltas.json
-
-python3 << "PYEOF"
-import json
-
-with open("/tmp/ci-schema-deltas.json") as f:
-    data = json.load(f)
-
-# Must have schema_deltas array
-assert "schema_deltas" in data, "Missing schema_deltas array"
-deltas = data["schema_deltas"]
-assert len(deltas) == 4, f"Expected 4 schema deltas, got {len(deltas)}"
-
-# Check each delta has required fields
-for d in deltas:
-    assert "node_id" in d, "Missing node_id"
-    assert "in_keys_union" in d, "Missing in_keys_union"
-    assert "out_keys" in d, "Missing out_keys"
-    assert "new_keys" in d, "Missing new_keys"
-    assert "removed_keys" in d, "Missing removed_keys"
-
-# Find viewer.follow source (n0) - should have new keys for country, title
-source_delta = next(d for d in deltas if d["node_id"] == "n0")
-assert len(source_delta["new_keys"]) == 2, "Source should add 2 columns"
-assert 3001 in source_delta["new_keys"], "Source should add country (3001)"
-assert 3002 in source_delta["new_keys"], "Source should add title (3002)"
-
-# Find vm node (n1) - should have new key for final_score (2001)
-vm_delta = next(d for d in deltas if d["node_id"] == "n1")
-assert vm_delta["new_keys"] == [2001], "vm should add final_score (2001)"
-
-# Find filter node (n2) - should have empty new_keys (row-only op)
-filter_delta = next(d for d in deltas if d["node_id"] == "n2")
-assert filter_delta["new_keys"] == [], "filter should not add columns"
-assert filter_delta["removed_keys"] == [], "filter should not remove columns"
-
-# Find take node (n3) - should have empty new_keys (row-only op)
-take_delta = next(d for d in deltas if d["node_id"] == "n3")
-assert take_delta["new_keys"] == [], "take should not add columns"
-assert take_delta["removed_keys"] == [], "take should not remove columns"
-
-print("schema_deltas validation passed")
-PYEOF
+python3 scripts/ci-helpers/validate_schema_deltas.py /tmp/ci-schema-deltas.json
 '
 wait_all
 
 # Batch 13: AST expression extraction tests (Step 13.1)
 echo "--- Batch 13: AST expression extraction ---"
 run_bg "Test 58: Natural expression compilation" bash -c '
-# Compile plan with natural expression syntax
 node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/vm_ast_expr_basic.plan.ts --out /tmp/ci-ast-expr-58 2>&1
-
-# Verify artifact structure
-python3 << "PYEOF"
-import json
-
-with open("/tmp/ci-ast-expr-58/vm_ast_expr_basic.plan.json") as f:
-    plan = json.load(f)
-
-# Must have expr_table with at least one entry
-assert "expr_table" in plan, "Missing expr_table"
-assert len(plan["expr_table"]) >= 1, "expr_table should have at least 1 expression"
-
-# Find the vm node
-vm_node = next((n for n in plan["nodes"] if n["op"] == "vm"), None)
-assert vm_node is not None, "Missing vm node"
-
-# vm node should have expr_id pointing to expr_table entry
-expr_id = vm_node["params"]["expr_id"]
-assert expr_id.startswith("e"), f"expr_id should start with e, got {expr_id}"
-assert expr_id in plan["expr_table"], f"expr_id {expr_id} not found in expr_table"
-
-# Verify expression structure: Key.id * coalesce(P.weight, 0.2)
-expr = plan["expr_table"][expr_id]
-assert expr["op"] == "mul", f"Expected mul op, got {expr['op']}"
-assert expr["a"]["op"] == "key_ref", "Left operand should be key_ref"
-assert expr["a"]["key_id"] == 1, "Left operand should be Key.id (id=1)"
-assert expr["b"]["op"] == "coalesce", "Right operand should be coalesce"
-assert expr["b"]["a"]["op"] == "param_ref", "coalesce first arg should be param_ref"
-assert expr["b"]["b"]["op"] == "const_number", "coalesce second arg should be const"
-assert expr["b"]["b"]["value"] == 0.2, "coalesce fallback should be 0.2"
-
-print("Natural expression compilation validated")
-PYEOF
+python3 scripts/ci-helpers/validate_ast_expr.py /tmp/ci-ast-expr-58/vm_ast_expr_basic.plan.json
 '
 
 run_bg "Test 59: Division rejection" bash -c '
@@ -754,35 +648,8 @@ exit 0
 '
 
 run_bg "Test 60: Mixed expression styles" bash -c '
-# Compile plan with both natural and builder-style expressions
 node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/vm_ast_expr_mixed.plan.ts --out /tmp/ci-ast-expr-60 2>&1
-
-python3 << "PYEOF"
-import json
-
-with open("/tmp/ci-ast-expr-60/vm_ast_expr_mixed.plan.json") as f:
-    plan = json.load(f)
-
-# Must have expr_table with at least 2 entries (natural + builder)
-assert "expr_table" in plan, "Missing expr_table"
-assert len(plan["expr_table"]) >= 2, f"Expected at least 2 expressions, got {len(plan['expr_table'])}"
-
-# Find both vm nodes
-vm_nodes = [n for n in plan["nodes"] if n["op"] == "vm"]
-assert len(vm_nodes) == 2, f"Expected 2 vm nodes, got {len(vm_nodes)}"
-
-# Both should have valid expr_ids pointing to expr_table
-expr_ids = [n["params"]["expr_id"] for n in vm_nodes]
-for eid in expr_ids:
-    assert eid in plan["expr_table"], f"expr_id {eid} not in expr_table"
-
-# Verify both expressions are valid
-for eid in expr_ids:
-    expr = plan["expr_table"][eid]
-    assert "op" in expr, f"Expression {eid} missing op"
-
-print("Mixed expression styles validated: both natural and builder-style work together")
-PYEOF
+python3 scripts/ci-helpers/validate_mixed_expr.py /tmp/ci-ast-expr-60/vm_ast_expr_mixed.plan.json
 '
 
 run_bg "Test 61: Reject invalid imports" bash -c '
