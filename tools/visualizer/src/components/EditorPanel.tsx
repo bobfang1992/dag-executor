@@ -9,10 +9,6 @@ import Dropdown from './Dropdown';
 // Import generated DSL types for Monaco intellisense
 import { DSL_TYPES } from '@ranking-dsl/generated';
 
-// Import esbuild WASM for local bundling (no CDN dependency)
-// @ts-ignore - Vite handles ?url imports
-import esbuildWasmUrl from 'esbuild-wasm/esbuild.wasm?url';
-
 const STORAGE_KEY = 'visualizer:editor:code';
 const SAVED_PLANS_KEY = 'visualizer:saved-plans';
 
@@ -259,7 +255,6 @@ export default function EditorPanel() {
   const [compiling, setCompiling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<'ready' | 'compiling' | 'success' | 'error'>('ready');
-  const [compilerReady, setCompilerReady] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [savedPlans, setSavedPlans] = useState<SavedPlansState>(loadSavedPlans);
@@ -272,9 +267,6 @@ export default function EditorPanel() {
   >(null);
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
-  const compilerRef = useRef<{
-    compilePlan: (source: string, name: string) => Promise<unknown>;
-  } | null>(null);
 
   // Refs for handlers to avoid stale closures in Monaco keyboard shortcuts
   const handleCompileRef = useRef<() => void>(() => {});
@@ -307,28 +299,6 @@ export default function EditorPanel() {
     }, 500);
     return () => clearTimeout(timer);
   }, [code, currentPlanId]);
-
-  // Initialize compiler
-  useEffect(() => {
-    async function initCompiler() {
-      try {
-        setStatus('compiling');
-        // Dynamic import to avoid bundling issues
-        const compiler = await import('@ranking-dsl/compiler/browser');
-        // Use locally bundled WASM (no CDN dependency)
-        await compiler.initCompiler({ wasmURL: esbuildWasmUrl });
-        compilerRef.current = {
-          compilePlan: compiler.compilePlan,
-        };
-        setCompilerReady(true);
-        setStatus('ready');
-      } catch (err) {
-        setError(`Failed to initialize compiler: ${err instanceof Error ? err.message : String(err)}`);
-        setStatus('error');
-      }
-    }
-    initCompiler();
-  }, []);
 
   // Setup Monaco with type definitions
   const handleEditorMount: OnMount = useCallback((editor, monaco) => {
@@ -378,7 +348,7 @@ export default function EditorPanel() {
   }, []);
 
   const handleCompile = useCallback(async () => {
-    if (!compilerRef.current || compiling) return;
+    if (compiling) return;
 
     setCompiling(true);
     setError(null);
@@ -388,8 +358,16 @@ export default function EditorPanel() {
       // Extract plan name from code
       const nameMatch = code.match(/name:\s*['"]([^'"]+)['"]/);
       const planName = nameMatch?.[1] ?? 'live_plan';
+      const filename = `${planName}.plan.ts`;
 
-      const result = await compilerRef.current.compilePlan(code, planName) as {
+      // Call server-side compiler API (uses real dslc for full parity)
+      const response = await fetch('/api/compile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: code, filename }),
+      });
+
+      const result = await response.json() as {
         success: boolean;
         artifact?: Record<string, unknown>;
         error?: string;
@@ -557,10 +535,10 @@ export default function EditorPanel() {
 
   const getStatusText = () => {
     switch (status) {
-      case 'compiling': return compilerReady ? 'Compiling...' : 'Loading compiler...';
+      case 'compiling': return 'Compiling...';
       case 'success': return 'Compiled successfully';
       case 'error': return 'Compilation failed';
-      default: return 'Ready (Cmd+Enter to compile)';
+      default: return `Ready (${modKey}Enter to compile)`;
     }
   };
 
@@ -644,10 +622,10 @@ export default function EditorPanel() {
           <button
             style={{
               ...styles.button,
-              ...(compiling || !compilerReady ? styles.buttonDisabled : {}),
+              ...(compiling ? styles.buttonDisabled : {}),
             }}
             onClick={handleCompile}
-            disabled={compiling || !compilerReady}
+            disabled={compiling}
             title={`Compile and visualize the plan (${modKey}Enter)`}
           >
             {compiling ? 'Compiling...' : 'Compile & Visualize'}
