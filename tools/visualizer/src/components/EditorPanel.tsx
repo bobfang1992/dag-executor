@@ -82,7 +82,7 @@ function decodeFromUrl(encoded: string): string | null {
   }
 }
 
-const DEFAULT_PLAN = `import { definePlan, E, Pred, Key, P } from '@ranking-dsl/runtime';
+const DEFAULT_PLAN = `import { definePlan, E, Pred, Key, P, coalesce } from '@ranking-dsl/runtime';
 
 export default definePlan({
   name: 'my_plan',
@@ -90,13 +90,11 @@ export default definePlan({
     // Source: fetch viewer's followed accounts
     const source = ctx.viewer.follow({ fanout: 100 });
 
-    // Score: compute final_score using vm expression
+    // Score: compute final_score using natural expression syntax
+    // The compiler extracts Key.x * P.y expressions at compile-time
     const scored = source.vm({
       outKey: Key.final_score,
-      expr: E.add(
-        E.key(Key.model_score_1),
-        E.mul(E.key(Key.model_score_2), E.param(P.media_age_penalty_weight))
-      ),
+      expr: Key.model_score_1 + Key.model_score_2 * coalesce(P.media_age_penalty_weight, 0.2),
     });
 
     // Filter: keep only high-scoring items
@@ -343,6 +341,17 @@ export default function EditorPanel() {
       moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
       allowNonTsExtensions: true,
       strict: true,
+    });
+
+    // Suppress arithmetic operation errors for natural expression syntax
+    // (Key.x * 10, P.weight * 0.5, etc.)
+    // These are extracted by the compiler at compile-time via AST transformation
+    // Error codes:
+    // - 2362: "The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type"
+    // - 2363: "The right-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type"
+    // - 2322: "Type 'number' is not assignable to type 'ExprInput'" (arithmetic result to expr param)
+    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+      diagnosticCodesToIgnore: [2362, 2363, 2322],
     });
 
     // Add DSL type definitions
