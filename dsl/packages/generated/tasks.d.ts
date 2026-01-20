@@ -100,6 +100,12 @@ export interface FilterOpts {
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
+export interface SortOpts {
+    by: number;
+    order?: string;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}
 export interface TakeOpts {
     count: number;
     trace?: string | null;
@@ -111,6 +117,6 @@ export interface VmOpts {
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
-export declare const TASK_MANIFEST_DIGEST = "687d722c1814f1481da590256799d799e3d0e20478fb4760f39ec20b91594e22";
-export declare const TASK_COUNT = 6;
+export declare const TASK_MANIFEST_DIGEST = "491ba7faf5e41c95710d2f32ca1ad489ac2e4c06b5ab447c8e22e20972be77fe";
+export declare const TASK_COUNT = 7;
 //# sourceMappingURL=tasks.d.ts.map

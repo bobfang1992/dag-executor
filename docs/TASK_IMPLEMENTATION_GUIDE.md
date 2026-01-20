@@ -468,3 +468,17 @@ static RowSet run(const std::vector<RowSet>& inputs, ...) {
 - [ADDING_CAPABILITIES.md](ADDING_CAPABILITIES.md) - For IR extensions
 - `engine/include/task_registry.h` - TaskSpec definition
 - `engine/include/writes_effect.h` - writes_effect types
+- `engine/include/rowset.h`, `column_batch.h` - RowSet/ColumnBatch
+- `engine/include/key_registry.h` - Key registry
+- `engine/include/param_registry.h` - Param registry
+- `engine/include/feature_registry.h` - Feature registry
+- `engine/tests/test_*.cpp` - Unit tests
+- `dsl/packages/runtime/src/` - DSL bindings
+
+---
+
+## TODO: Reduce task boilerplate
+- Add TaskSpec input-arity contract enforced centrally in executor (remove per-task “expected N inputs” checks).
+- Provide helpers for key validation/access (readable/writable + type/nullability) and column fetch (float/string with existence checks).
+- For key-based ordering/comparison tasks (sort/dedupe/join), factor a shared comparator/permutation builder handling null ordering and type dispatch.
+- Use TaskSpec reads/writes metadata to validate required input keys ahead of task run, moving read checks out of individual tasks.

@@ -11,7 +11,7 @@ EXPECTED_KEYS=8
 EXPECTED_PARAMS=3
 EXPECTED_FEATURES=2
 EXPECTED_CAPABILITIES=2
-EXPECTED_TASKS=6
+EXPECTED_TASKS=7
 
 # Create temp directory for parallel job outputs
 # Note: Don't use TMPDIR as variable name - it's a system env var on macOS
@@ -63,7 +63,7 @@ pnpm -C dsl run gen:check
 echo ""
 echo "=== Phase 3: Build DSL + Engine (parallel) ==="
 run_bg "Build DSL + compile plans" pnpm run build
-run_bg "Build engine" bash -c "cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build engine/build --parallel"
+run_bg "Build engine" bash -c "cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build engine/build --parallel 4"
 wait_all
 
 echo ""

@@ -1,7 +1,7 @@
 # AUTO-GENERATED from C++ TaskSpec - DO NOT EDIT
 # Regenerate with: engine/bin/rankd --print-task-manifest > registry/tasks.toml
 schema_version = 1
-manifest_digest = "687d722c1814f1481da590256799d799e3d0e20478fb4760f39ec20b91594e22"
+manifest_digest = "491ba7faf5e41c95710d2f32ca1ad489ac2e4c06b5ab447c8e22e20972be77fe"
 
 [[task]]
 op = "concat"
@@ -21,6 +21,28 @@ output_pattern = "StableFilter"
   name = "pred_id"
   type = "pred_id"
   required = true
+  nullable = false
+
+  [[task.param]]
+  name = "trace"
+  type = "string"
+  required = false
+  nullable = true
+
+[[task]]
+op = "sort"
+output_pattern = "PermutationOfInput"
+
+  [[task.param]]
+  name = "by"
+  type = "int"
+  required = true
+  nullable = false
+
+  [[task.param]]
+  name = "order"
+  type = "string"
+  required = false
   nullable = false
 
   [[task.param]]

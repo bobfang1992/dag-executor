@@ -45,6 +45,7 @@ set(TASK_SOURCES
   src/tasks/viewer_follow.cpp
   src/tasks/viewer_fetch_cached_recommendation.cpp
   src/tasks/take.cpp
+  src/tasks/sort.cpp
   src/tasks/vm.cpp
   src/tasks/filter.cpp
   src/tasks/concat.cpp
@@ -74,6 +75,7 @@ add_executable(rankd_tests
   tests/test_rowset.cpp
   tests/test_param_table.cpp
   tests/test_pred_eval.cpp
+  tests/test_sort.cpp
   src/task_registry.cpp
   src/output_contract.cpp
   src/writes_effect.cpp
