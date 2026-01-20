@@ -52,7 +52,8 @@ export const CAPABILITY_COUNT = 2;
  */
 export function validatePayload(capId: string, payload: unknown): string | null {
   const meta = CapabilityRegistry[capId];
-  if (!meta) return `Unknown capability: ${capId}`;
+  // Unknown capabilities are allowed - engine will validate them
+  if (!meta) return null;
 
   const schema = meta.payload_schema as { type?: string; properties?: Record<string, unknown>; additionalProperties?: boolean } | null;
 

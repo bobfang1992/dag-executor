@@ -149,7 +149,10 @@ export function validateArtifact(artifact: unknown, planFileName: string): void 
   // when a payload IS provided, it has all required fields.
   if (obj.extensions && typeof obj.extensions === "object") {
     for (const [capId, payload] of Object.entries(obj.extensions as Record<string, unknown>)) {
-      validatePayload(capId, payload);
+      const error = validatePayload(capId, payload);
+      if (error) {
+        throw new Error(`Plan extension validation failed: ${error}`);
+      }
     }
   }
 
@@ -162,7 +165,10 @@ export function validateArtifact(artifact: unknown, planFileName: string): void 
     // Validate node extension payloads against their schemas
     if (n.extensions && typeof n.extensions === "object") {
       for (const [capId, payload] of Object.entries(n.extensions as Record<string, unknown>)) {
-        validatePayload(capId, payload);
+        const error = validatePayload(capId, payload);
+        if (error) {
+          throw new Error(`Node ${n.node_id} extension validation failed: ${error}`);
+        }
       }
     }
   }

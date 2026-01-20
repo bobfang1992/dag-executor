@@ -297,7 +297,8 @@ export function generateCapabilitiesTs(capabilities: CapabilityEntry[], digest: 
   lines.push(" */");
   lines.push("export function validatePayload(capId: string, payload: unknown): string | null {");
   lines.push("  const meta = CapabilityRegistry[capId];");
-  lines.push("  if (!meta) return `Unknown capability: ${capId}`;");
+  lines.push("  // Unknown capabilities are allowed - engine will validate them");
+  lines.push("  if (!meta) return null;");
   lines.push("");
   lines.push("  const schema = meta.payload_schema as { type?: string; properties?: Record<string, unknown>; additionalProperties?: boolean } | null;");
   lines.push("");
