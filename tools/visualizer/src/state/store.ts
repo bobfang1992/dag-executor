@@ -32,6 +32,10 @@ interface Store {
   sourceCode: string | null;
   sourceLoading: boolean;
   showSource: boolean;
+  sourceCollapsed: boolean;
+
+  // Panel collapse state
+  detailsCollapsed: boolean;
 
   // View state
   view: ViewState;
@@ -48,6 +52,8 @@ interface Store {
   loadPlan: (json: PlanJson, fileName: string, options?: { skipHistory?: boolean }) => void;
   clearPlan: () => void;
   toggleSource: () => void;
+  toggleSourceCollapsed: () => void;
+  toggleDetailsCollapsed: () => void;
   loadSource: (planName: string) => Promise<void>;
   setView: (view: Partial<ViewState>) => void;
   resetView: () => void;
@@ -72,6 +78,8 @@ export const useStore = create<Store>((set, get) => ({
   sourceCode: null,
   sourceLoading: false,
   showSource: false,
+  sourceCollapsed: false,
+  detailsCollapsed: false,
   view: initialView,
   selectedNodeId: null,
   hoveredNodeId: null,
@@ -158,6 +166,14 @@ export const useStore = create<Store>((set, get) => ({
 
   toggleSource: () => {
     set((state) => ({ showSource: !state.showSource }));
+  },
+
+  toggleSourceCollapsed: () => {
+    set((state) => ({ sourceCollapsed: !state.sourceCollapsed }));
+  },
+
+  toggleDetailsCollapsed: () => {
+    set((state) => ({ detailsCollapsed: !state.detailsCollapsed }));
   },
 
   loadSource: async (planName: string) => {

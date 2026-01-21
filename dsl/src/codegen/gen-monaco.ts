@@ -231,6 +231,44 @@ export function generateMonacoTypes(
   }
   lines.push("  };");
   lines.push("}");
+  lines.push("");
+
+  // =========================================================
+  // Global declarations for Key, P, coalesce, regex
+  // These are injected by the compiler and used without imports
+  // =========================================================
+  lines.push("// =====================================================");
+  lines.push("// Global declarations (injected by compiler)");
+  lines.push("// =====================================================");
+  lines.push("");
+  // Note: We reference types using import() syntax since this is an ambient context
+  lines.push("type _KeyToken = import('@ranking-dsl/runtime').KeyToken;");
+  lines.push("type _ParamToken = import('@ranking-dsl/runtime').ParamToken;");
+  lines.push("type _PredNode = import('@ranking-dsl/runtime').PredNode;");
+  lines.push("");
+
+  // Global Key object
+  lines.push("declare const Key: {");
+  for (const k of keys) {
+    lines.push(`  readonly ${k.name}: _KeyToken;`);
+  }
+  lines.push("};");
+  lines.push("");
+
+  // Global P object
+  lines.push("declare const P: {");
+  for (const p of params) {
+    lines.push(`  readonly ${p.name}: _ParamToken;`);
+  }
+  lines.push("};");
+  lines.push("");
+
+  // Global coalesce function
+  lines.push("declare function coalesce(a: _KeyToken | _ParamToken | number | null, b: _KeyToken | _ParamToken | number): number;");
+  lines.push("");
+
+  // Global regex function for predicates
+  lines.push("declare function regex(key: _KeyToken, pattern: string | _ParamToken, flags?: '' | 'i'): _PredNode;");
   lines.push("`;");
   lines.push("");
 

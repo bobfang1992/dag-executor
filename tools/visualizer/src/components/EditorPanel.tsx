@@ -320,15 +320,17 @@ export default function EditorPanel() {
       strict: true,
     });
 
-    // Suppress arithmetic operation errors for natural expression syntax
-    // (Key.x * 10, P.weight * 0.5, etc.)
+    // Suppress TypeScript errors for natural expression/predicate syntax
     // These are extracted by the compiler at compile-time via AST transformation
     // Error codes:
+    // - 2304: "Cannot find name 'X'" (Key, P, coalesce, regex are globals injected by compiler)
     // - 2362: "The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type"
     // - 2363: "The right-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type"
-    // - 2322: "Type 'number' is not assignable to type 'ExprInput'" (arithmetic result to expr param)
+    // - 2322: "Type 'X' is not assignable to type 'Y'" (result type mismatch)
+    // - 2365: "Operator 'X' cannot be applied to types 'Y' and 'Z'" (comparison operators)
+    // - 2367: "This comparison appears to be unintentional" (null comparisons)
     monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-      diagnosticCodesToIgnore: [2362, 2363, 2322],
+      diagnosticCodesToIgnore: [2304, 2362, 2363, 2322, 2365, 2367],
     });
 
     // Add DSL type definitions

@@ -12,6 +12,30 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
   },
+  collapsedPanel: {
+    width: '36px',
+    height: '100%',
+    background: dracula.headerBg,
+    borderRight: `1px solid ${dracula.border}`,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    paddingTop: '8px',
+  },
+  toggleButton: {
+    width: '28px',
+    height: '28px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: `1px solid ${dracula.border}`,
+    borderRadius: '4px',
+    cursor: 'pointer',
+    color: dracula.comment,
+    fontSize: '14px',
+    transition: 'all 0.2s',
+  },
   header: {
     display: 'flex',
     alignItems: 'center',
@@ -27,13 +51,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'ui-monospace, monospace',
   },
   closeButton: {
-    background: 'none',
-    border: 'none',
-    color: dracula.comment,
-    fontSize: '16px',
-    cursor: 'pointer',
-    padding: '2px 6px',
+    width: '28px',
+    height: '28px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: `1px solid ${dracula.border}`,
     borderRadius: '4px',
+    cursor: 'pointer',
+    color: dracula.comment,
+    fontSize: '14px',
+    transition: 'all 0.2s',
   },
   content: {
     flex: 1,
@@ -66,9 +95,32 @@ export default function SourcePanel() {
   const sourceCode = useStore((s) => s.sourceCode);
   const sourceLoading = useStore((s) => s.sourceLoading);
   const planJson = useStore((s) => s.planJson);
-  const toggleSource = useStore((s) => s.toggleSource);
+  const sourceCollapsed = useStore((s) => s.sourceCollapsed);
+  const toggleSourceCollapsed = useStore((s) => s.toggleSourceCollapsed);
 
   const planName = planJson?.plan_name || 'unknown';
+
+  if (sourceCollapsed) {
+    return (
+      <div style={styles.collapsedPanel}>
+        <button
+          style={styles.toggleButton}
+          onClick={toggleSourceCollapsed}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = dracula.purple;
+            e.currentTarget.style.color = dracula.foreground;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = dracula.border;
+            e.currentTarget.style.color = dracula.comment;
+          }}
+          title="Show source panel"
+        >
+          ›
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.panel}>
@@ -76,11 +128,18 @@ export default function SourcePanel() {
         <span style={styles.title}>{planName}.plan.ts</span>
         <button
           style={styles.closeButton}
-          onClick={toggleSource}
-          onMouseOver={(e) => (e.currentTarget.style.background = dracula.buttonBg)}
-          onMouseOut={(e) => (e.currentTarget.style.background = 'none')}
+          onClick={toggleSourceCollapsed}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = dracula.purple;
+            e.currentTarget.style.color = dracula.foreground;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = dracula.border;
+            e.currentTarget.style.color = dracula.comment;
+          }}
+          title="Hide source panel"
         >
-          ✕
+          ‹
         </button>
       </div>
       <div style={styles.content}>
