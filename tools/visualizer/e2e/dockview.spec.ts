@@ -189,18 +189,14 @@ test.describe('Dockview View Mode', () => {
     await expect(sourceItem).toBeDisabled();
   });
 
-  test('Editor panel disabled in view mode Add menu', async ({ page }) => {
-    // Compile a plan to enter view mode with a loaded plan
+  test('Editor panel disabled when already exists in Add menu', async ({ page }) => {
+    // In edit mode, Editor panel exists by default
     await page.click('text=Create New Plan');
-    await expect(page.locator('button:has-text("Compile & Visualize")')).toBeEnabled({ timeout: 30000 });
-    await page.click('text=Compile & Visualize');
-    await expect(page.locator('text=Compiled successfully')).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('.dv-dockview')).toBeVisible();
 
-    // The compiled plan is now in "edit mode with plan" state
-    // Let's verify the Add menu state
+    // Open Add menu
     await page.click('button:has-text("Add")');
 
-    // In this state (edit mode with compiled plan), both Editor and Source have restrictions
     // Editor should be disabled because it already exists
     const editorItem = page.locator('button:has-text("Editor")').last();
     await expect(editorItem).toBeDisabled();

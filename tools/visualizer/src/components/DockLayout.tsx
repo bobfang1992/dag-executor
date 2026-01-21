@@ -166,7 +166,13 @@ function buildDefaultLayout(api: DockviewApi, mode: 'view' | 'edit'): void {
 const DockLayout = forwardRef<DockLayoutHandle, DockLayoutProps>(function DockLayout({ mode, onPanelsChange }, ref) {
   const apiRef = useRef<DockviewApi | null>(null);
   const initializedModeRef = useRef<string | null>(null);
+  const modeRef = useRef(mode); // Track current mode for listeners
   const [existingPanels, setExistingPanels] = useState<Set<string>>(new Set());
+
+  // Keep modeRef in sync with mode prop
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // Update existing panels set
   const updateExistingPanels = useCallback((api: DockviewApi) => {
@@ -248,9 +254,11 @@ const DockLayout = forwardRef<DockLayoutHandle, DockLayoutProps>(function DockLa
     savePanelPositions(api, mode);
 
     // Save layout and positions on any change
+    // Use modeRef.current to always get the current mode (not the closed-over value)
     const layoutDisposable = api.onDidLayoutChange(() => {
-      prefs.setDockLayout(mode, api.toJSON());
-      savePanelPositions(api, mode);
+      const currentMode = modeRef.current;
+      prefs.setDockLayout(currentMode, api.toJSON());
+      savePanelPositions(api, currentMode);
       updateExistingPanels(api);
     });
 

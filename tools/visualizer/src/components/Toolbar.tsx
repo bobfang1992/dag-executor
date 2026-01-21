@@ -41,11 +41,7 @@ const styles: Record<string, React.CSSProperties> = {
 export default function Toolbar() {
   const graph = useStore((s) => s.graph);
   const planJson = useStore((s) => s.planJson);
-  const clearPlan = useStore((s) => s.clearPlan);
   const fitToView = useStore((s) => s.fitToView);
-  const toggleSource = useStore((s) => s.toggleSource);
-  const showSource = useStore((s) => s.showSource);
-  const sourceCode = useStore((s) => s.sourceCode);
 
   if (!planJson) return null;
 
@@ -64,23 +60,6 @@ export default function Toolbar() {
       <span style={styles.badge}>
         {nodeCount} nodes, {edgeCount} edges
       </span>
-      {sourceCode && (
-        <button
-          style={{
-            ...styles.button,
-            ...(showSource ? { background: dracula.purple, borderColor: dracula.purple } : {}),
-          }}
-          onClick={toggleSource}
-          onMouseOver={(e) => {
-            if (!showSource) e.currentTarget.style.background = dracula.buttonHover;
-          }}
-          onMouseOut={(e) => {
-            if (!showSource) e.currentTarget.style.background = dracula.buttonBg;
-          }}
-        >
-          {showSource ? 'Hide Source' : 'Source'}
-        </button>
-      )}
       <button
         style={styles.button}
         onClick={handleFit}
@@ -88,14 +67,6 @@ export default function Toolbar() {
         onMouseOut={(e) => (e.currentTarget.style.background = dracula.buttonBg)}
       >
         Fit
-      </button>
-      <button
-        style={styles.button}
-        onClick={clearPlan}
-        onMouseOver={(e) => (e.currentTarget.style.background = dracula.buttonHover)}
-        onMouseOut={(e) => (e.currentTarget.style.background = dracula.buttonBg)}
-      >
-        ← Back
       </button>
     </div>
   );
