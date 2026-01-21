@@ -2,11 +2,12 @@
  * Example plan: reels_plan_a
  *
  * Pipeline:
- * 1. viewer.follow fanout=10
- * 2. vm final_score = id * coalesce(P.media_age_penalty_weight, 0.2)
- * 3. filter final_score >= 0.6
- * 4. vm passthrough (demonstrates natural expr with key-only reference)
- * 5. take 5
+ * 1. viewer (current user)
+ * 2. viewer.follow fanout=10
+ * 3. vm final_score = id * coalesce(P.media_age_penalty_weight, 0.2)
+ * 4. filter final_score >= 0.6
+ * 5. vm passthrough (demonstrates natural expr with key-only reference)
+ * 6. take 5
  *
  * Expected results:
  * - Without overrides: ids [3,4,5,6,7], final_score approx [0.6..1.4]
@@ -19,8 +20,9 @@ import { definePlan, E, Pred } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "reels_plan_a",
   build: (ctx) => {
-    return ctx.viewer
-      .follow({ fanout: 10, trace: "src" })
+    return ctx
+      .viewer({ endpoint: EP.redis.default })
+      .follow({ endpoint: EP.redis.default, fanout: 10, trace: "src" })
       .vm({
         outKey: Key.final_score,
         expr: Key.id * coalesce(P.media_age_penalty_weight, 0.2),

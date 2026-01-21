@@ -280,8 +280,8 @@ TEST_CASE("EndpointRegistry loads real generated JSON", "[endpoint_registry][int
   REQUIRE(reg.env() == "dev");
   REQUIRE(reg.size() == 2);
 
-  // Check redis_default endpoint
-  const auto* redis = reg.by_name("redis_default");
+  // Check default (redis) endpoint
+  const auto* redis = reg.by_name("default");
   REQUIRE(redis != nullptr);
   REQUIRE(redis->endpoint_id == "ep_0001");
   REQUIRE(redis->kind == EndpointKind::Redis);

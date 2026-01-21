@@ -28,6 +28,8 @@ pnpm -C tools/visualizer run test:ui       # Run tests with Playwright UI
 pnpm -C tools/visualizer run test:headed   # Run tests in headed browser
 ```
 
+**IMPORTANT:** Visualizer e2e tests are NOT run in CI. Always run `pnpm -C tools/visualizer run test` locally before committing changes to visualizer files.
+
 ## Implementation Phases
 
 ### Step 00: MVP (Current) ✅

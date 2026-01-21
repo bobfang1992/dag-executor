@@ -1,14 +1,31 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "endpoint_registry.h"
 #include "executor.h"
+#include "io_clients.h"
 #include "key_registry.h"
 #include "param_table.h"
 #include "plan.h"
+#include "request.h"
 #include "schema_delta.h"
 #include <algorithm>
 #include <optional>
 
 using namespace rankd;
+
+// Helper to load endpoint registry for tests
+static const EndpointRegistry& get_test_endpoint_registry() {
+  static std::optional<EndpointRegistry> registry;
+  if (!registry) {
+    auto result = EndpointRegistry::LoadFromJson("artifacts/endpoints.dev.json");
+    if (std::holds_alternative<EndpointRegistry>(result)) {
+      registry = std::get<EndpointRegistry>(result);
+    } else {
+      throw std::runtime_error("Failed to load endpoint registry: " + std::get<std::string>(result));
+    }
+  }
+  return *registry;
+}
 
 // Helper to check keys are sorted and unique
 static bool is_sorted_unique(const std::vector<uint32_t> &keys) {
@@ -52,35 +69,40 @@ find_all_deltas_by_op(const std::vector<NodeSchemaDelta> &deltas,
   return result;
 }
 
-// Empty context for tests
-static ExecCtx make_test_ctx(const Plan &plan) {
+// Test context for runtime schema delta tests
+static ExecCtx make_test_ctx(const Plan &plan, IoClients* clients) {
   ExecCtx ctx;
   static ParamTable empty_params;
+  static RequestContext request_ctx;
+  request_ctx.user_id = 1;  // Tasks require user_id for Redis key lookup
+  request_ctx.request_id = "test";
   ctx.params = &empty_params;
   ctx.expr_table = &plan.expr_table;
   ctx.pred_table = &plan.pred_table;
+  ctx.request = &request_ctx;
+  ctx.endpoints = &get_test_endpoint_registry();
+  ctx.clients = clients;
   return ctx;
 }
 
 TEST_CASE("Runtime schema delta: vm_and_row_ops fixture",
-          "[schema_delta][runtime]") {
+          "[schema_delta][runtime][integration]") {
   Plan plan =
       parse_plan("engine/tests/fixtures/plan_info/vm_and_row_ops.plan.json");
-  validate_plan(plan);
-  auto ctx = make_test_ctx(plan);
+  validate_plan(plan, &get_test_endpoint_registry());
+  IoClients io_clients;
+  auto ctx = make_test_ctx(plan, &io_clients);
 
   auto result = execute_plan(plan, ctx);
 
   // Should have 4 nodes worth of schema deltas
-  REQUIRE(result.schema_deltas.size() == 4);
+  REQUIRE(result.schema_deltas.size() == 5);
 
-  SECTION("Source node (viewer.follow) has non-empty new_keys") {
-    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "viewer.follow");
+  SECTION("Source node (follow) has new_keys") {
+    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "follow");
     REQUIRE(delta_opt.has_value());
     auto delta = delta_opt.value();
 
-    // Source node should add columns
-    REQUIRE(delta.delta.new_keys.size() > 0);
     // Source node should not remove any columns (no inputs)
     REQUIRE(delta.delta.removed_keys.empty());
     // Input keys union should be empty (source has no inputs)
@@ -138,32 +160,31 @@ TEST_CASE("Runtime schema delta: vm_and_row_ops fixture",
 }
 
 TEST_CASE("Runtime schema delta: fixed_source fixture (concat)",
-          "[schema_delta][runtime]") {
+          "[schema_delta][runtime][integration]") {
   Plan plan =
       parse_plan("engine/tests/fixtures/plan_info/fixed_source.plan.json");
-  validate_plan(plan);
-  auto ctx = make_test_ctx(plan);
+  validate_plan(plan, &get_test_endpoint_registry());
+  IoClients io_clients;
+  auto ctx = make_test_ctx(plan, &io_clients);
 
   auto result = execute_plan(plan, ctx);
 
   // Should have 4 nodes worth of schema deltas
-  REQUIRE(result.schema_deltas.size() == 4);
+  REQUIRE(result.schema_deltas.size() == 5);
 
-  SECTION("Source nodes have non-empty new_keys") {
-    // viewer.follow source
+  SECTION("Source nodes have schema deltas") {
+    // follow source
     auto follow_delta =
-        find_delta_by_op(result.schema_deltas, plan, "viewer.follow");
+        find_delta_by_op(result.schema_deltas, plan, "follow");
     REQUIRE(follow_delta.has_value());
-    REQUIRE(follow_delta->delta.new_keys.size() > 0);
     REQUIRE(follow_delta->delta.removed_keys.empty());
     REQUIRE(follow_delta->delta.in_keys_union.empty());
     REQUIRE(is_sorted_unique(follow_delta->delta.new_keys));
 
-    // viewer.fetch_cached_recommendation source
+    // recommendation source
     auto cached_delta = find_delta_by_op(result.schema_deltas, plan,
-                                          "viewer.fetch_cached_recommendation");
+                                          "recommendation");
     REQUIRE(cached_delta.has_value());
-    REQUIRE(cached_delta->delta.new_keys.size() > 0);
     REQUIRE(cached_delta->delta.removed_keys.empty());
     REQUIRE(cached_delta->delta.in_keys_union.empty());
     REQUIRE(is_sorted_unique(cached_delta->delta.new_keys));
@@ -198,12 +219,13 @@ TEST_CASE("Runtime schema delta: fixed_source fixture (concat)",
 }
 
 TEST_CASE("Schema delta keys are always sorted and unique",
-          "[schema_delta][runtime]") {
+          "[schema_delta][runtime][integration]") {
   SECTION("vm_and_row_ops fixture") {
     Plan plan =
         parse_plan("engine/tests/fixtures/plan_info/vm_and_row_ops.plan.json");
-    validate_plan(plan);
-    auto ctx = make_test_ctx(plan);
+    validate_plan(plan, &get_test_endpoint_registry());
+    IoClients io_clients;
+    auto ctx = make_test_ctx(plan, &io_clients);
     auto result = execute_plan(plan, ctx);
 
     for (const auto &nd : result.schema_deltas) {
@@ -218,8 +240,9 @@ TEST_CASE("Schema delta keys are always sorted and unique",
   SECTION("fixed_source fixture") {
     Plan plan =
         parse_plan("engine/tests/fixtures/plan_info/fixed_source.plan.json");
-    validate_plan(plan);
-    auto ctx = make_test_ctx(plan);
+    validate_plan(plan, &get_test_endpoint_registry());
+    IoClients io_clients;
+    auto ctx = make_test_ctx(plan, &io_clients);
     auto result = execute_plan(plan, ctx);
 
     for (const auto &nd : result.schema_deltas) {

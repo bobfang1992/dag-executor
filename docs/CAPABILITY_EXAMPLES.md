@@ -416,8 +416,8 @@ Plans must include `timeout_ms`:
 ## DSL Usage Example
 
 ```typescript
-import { definePlan } from "@ranking-dsl/runtime";
-import { Key } from "@ranking-dsl/generated";
+import { definePlan, EP } from "@ranking-dsl/runtime";
+// Key, P, coalesce are globals - no import needed!
 
 export default definePlan({
   name: "example_with_capabilities",
@@ -426,7 +426,8 @@ export default definePlan({
     ctx.requireCapability("cap.audit", { level: "verbose" });
     ctx.requireCapability("cap.debug", { trace: true });
 
-    const source = ctx.viewer.follow({
+    const source = ctx.viewer({ endpoint: EP.redis.default }).follow({
+      endpoint: EP.redis.default,
       fanout: 100,
       // Node-level extension
       extensions: {

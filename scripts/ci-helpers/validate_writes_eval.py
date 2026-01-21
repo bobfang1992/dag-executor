@@ -9,7 +9,7 @@ with open(sys.argv[1]) as f:
 # Must have nodes array
 assert "nodes" in data, "Missing nodes array"
 nodes = data["nodes"]
-assert len(nodes) == 5, f"Expected 5 nodes, got {len(nodes)}"
+assert len(nodes) == 6, f"Expected 6 nodes, got {len(nodes)}"
 
 # Check each node has writes_eval
 for node in nodes:
@@ -21,10 +21,10 @@ for node in nodes:
     assert we["kind"] in ["Exact", "May", "Unknown"], f"Invalid kind: {we['kind']}"
 
 # Check specific nodes
-source_node = next(n for n in nodes if n["op"] == "viewer.follow")
-assert source_node["writes_eval"]["kind"] == "Exact"
-assert 3001 in source_node["writes_eval"]["keys"]  # features_esr_score
-assert 3002 in source_node["writes_eval"]["keys"]  # features_lsr_score
+follow_node = next(n for n in nodes if n["op"] == "follow")
+assert follow_node["writes_eval"]["kind"] == "Exact"
+# follow task writes country (3001) from hydration
+assert follow_node["writes_eval"]["keys"] == [3001]
 
 # Both vm nodes write to final_score (2001)
 vm_nodes = [n for n in nodes if n["op"] == "vm"]

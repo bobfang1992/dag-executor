@@ -17,8 +17,8 @@ export const EP = {
     http_api: "ep_0002" as EndpointId,
   },
   redis: {
-    /** redis_default (ep_0001) */
-    redis_default: "ep_0001" as EndpointId,
+    /** default (ep_0001) */
+    default: "ep_0001" as EndpointId,
   },
 } as const;
 
@@ -29,6 +29,6 @@ export type HttpEndpointId = (typeof EP.http)[keyof typeof EP.http];
 export type RedisEndpointId = (typeof EP.redis)[keyof typeof EP.redis];
 
 /** Env-invariant registry digest (endpoint_id, name, kind only) */
-export const ENDPOINT_REGISTRY_DIGEST = "551d9ea15487d6a5d38e8ee3e623b1ae858d87f977f680b605c8baf38c6a6024";
+export const ENDPOINT_REGISTRY_DIGEST = "aa596e6be6ac3ba1baef216420624ed5ea8a5a1fb6939071433e9bd7d426b0f1";
 
 export const ENDPOINT_COUNT = 2;

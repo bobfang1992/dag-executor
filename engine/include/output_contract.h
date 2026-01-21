@@ -52,6 +52,11 @@ struct ValidatedParams;
 //    - Output rowCount() must equal |lhs.active| + |rhs.active|
 //    - Active rows must be dense [0..N) in natural order
 //
+// 7) VariableDense
+//    - For IO tasks with variable output size (e.g., media)
+//    - Active rows must be dense [0..N) in natural order
+//    - No constraint on output size (determined by external data)
+//
 // =============================================================================
 
 enum class OutputPattern {
@@ -60,7 +65,8 @@ enum class OutputPattern {
   StableFilter,       // filter: output active is subsequence of input active
   PrefixOfInput,      // take: output active is prefix of input active (count)
   PermutationOfInput, // sort: same active rows, different order allowed
-  ConcatDense         // concat: out rowCount = |lhs.active| + |rhs.active|
+  ConcatDense,        // concat: out rowCount = |lhs.active| + |rhs.active|
+  VariableDense       // IO tasks with variable dense output
 };
 
 // Convert OutputPattern to string for error messages

@@ -1,12 +1,16 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "840ae7ddfb943edf",
+    "bundle_digest": "aba8249741753bfb",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
   "expr_table": {
     "e0": {
+      "key_id": 2001,
+      "op": "key_ref"
+    },
+    "e1": {
       "a": {
         "key_id": 1,
         "op": "key_ref"
@@ -29,10 +33,10 @@
     {
       "inputs": [],
       "node_id": "n0",
-      "op": "viewer.follow",
+      "op": "viewer",
       "params": {
-        "fanout": 10,
-        "trace": "src"
+        "endpoint": "ep_0001",
+        "trace": null
       }
     },
     {
@@ -40,11 +44,11 @@
         "n0"
       ],
       "node_id": "n1",
-      "op": "vm",
+      "op": "follow",
       "params": {
-        "expr_id": "e0",
-        "out_key": 2001,
-        "trace": "vm_final"
+        "endpoint": "ep_0001",
+        "fanout": 10,
+        "trace": "src"
       }
     },
     {
@@ -52,6 +56,18 @@
         "n1"
       ],
       "node_id": "n2",
+      "op": "vm",
+      "params": {
+        "expr_id": "e1",
+        "out_key": 2001,
+        "trace": "vm_final"
+      }
+    },
+    {
+      "inputs": [
+        "n2"
+      ],
+      "node_id": "n3",
       "op": "filter",
       "params": {
         "pred_id": "p0",
@@ -60,9 +76,21 @@
     },
     {
       "inputs": [
-        "n2"
+        "n3"
       ],
-      "node_id": "n3",
+      "node_id": "n4",
+      "op": "vm",
+      "params": {
+        "expr_id": "e0",
+        "out_key": 2001,
+        "trace": "vm_passthrough"
+      }
+    },
+    {
+      "inputs": [
+        "n4"
+      ],
+      "node_id": "n5",
       "op": "take",
       "params": {
         "count": 5,
@@ -71,7 +99,7 @@
     }
   ],
   "outputs": [
-    "n3"
+    "n5"
   ],
   "plan_name": "reels_plan_a",
   "pred_table": {

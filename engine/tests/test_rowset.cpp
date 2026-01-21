@@ -10,13 +10,13 @@ using namespace rankd;
 // Empty context for tests
 static ExecCtx empty_ctx;
 
-TEST_CASE("viewer.follow creates batch with sequential ids", "[rowset][task]") {
-  auto &registry = TaskRegistry::instance();
-
-  nlohmann::json params_json;
-  params_json["fanout"] = 10;
-  auto params = registry.validate_params("viewer.follow", params_json);
-  RowSet source = registry.execute("viewer.follow", {}, params, empty_ctx);
+TEST_CASE("Batch with sequential ids", "[rowset]") {
+  // Create batch directly (Redis-backed follow task requires Redis)
+  auto batch = std::make_shared<ColumnBatch>(10);
+  for (size_t i = 0; i < 10; ++i) {
+    batch->setId(i, static_cast<int64_t>(i + 1));
+  }
+  RowSet source(batch);
 
   REQUIRE(source.batch().size() == 10);
   REQUIRE_FALSE(source.hasSelection());
@@ -32,12 +32,12 @@ TEST_CASE("viewer.follow creates batch with sequential ids", "[rowset][task]") {
 TEST_CASE("take limits output and shares batch pointer", "[rowset][task]") {
   auto &registry = TaskRegistry::instance();
 
-  // Create source with fanout=10
-  nlohmann::json follow_params_json;
-  follow_params_json["fanout"] = 10;
-  auto follow_params =
-      registry.validate_params("viewer.follow", follow_params_json);
-  RowSet source = registry.execute("viewer.follow", {}, follow_params, empty_ctx);
+  // Create source batch manually (Redis-backed follow task requires Redis)
+  auto batch = std::make_shared<ColumnBatch>(10);
+  for (size_t i = 0; i < 10; ++i) {
+    batch->setId(i, static_cast<int64_t>(i + 1));
+  }
+  RowSet source(batch);
 
   // take with count=5
   nlohmann::json take_params_json;

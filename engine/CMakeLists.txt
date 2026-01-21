@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
+# Allow older cmake_minimum_required in FetchContent dependencies (hiredis uses old cmake)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "")
 project(rankd LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
@@ -32,18 +34,30 @@ FetchContent_Declare(
   GIT_TAG 2022-04-01
 )
 
+FetchContent_Declare(
+  hiredis
+  GIT_REPOSITORY https://github.com/redis/hiredis.git
+  GIT_TAG v1.2.0
+)
+
 # Disable Catch2's own tests
 set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
 # Disable RE2 tests
 set(RE2_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(json cli11 Catch2 re2)
+# Disable hiredis tests and SSL
+set(DISABLE_TESTS ON CACHE BOOL "" FORCE)
+set(ENABLE_SSL OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(json cli11 Catch2 re2 hiredis)
 
 # Task source files (self-registering via static TaskRegistrar)
 set(TASK_SOURCES
-  src/tasks/viewer_follow.cpp
-  src/tasks/viewer_fetch_cached_recommendation.cpp
+  src/tasks/viewer.cpp
+  src/tasks/follow.cpp
+  src/tasks/media.cpp
+  src/tasks/recommendation.cpp
   src/tasks/take.cpp
   src/tasks/sort.cpp
   src/tasks/vm.cpp
@@ -59,11 +73,13 @@ add_executable(rankd
   src/output_contract.cpp
   src/capability_registry.cpp
   src/writes_effect.cpp
+  src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 
 target_include_directories(rankd PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(rankd PRIVATE nlohmann_json::nlohmann_json CLI11::CLI11 re2::re2)
+target_link_libraries(rankd PRIVATE nlohmann_json::nlohmann_json CLI11::CLI11 re2::re2 hiredis::hiredis)
 
 # Output to engine/bin/
 set_target_properties(rankd PROPERTIES
@@ -81,11 +97,13 @@ add_executable(rankd_tests
   src/task_registry.cpp
   src/output_contract.cpp
   src/writes_effect.cpp
+  src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 
 target_include_directories(rankd_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(rankd_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2)
+target_link_libraries(rankd_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis)
 
 set_target_properties(rankd_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
@@ -100,11 +118,13 @@ add_executable(concat_tests
   src/output_contract.cpp
   src/capability_registry.cpp
   src/writes_effect.cpp
+  src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 
 target_include_directories(concat_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(concat_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2)
+target_link_libraries(concat_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis)
 
 set_target_properties(concat_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
@@ -119,11 +139,13 @@ add_executable(regex_tests
   src/output_contract.cpp
   src/capability_registry.cpp
   src/writes_effect.cpp
+  src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 
 target_include_directories(regex_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(regex_tests PRIVATE nlohmann_json::nlohmann_json re2::re2)
+target_link_libraries(regex_tests PRIVATE nlohmann_json::nlohmann_json re2::re2 hiredis::hiredis)
 
 set_target_properties(regex_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
@@ -151,11 +173,13 @@ add_executable(plan_info_tests
   src/output_contract.cpp
   src/capability_registry.cpp
   src/writes_effect.cpp
+  src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 
 target_include_directories(plan_info_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(plan_info_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2)
+target_link_libraries(plan_info_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis)
 
 set_target_properties(plan_info_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
@@ -170,11 +194,13 @@ add_executable(schema_delta_tests
   src/output_contract.cpp
   src/capability_registry.cpp
   src/writes_effect.cpp
+  src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 
 target_include_directories(schema_delta_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(schema_delta_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2)
+target_link_libraries(schema_delta_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis)
 
 set_target_properties(schema_delta_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"

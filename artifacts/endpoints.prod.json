@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "env": "prod",
-  "registry_digest": "551d9ea15487d6a5d38e8ee3e623b1ae858d87f977f680b605c8baf38c6a6024",
-  "config_digest": "d95cb587e490663cfc8cb3da4551eaa46f5ad378b648bdaea725fff74778ac8b",
+  "registry_digest": "aa596e6be6ac3ba1baef216420624ed5ea8a5a1fb6939071433e9bd7d426b0f1",
+  "config_digest": "cdcc52940cedcfb59a09053c9fbedaf9170a4e0e74e14a7c1be59e3dc21cce96",
   "endpoints": [
     {
       "endpoint_id": "ep_0001",
-      "name": "redis_default",
+      "name": "default",
       "kind": "redis",
       "resolver": {
         "type": "static",

@@ -1,7 +1,7 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "334f48fe4950160a",
+    "bundle_digest": "049c03c255819d48",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
@@ -9,19 +9,22 @@
     {
       "inputs": [],
       "node_id": "n0",
-      "op": "viewer.follow",
+      "op": "viewer",
       "params": {
-        "fanout": 4,
-        "trace": "L"
+        "endpoint": "ep_0001",
+        "trace": null
       }
     },
     {
-      "inputs": [],
+      "inputs": [
+        "n0"
+      ],
       "node_id": "n1",
-      "op": "viewer.fetch_cached_recommendation",
+      "op": "follow",
       "params": {
+        "endpoint": "ep_0001",
         "fanout": 4,
-        "trace": "R"
+        "trace": "L"
       }
     },
     {
@@ -29,17 +32,29 @@
         "n0"
       ],
       "node_id": "n2",
+      "op": "recommendation",
+      "params": {
+        "endpoint": "ep_0001",
+        "fanout": 4,
+        "trace": "R"
+      }
+    },
+    {
+      "inputs": [
+        "n1"
+      ],
+      "node_id": "n3",
       "op": "concat",
       "params": {
-        "rhs": "n1",
+        "rhs": "n2",
         "trace": "C"
       }
     },
     {
       "inputs": [
-        "n2"
+        "n3"
       ],
-      "node_id": "n3",
+      "node_id": "n4",
       "op": "take",
       "params": {
         "count": 8,
@@ -48,7 +63,7 @@
     }
   ],
   "outputs": [
-    "n3"
+    "n4"
   ],
   "plan_name": "concat_plan",
   "schema_version": 1

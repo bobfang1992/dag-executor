@@ -14,8 +14,8 @@ import { definePlan } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "filter_ast_pred_unsupported",
   build: (ctx) => {
-    return ctx.viewer
-      .follow({ fanout: 10, trace: "src" })
+    return ctx.viewer({ endpoint: EP.redis.default })
+      .follow({ endpoint: EP.redis.default, fanout: 10, trace: "src" })
       .filter({
         // This is unsupported: arithmetic in predicates
         pred: (Key.model_score_1 * 2) > 10,

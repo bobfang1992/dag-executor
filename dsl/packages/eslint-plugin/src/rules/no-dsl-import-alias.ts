@@ -1,24 +1,25 @@
 /**
  * ESLint rule: no-dsl-import-alias
  *
- * Disallows importing Key, P, or coalesce from @ranking-dsl packages.
+ * Disallows importing Key, P, EP, or coalesce from @ranking-dsl packages.
  * These are injected as globals by the compiler and should not be imported.
  *
  * BAD:  import { Key } from "@ranking-dsl/runtime"
  * BAD:  import { Key as K } from "@ranking-dsl/generated"
- * GOOD: (no import) - Key, P, coalesce are globals
+ * BAD:  import { EP } from "@ranking-dsl/generated"
+ * GOOD: (no import) - Key, P, EP, coalesce are globals
  */
 
 import type { Rule } from "eslint";
 
-const RESTRICTED_IDENTIFIERS = ["Key", "P", "coalesce"];
+const RESTRICTED_IDENTIFIERS = ["Key", "P", "EP", "coalesce"];
 const DSL_PACKAGES = ["@ranking-dsl/runtime", "@ranking-dsl/generated"];
 
 const rule: Rule.RuleModule = {
   meta: {
     type: "problem",
     docs: {
-      description: "Disallow importing Key, P, or coalesce from @ranking-dsl packages (they are globals)",
+      description: "Disallow importing Key, P, EP, or coalesce from @ranking-dsl packages (they are globals)",
       recommended: true,
     },
     messages: {

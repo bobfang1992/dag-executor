@@ -9,8 +9,8 @@ import { definePlan, E, Pred } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "globals_no_import",
   build: (ctx) => {
-    return ctx.viewer
-      .follow({ fanout: 10, trace: "src" })
+    return ctx.viewer({ endpoint: EP.redis.default })
+      .follow({ endpoint: EP.redis.default, fanout: 10, trace: "src" })
       // Natural expression using globals
       .vm({
         outKey: Key.final_score,

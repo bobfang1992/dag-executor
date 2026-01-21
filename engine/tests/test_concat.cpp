@@ -2,13 +2,31 @@
 #include <catch2/matchers/catch_matchers_string.hpp>
 
 #include "column_batch.h"
+#include "endpoint_registry.h"
 #include "executor.h"
+#include "io_clients.h"
 #include "param_table.h"
 #include "plan.h"
+#include "request.h"
 #include "rowset.h"
 #include "task_registry.h"
+#include <optional>
 
 using namespace rankd;
+
+// Helper to load endpoint registry for tests
+static const EndpointRegistry& get_test_endpoint_registry() {
+  static std::optional<EndpointRegistry> registry;
+  if (!registry) {
+    auto result = EndpointRegistry::LoadFromJson("artifacts/endpoints.dev.json");
+    if (std::holds_alternative<EndpointRegistry>(result)) {
+      registry = std::get<EndpointRegistry>(result);
+    } else {
+      throw std::runtime_error("Failed to load endpoint registry: " + std::get<std::string>(result));
+    }
+  }
+  return *registry;
+}
 
 // Empty context for tests
 static ExecCtx make_test_ctx() {
@@ -18,22 +36,57 @@ static ExecCtx make_test_ctx() {
   return ctx;
 }
 
+// Helper to create test RowSet with ids and country strings
+static RowSet create_test_rowset(const std::vector<int64_t>& ids,
+                                   const std::vector<std::string>& countries) {
+  // Build ColumnBatch with ids
+  auto batch_ptr = std::make_shared<ColumnBatch>(ids.size());
+  for (size_t i = 0; i < ids.size(); ++i) {
+    batch_ptr->setId(i, ids[i]);
+  }
+
+  // Build string dict column for country
+  // First, build the dictionary (unique values in order)
+  std::vector<std::string> dict;
+  std::unordered_map<std::string, int32_t> dict_map;
+  std::vector<int32_t> codes(countries.size());
+  std::vector<uint8_t> valid(countries.size(), 1);
+
+  for (size_t i = 0; i < countries.size(); ++i) {
+    const auto& country = countries[i];
+    auto it = dict_map.find(country);
+    if (it == dict_map.end()) {
+      int32_t code = static_cast<int32_t>(dict.size());
+      dict.push_back(country);
+      dict_map[country] = code;
+      codes[i] = code;
+    } else {
+      codes[i] = it->second;
+    }
+  }
+
+  auto string_col = std::make_shared<StringDictColumn>(
+      std::make_shared<std::vector<std::string>>(std::move(dict)),
+      std::make_shared<std::vector<int32_t>>(std::move(codes)),
+      std::make_shared<std::vector<uint8_t>>(std::move(valid)));
+
+  // Use withStringColumn to create a new batch with the string column
+  auto batch_with_country = std::make_shared<ColumnBatch>(
+      batch_ptr->withStringColumn(key_id(KeyId::country), string_col));
+
+  return RowSet(batch_with_country);
+}
+
 TEST_CASE("concat task produces correct output", "[concat][task]") {
   auto &registry = TaskRegistry::instance();
   auto ctx = make_test_ctx();
 
-  SECTION("concat two sources from viewer.follow and fetch_cached_recommendation") {
-    // Create source from viewer.follow (ids 1-4)
-    nlohmann::json follow_params;
-    follow_params["fanout"] = 4;
-    auto fp = registry.validate_params("viewer.follow", follow_params);
-    RowSet lhs = registry.execute("viewer.follow", {}, fp, ctx);
+  SECTION("concat two sources with string columns") {
+    // Create source (ids 1-4, countries cycling US/CA)
+    RowSet lhs = create_test_rowset({1, 2, 3, 4}, {"US", "CA", "US", "CA"});
 
-    // Create source from viewer.fetch_cached_recommendation (ids 1001-1004)
-    nlohmann::json fetch_params;
-    fetch_params["fanout"] = 4;
-    auto fcp = registry.validate_params("viewer.fetch_cached_recommendation", fetch_params);
-    RowSet rhs = registry.execute("viewer.fetch_cached_recommendation", {}, fcp, ctx);
+    // Create source (ids 1001-1004, countries cycling CA/FR)
+    RowSet rhs = create_test_rowset({1001, 1002, 1003, 1004}, {"CA", "FR", "CA", "FR"});
 
     // Concat them - now uses params.rhs instead of inputs[1]
     nlohmann::json concat_params;
@@ -62,9 +115,6 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
     REQUIRE(ids == std::vector<int64_t>{1, 2, 3, 4, 1001, 1002, 1003, 1004});
 
     // Check country string column exists and has unified dict
-    // viewer.follow emits country = ["US", "CA"] cycling
-    // viewer.fetch_cached_recommendation emits country = ["CA", "FR"] cycling
-    // Unified dict should be: lhs dict in order + rhs entries not in lhs
     // lhs dict = ["US", "CA"], rhs dict = ["CA", "FR"]
     // Unified should be ["US", "CA", "FR"]
     const auto *country_col = result.batch().getStringCol(key_id(KeyId::country));
@@ -93,10 +143,7 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
   }
 
   SECTION("concat with wrong input arity (0 inputs) throws") {
-    nlohmann::json follow_params;
-    follow_params["fanout"] = 4;
-    auto fp = registry.validate_params("viewer.follow", follow_params);
-    RowSet rhs = registry.execute("viewer.follow", {}, fp, ctx);
+    RowSet rhs = create_test_rowset({1, 2, 3, 4}, {"US", "CA", "US", "CA"});
 
     nlohmann::json concat_params;
     concat_params["rhs"] = "rhs_node";
@@ -113,12 +160,9 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
   }
 
   SECTION("concat with wrong input arity (2 inputs) throws") {
-    nlohmann::json follow_params;
-    follow_params["fanout"] = 2;
-    auto fp = registry.validate_params("viewer.follow", follow_params);
-    RowSet a = registry.execute("viewer.follow", {}, fp, ctx);
-    RowSet b = registry.execute("viewer.follow", {}, fp, ctx);
-    RowSet c = registry.execute("viewer.follow", {}, fp, ctx);
+    RowSet a = create_test_rowset({1, 2}, {"US", "CA"});
+    RowSet b = create_test_rowset({3, 4}, {"US", "CA"});
+    RowSet c = create_test_rowset({5, 6}, {"US", "CA"});
 
     nlohmann::json concat_params;
     concat_params["rhs"] = "rhs_node";
@@ -135,10 +179,7 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
   }
 
   SECTION("concat with missing resolved_node_refs throws") {
-    nlohmann::json follow_params;
-    follow_params["fanout"] = 4;
-    auto fp = registry.validate_params("viewer.follow", follow_params);
-    RowSet lhs = registry.execute("viewer.follow", {}, fp, ctx);
+    RowSet lhs = create_test_rowset({1, 2, 3, 4}, {"US", "CA", "US", "CA"});
 
     nlohmann::json concat_params;
     concat_params["rhs"] = "rhs_node";
@@ -151,15 +192,22 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
   }
 }
 
-TEST_CASE("concat_demo.plan.json executes correctly", "[concat][plan]") {
-  Plan plan = parse_plan("artifacts/plans/concat_demo.plan.json");
-  validate_plan(plan);
+TEST_CASE("concat_plan.plan.json executes correctly", "[concat][plan][integration]") {
+  Plan plan = parse_plan("artifacts/plans/concat_plan.plan.json");
+  validate_plan(plan, &get_test_endpoint_registry());
 
+  IoClients io_clients;
   ExecCtx ctx;
   ParamTable params;
+  RequestContext request_ctx;
+  request_ctx.user_id = 1;
+  request_ctx.request_id = "test";
   ctx.params = &params;
   ctx.expr_table = &plan.expr_table;
   ctx.pred_table = &plan.pred_table;
+  ctx.request = &request_ctx;
+  ctx.endpoints = &get_test_endpoint_registry();
+  ctx.clients = &io_clients;
 
   auto result = execute_plan(plan, ctx);
 
@@ -181,6 +229,6 @@ TEST_CASE("concat_bad_arity.plan.json fails validation (missing rhs)", "[concat]
 
   // Validation should fail because rhs param is missing
   REQUIRE_THROWS_WITH(
-      validate_plan(plan),
-      "Node 'n1': Invalid params for op 'concat': missing required field 'rhs'");
+      validate_plan(plan, &get_test_endpoint_registry()),
+      "Node 'n2': Invalid params for op 'concat': missing required field 'rhs'");
 }

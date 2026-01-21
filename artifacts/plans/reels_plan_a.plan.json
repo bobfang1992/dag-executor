@@ -1,7 +1,7 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "79ae7325b4c15421",
+    "bundle_digest": "9cbcc5f3218e20ec",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
@@ -33,10 +33,10 @@
     {
       "inputs": [],
       "node_id": "n0",
-      "op": "viewer.follow",
+      "op": "viewer",
       "params": {
-        "fanout": 10,
-        "trace": "src"
+        "endpoint": "ep_0001",
+        "trace": null
       }
     },
     {
@@ -44,6 +44,18 @@
         "n0"
       ],
       "node_id": "n1",
+      "op": "follow",
+      "params": {
+        "endpoint": "ep_0001",
+        "fanout": 10,
+        "trace": "src"
+      }
+    },
+    {
+      "inputs": [
+        "n1"
+      ],
+      "node_id": "n2",
       "op": "vm",
       "params": {
         "expr_id": "e1",
@@ -53,9 +65,9 @@
     },
     {
       "inputs": [
-        "n1"
+        "n2"
       ],
-      "node_id": "n2",
+      "node_id": "n3",
       "op": "filter",
       "params": {
         "pred_id": "p0",
@@ -64,9 +76,9 @@
     },
     {
       "inputs": [
-        "n2"
+        "n3"
       ],
-      "node_id": "n3",
+      "node_id": "n4",
       "op": "vm",
       "params": {
         "expr_id": "e0",
@@ -76,9 +88,9 @@
     },
     {
       "inputs": [
-        "n3"
+        "n4"
       ],
-      "node_id": "n4",
+      "node_id": "n5",
       "op": "take",
       "params": {
         "count": 5,
@@ -87,7 +99,7 @@
     }
   ],
   "outputs": [
-    "n4"
+    "n5"
   ],
   "plan_name": "reels_plan_a",
   "pred_table": {

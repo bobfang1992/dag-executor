@@ -51,14 +51,14 @@ function decodeFromUrl(encoded: string): string | null {
   }
 }
 
-const DEFAULT_PLAN = `import { definePlan } from '@ranking-dsl/runtime';
+const DEFAULT_PLAN = `import { definePlan, EP } from '@ranking-dsl/runtime';
 // Key, P, coalesce, regex are globals - no import needed
 
 export default definePlan({
   name: 'my_plan',
   build: (ctx) => {
-    // Source: fetch viewer's followed accounts
-    const source = ctx.viewer.follow({ fanout: 100 });
+    // Source: viewer returns the request user's data, follow fans out to followees
+    const source = ctx.viewer({ endpoint: EP.redis.default }).follow({ endpoint: EP.redis.default, fanout: 100 });
 
     // Score: compute final_score using natural expression syntax
     // The compiler extracts Key.x * P.y expressions at compile-time

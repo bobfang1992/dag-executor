@@ -209,15 +209,15 @@ pnpm -C tools/visualizer add monaco-editor @monaco-editor/react
 import Editor from '@monaco-editor/react';
 import { useStore } from '../state/store';
 
-const DEFAULT_PLAN = `import { definePlan } from '@ranking-dsl/runtime';
-import { Key, P } from '@ranking-dsl/generated';
+const DEFAULT_PLAN = `import { definePlan, EP } from '@ranking-dsl/runtime';
+// Key, P, coalesce are globals - no import needed!
 
 export default definePlan({
   name: 'my_plan',
-  build: (c, ctx) => {
-    const source = ctx.viewer.follow({ fanout: 100 });
-    const scored = source.vm(Key.final_score, Key.id * 0.1);
-    return scored.take({ limit: 10 });
+  build: (ctx) => {
+    const source = ctx.viewer({ endpoint: EP.redis.default }).follow({ endpoint: EP.redis.default, fanout: 100 });
+    const scored = source.vm({ outKey: Key.final_score, expr: Key.id * 0.1 });
+    return scored.take({ count: 10 });
   },
 });
 `;

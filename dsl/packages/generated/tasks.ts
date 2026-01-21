@@ -3,6 +3,7 @@
 // Regenerate with: pnpm -C dsl run gen
 
 import type { KeyToken } from "./keys.js";
+import type { EndpointId } from "./endpoints.js";
 
 // =====================================================
 // Expression types (narrow discriminated unions)
@@ -67,22 +68,6 @@ export interface CandidateSetLike {
 }
 
 // =====================================================
-// Source task option interfaces
-// =====================================================
-
-export interface ViewerFetchCachedRecommendationOpts {
-  fanout: number;
-  trace?: string | null;
-  extensions?: Record<string, unknown>;
-}
-
-export interface ViewerFollowOpts {
-  fanout: number;
-  trace?: string | null;
-  extensions?: Record<string, unknown>;
-}
-
-// =====================================================
 // Transform task option interfaces
 // =====================================================
 
@@ -94,6 +79,27 @@ export interface ConcatOpts {
 
 export interface FilterOpts {
   pred: PredInput;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
+export interface FollowOpts {
+  endpoint: EndpointId;
+  fanout: number;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
+export interface MediaOpts {
+  endpoint: EndpointId;
+  fanout: number;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
+export interface RecommendationOpts {
+  endpoint: EndpointId;
+  fanout: number;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
@@ -111,6 +117,12 @@ export interface TakeOpts {
   extensions?: Record<string, unknown>;
 }
 
+export interface ViewerOpts {
+  endpoint: EndpointId;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
 export interface VmOpts {
   expr: ExprInput;
   outKey: KeyToken;
@@ -122,8 +134,8 @@ export interface VmOpts {
 // Metadata
 // =====================================================
 
-export const TASK_MANIFEST_DIGEST = "c02b01d9e7d4f7c0a2ef2734f12b16c76f83c6f8d0e12b6426cf816debe839c0";
-export const TASK_COUNT = 7;
+export const TASK_MANIFEST_DIGEST = "65570d9c16fd650b8c758d0b019f5db802c99e910f99bc58c8ed640e969d48b8";
+export const TASK_COUNT = 9;
 
 // =====================================================
 // Task extraction metadata (for AST extractor)

@@ -12,7 +12,8 @@ export default definePlan({
     ctx.requireCapability("cap.rfc.0001.extensions_capabilities.v1");
 
     // Create a node with extensions (empty payload as per schema)
-    const candidates = ctx.viewer.follow({
+    const candidates = ctx.viewer({ endpoint: EP.redis.default }).follow({
+      endpoint: EP.redis.default,
       fanout: 10,
       trace: "src",
       extensions: {

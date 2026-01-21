@@ -1,24 +1,25 @@
 /**
  * ESLint rule: no-dsl-reassign
  *
- * Disallows reassigning Key, P, or coalesce to another variable.
+ * Disallows reassigning Key, P, EP, or coalesce to another variable.
  * The AST extractor only recognizes exact identifiers.
  *
  * BAD:  const JK = Key;
  * BAD:  let params = P;
  * BAD:  const coal = coalesce;
- * GOOD: (use Key, P, coalesce directly)
+ * BAD:  const endpoints = EP;
+ * GOOD: (use Key, P, EP, coalesce directly)
  */
 
 import type { Rule } from "eslint";
 
-const PROTECTED_GLOBALS = ["Key", "P", "coalesce"];
+const PROTECTED_GLOBALS = ["Key", "P", "EP", "coalesce"];
 
 const rule: Rule.RuleModule = {
   meta: {
     type: "problem",
     docs: {
-      description: "Disallow reassigning Key, P, or coalesce to another variable",
+      description: "Disallow reassigning Key, P, EP, or coalesce to another variable",
       recommended: true,
     },
     messages: {

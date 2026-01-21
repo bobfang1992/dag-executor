@@ -51,7 +51,7 @@ plans/              # Official plans (CI, production) → artifacts/plans/
 examples/plans/     # Example/tutorial plans → artifacts/plans-examples/
 artifacts/          # Compiled JSON artifacts
 docs/               # Developer guides
-plan-globals.d.ts   # Generated: declares Key/P/coalesce globals for editor support
+plan-globals.d.ts   # Generated: declares Key/P/EP/coalesce globals for editor support
 tsconfig.json       # Root TS config for plan files
 ```
 
@@ -126,6 +126,7 @@ Plans may only import from:
 **Global Tokens (no import needed):**
 - `Key` - Column key references (e.g., `Key.final_score`)
 - `P` - Parameter references (e.g., `P.media_age_penalty_weight`)
+- `EP` - Endpoint references (e.g., `EP.redis.default`)
 - `coalesce` - Null fallback function (e.g., `coalesce(P.x, 0.2)`)
 - `regex` - Regex predicate function (e.g., `regex(Key.title, "^test")`)
 
@@ -136,7 +137,7 @@ The compiler injects these via esbuild's `inject` option. **Do not import them.*
 **Enforcement:**
 - esbuild plugin in `bundler.ts` rejects at compile time
 - ESLint rule `@ranking-dsl/plan-restricted-imports` catches in editor
-- ESLint rule `@ranking-dsl/no-dsl-import-alias` rejects Key/P/coalesce imports
+- ESLint rule `@ranking-dsl/no-dsl-import-alias` rejects Key/P/EP/coalesce imports
 - ESLint rule `@ranking-dsl/no-dsl-reassign` rejects reassignment (`const JK = Key`)
 
 ### AST Extraction Limitations
@@ -149,7 +150,7 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
 
 2. **Inline expressions only**: The `expr` value must be an inline expression in the task call. Variables, shorthand, or spread patterns are NOT extracted:
    ```typescript
-   // WORKS - inline expression (Key, P, coalesce are globals)
+   // WORKS - inline expression (Key, P, EP, coalesce are globals)
    c.vm({ outKey: Key.x, expr: Key.id * coalesce(P.y, 0.2) })
 
    // DOES NOT WORK - variable reference
@@ -163,7 +164,7 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
 
 3. **Fragments**: When implemented, fragments must use builder-style expressions OR extraction must be extended to process them.
 
-4. **No reassignment**: Extraction only recognizes exact identifiers `Key`, `P`, `coalesce`. Reassigning is not supported:
+4. **No reassignment**: Extraction only recognizes exact identifiers `Key`, `P`, `EP`, `coalesce`. Reassigning is not supported:
    ```typescript
    // WORKS - use globals directly (no import needed)
    c.vm({ expr: Key.id * coalesce(P.weight, 0.2) })
@@ -174,7 +175,7 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
    ```
 
 **ESLint enforcement:** `@ranking-dsl/eslint-plugin` catches these issues in editor:
-- `@ranking-dsl/no-dsl-import-alias` - rejects importing Key/P/coalesce (they are globals)
+- `@ranking-dsl/no-dsl-import-alias` - rejects importing Key/P/EP/coalesce (they are globals)
 - `@ranking-dsl/no-dsl-reassign` - rejects reassignment (`const JK = Key`)
 - `@ranking-dsl/inline-expr-only` - rejects variable references in expr
 - `@ranking-dsl/plan-restricted-imports` - restricts imports in .plan.ts files
@@ -255,7 +256,7 @@ See [docs/PLAN_COMPILER_GUIDE.md](docs/PLAN_COMPILER_GUIDE.md) for detailed usag
 
 ### Key Access
 ```typescript
-// Key, P, coalesce are globals (no import needed)
+// Key, P, EP, coalesce are globals (no import needed)
 row.get(Key.some_key)      // Standard access via tokens
 row.set(Key.some_key, val) // Returns new RowSet (pure functional)
 row._debug.get("key")      // Debug-only string access
@@ -311,7 +312,8 @@ export const esr = defineFragment({
 - **StringDictColumn**: Dictionary-encoded strings for regex optimization
 
 ### Task Categories
-- **Source**: `viewer.follow()`, `viewer.fetch_cached_recommendation()`
+- **Source**: `ctx.viewer()` - returns single row with viewer's user_id and country
+- **Transform (fan-out)**: `cs.follow()`, `cs.recommendation()`, `cs.media()` - expand input rows to related items
 - **Composition**: `a.concat({ rhs: b })` (uses NodeRef param)
 - **Feature/Model**: `fetch_features()`, `call_models()`
 - **Transform**: `vm()`, `filter()`, `dedupe()`, `sort()`, `take()`, `extract_features()`
@@ -391,8 +393,10 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 ### Tasks
 | Task | Engine | DSL | Notes |
 |------|--------|-----|-------|
-| viewer.follow | ✅ | ✅ `ctx.viewer.follow()` | |
-| viewer.fetch_cached_recommendation | ✅ | ✅ `ctx.viewer.fetch_cached_recommendation()` | |
+| viewer | ✅ | ✅ `ctx.viewer()` | Source: Redis HGETALL user:{uid}, returns country |
+| follow | ✅ | ✅ `.follow()` | Transform: fan-out per input row, hydrates country |
+| recommendation | ✅ | ✅ `.recommendation()` | Transform: fan-out per input row, hydrates country |
+| media | ✅ | ✅ `.media()` | Transform: Redis LRANGE media:{id} per input |
 | vm | ✅ | ✅ `.vm()` | Expression evaluation |
 | filter | ✅ | ✅ `.filter()` | Predicate evaluation |
 | take | ✅ | ✅ `.take()` | |
@@ -477,6 +481,9 @@ node dsl/packages/compiler/dist/cli.js build plans/foo.plan.ts --out artifacts/p
 
 # Custom manifest and output directory
 tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir
+
+# Visualizer e2e tests (NOT run in CI - run locally when modifying visualizer)
+pnpm -C tools/visualizer run test
 ```
 
 ---
@@ -569,7 +576,7 @@ payload_schema = '''
 Codegen generates:
 - `dsl/packages/generated/capabilities.ts` - TS registry + `validatePayload()`
 - `engine/include/capability_registry_gen.h` - C++ constexpr metadata
-- `plan-globals.d.ts` - Global type declarations for Key/P/coalesce (editor support)
+- `plan-globals.d.ts` - Global type declarations for Key/P/EP/coalesce (editor support)
 
 ### Registered Capabilities
 
@@ -751,14 +758,16 @@ See [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) for detai
 ### Quick Status
 
 **✅ Completed:**
-- Steps 00-14.2: Core engine, registries, codegen, DSL runtime, QuickJS compiler
-- Tasks: viewer.follow, vm, filter, take, concat, sort
+- Steps 00-14.4: Core engine, registries, codegen, DSL runtime, QuickJS compiler
+- Tasks: viewer, follow, media, recommendation (Redis-backed), vm, filter, take, concat, sort
 - Capabilities system (RFC 0001), writes_effect (RFC 0005)
 - AST extraction for natural expressions and predicates
 - Visualizer with live plan editing, registry browser, and edit existing plan support
 - Endpoint Registry with per-env config, EndpointRef param type
+- Local Redis harness (Docker Compose + seed script)
 
 **🔲 Remaining:**
 - Fragment authoring, budget enforcement, HTTP server
 - Tasks: fetch_features, call_models, dedupe, join, extract_features
 - Audit logging, SourceRef generation
+

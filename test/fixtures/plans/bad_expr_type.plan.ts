@@ -4,7 +4,8 @@ import { definePlan } from '@ranking-dsl/runtime';
 export default definePlan({
   name: 'bad_expr_type',
   build: (ctx) => {
-    const source = ctx.viewer.follow({ fanout: 100 });
+    const source = ctx.viewer({ endpoint: EP.redis.default })
+      .follow({ endpoint: EP.redis.default, fanout: 100 });
     const scored = source.vm({
       outKey: Key.final_score,
       expr: "not an expression" as any,

@@ -7,6 +7,7 @@
 
 import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput, CandidateSetLike } from "./tasks.js";
 import type { KeyToken } from "./keys.js";
+import type { EndpointId } from "./endpoints.js";
 
 // =====================================================
 // Types for plan context interface
@@ -119,66 +120,6 @@ function checkNoUndefined(obj: Record<string, unknown>, context: string): void {
 }
 
 // =====================================================
-// Source task implementations (for PlanCtx.viewer)
-// =====================================================
-
-/** Implementation for viewer.fetch_cached_recommendation */
-export function fetchCachedRecommendationImpl(
-  ctx: TaskContext,
-  opts: {
-    fanout: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-  }
-): string {
-  assertNotUndefined(opts, "fetchCachedRecommendation(opts)");
-  assertNotUndefined(opts.fanout, "fetchCachedRecommendation({ fanout })");
-  assertInteger(opts.fanout, "fetchCachedRecommendation({ fanout })");
-  const { extensions, ...rest } = opts;
-  checkNoUndefined(rest as Record<string, unknown>, "fetchCachedRecommendation(opts)");
-
-  // Validate trace
-  if (opts.trace !== undefined) {
-    assertStringOrNull(opts.trace, "fetchCachedRecommendation({ trace })");
-  }
-
-  const params: Record<string, unknown> = {
-    fanout: opts.fanout,
-    trace: opts.trace ?? null,
-  };
-
-  return ctx.addNode("viewer.fetch_cached_recommendation", [], params, extensions);
-}
-
-/** Implementation for viewer.follow */
-export function followImpl(
-  ctx: TaskContext,
-  opts: {
-    fanout: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-  }
-): string {
-  assertNotUndefined(opts, "follow(opts)");
-  assertNotUndefined(opts.fanout, "follow({ fanout })");
-  assertInteger(opts.fanout, "follow({ fanout })");
-  const { extensions, ...rest } = opts;
-  checkNoUndefined(rest as Record<string, unknown>, "follow(opts)");
-
-  // Validate trace
-  if (opts.trace !== undefined) {
-    assertStringOrNull(opts.trace, "follow({ trace })");
-  }
-
-  const params: Record<string, unknown> = {
-    fanout: opts.fanout,
-    trace: opts.trace ?? null,
-  };
-
-  return ctx.addNode("viewer.follow", [], params, extensions);
-}
-
-// =====================================================
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
 
@@ -250,6 +191,102 @@ export function filterImpl(
   return ctx.addNode("filter", [inputNodeId], params, extensions);
 }
 
+/** Implementation for follow */
+export function followImpl(
+  ctx: TaskContext,
+  inputNodeId: string,
+  opts: {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "follow(opts)");
+  assertNotUndefined(opts.endpoint, "follow({ endpoint })");
+  assertNotUndefined(opts.fanout, "follow({ fanout })");
+  assertInteger(opts.fanout, "follow({ fanout })");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "follow(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "follow({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    endpoint: opts.endpoint,
+    fanout: opts.fanout,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("follow", [inputNodeId], params, extensions);
+}
+
+/** Implementation for media */
+export function mediaImpl(
+  ctx: TaskContext,
+  inputNodeId: string,
+  opts: {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "media(opts)");
+  assertNotUndefined(opts.endpoint, "media({ endpoint })");
+  assertNotUndefined(opts.fanout, "media({ fanout })");
+  assertInteger(opts.fanout, "media({ fanout })");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "media(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "media({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    endpoint: opts.endpoint,
+    fanout: opts.fanout,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("media", [inputNodeId], params, extensions);
+}
+
+/** Implementation for recommendation */
+export function recommendationImpl(
+  ctx: TaskContext,
+  inputNodeId: string,
+  opts: {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "recommendation(opts)");
+  assertNotUndefined(opts.endpoint, "recommendation({ endpoint })");
+  assertNotUndefined(opts.fanout, "recommendation({ fanout })");
+  assertInteger(opts.fanout, "recommendation({ fanout })");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "recommendation(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "recommendation({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    endpoint: opts.endpoint,
+    fanout: opts.fanout,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("recommendation", [inputNodeId], params, extensions);
+}
+
 /** Implementation for sort */
 export function sortImpl(
   ctx: TaskContext,
@@ -310,6 +347,34 @@ export function takeImpl(
   return ctx.addNode("take", [inputNodeId], params, extensions);
 }
 
+/** Implementation for viewer */
+export function viewerImpl(
+  ctx: TaskContext,
+  inputNodeId: string,
+  opts: {
+    endpoint: EndpointId;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "viewer(opts)");
+  assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "viewer(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "viewer({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    endpoint: opts.endpoint,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("viewer", [inputNodeId], params, extensions);
+}
+
 /** Implementation for vm */
 export function vmImpl(
   ctx: TaskContext,
@@ -358,6 +423,6 @@ export function vmImpl(
 // =====================================================
 
 export const GENERATED_TASKS = {
-  source: ["fetchCachedRecommendation", "follow"],
-  transform: ["concat", "filter", "sort", "take", "vm"],
+  source: [],
+  transform: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "viewer", "vm"],
 } as const;

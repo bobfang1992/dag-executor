@@ -78,11 +78,19 @@ export default definePlan({
 });
 ```
 
-### Source Tasks
+### Source Task
 
 ```typescript
-ctx.viewer.follow({ fanout: 100, trace: "source" })
-ctx.viewer.fetch_cached_recommendation({ fanout: 50 })
+// viewer returns the requesting user's data (single row)
+ctx.viewer({ endpoint: EP.redis.default, trace: "viewer" })
+```
+
+### Fan-out Tasks
+
+```typescript
+// follow/recommendation expand to multiple rows per input user
+.follow({ endpoint: EP.redis.default, fanout: 100, trace: "follow" })
+.recommendation({ endpoint: EP.redis.default, fanout: 50, trace: "recs" })
 ```
 
 ### Transform Tasks
@@ -174,3 +182,4 @@ scripts/                 # CI and tooling scripts
 ## Code Style
 
 C++ code follows LLVM style (see `.clang-format`). Run `clang-format -i` on source files before committing.
+

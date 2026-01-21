@@ -96,8 +96,6 @@ declare module '@ranking-dsl/runtime' {
 
   export interface PlanCtx {
     viewer: {
-      fetch_cached_recommendation(opts: { fanout: number; trace?: string }): CandidateSet;
-      follow(opts: { fanout: number; trace?: string }): CandidateSet;
     };
     requireCapability(capId: string, payload?: unknown): void;
   }
@@ -105,8 +103,12 @@ declare module '@ranking-dsl/runtime' {
   export interface CandidateSet {
     concat(opts: { rhs: CandidateSet; trace?: string }): CandidateSet;
     filter(opts: { pred: PredNode; trace?: string }): CandidateSet;
+    follow(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
+    media(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
+    recommendation(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
     sort(opts: { by: KeyToken; order?: string; trace?: string }): CandidateSet;
     take(opts: { count: number; trace?: string }): CandidateSet;
+    viewer(opts: { endpoint: unknown; trace?: string }): CandidateSet;
     vm(opts: { expr: ExprNode | number; outKey: KeyToken; trace?: string }): CandidateSet;
   }
 

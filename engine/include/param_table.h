@@ -246,6 +246,9 @@ struct RequestContext;
 // Forward declaration for EndpointRegistry
 class EndpointRegistry;
 
+// Forward declaration for IoClients (per-request client cache)
+struct IoClients;
+
 // Execution context passed to task run functions
 struct ExecCtx {
   const ParamTable *params = nullptr;
@@ -258,6 +261,8 @@ struct ExecCtx {
   const RequestContext *request = nullptr;
   // Endpoint registry for IO tasks
   const EndpointRegistry *endpoints = nullptr;
+  // Per-request IO client cache (Redis, etc.) - mutable for lazy initialization
+  IoClients *clients = nullptr;
 };
 
 } // namespace rankd

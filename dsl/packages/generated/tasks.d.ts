@@ -1,4 +1,5 @@
 import type { KeyToken } from "./keys.js";
+import type { EndpointId } from "./endpoints.js";
 /** ExprNode - matches engine's ExprIR format (builder-style) */
 export type ExprNode = {
     op: "const_number";
@@ -91,16 +92,6 @@ export type PredInput = PredNode | PredPlaceholder;
 export interface CandidateSetLike {
     getNodeId(): string;
 }
-export interface ViewerFetchCachedRecommendationOpts {
-    fanout: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-}
-export interface ViewerFollowOpts {
-    fanout: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-}
 export interface ConcatOpts {
     rhs: CandidateSetLike;
     trace?: string | null;
@@ -108,6 +99,24 @@ export interface ConcatOpts {
 }
 export interface FilterOpts {
     pred: PredInput;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}
+export interface FollowOpts {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}
+export interface MediaOpts {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}
+export interface RecommendationOpts {
+    endpoint: EndpointId;
+    fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
@@ -122,14 +131,19 @@ export interface TakeOpts {
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
+export interface ViewerOpts {
+    endpoint: EndpointId;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}
 export interface VmOpts {
     expr: ExprInput;
     outKey: KeyToken;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
-export declare const TASK_MANIFEST_DIGEST = "c02b01d9e7d4f7c0a2ef2734f12b16c76f83c6f8d0e12b6426cf816debe839c0";
-export declare const TASK_COUNT = 7;
+export declare const TASK_MANIFEST_DIGEST = "a23520564ef30a2a2ee8080c9e81f7d1f3a8eae772c565ff825e12e101db3670";
+export declare const TASK_COUNT = 9;
 /** Extraction info for a task - which properties to extract as expr/pred */
 export interface TaskExtractionInfo {
     /** Property name containing expression (for tasks with expr_id param) */
