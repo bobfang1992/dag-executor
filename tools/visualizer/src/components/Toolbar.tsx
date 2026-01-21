@@ -1,6 +1,10 @@
 import { useStore } from '../state/store';
 import { dracula } from '../theme';
 
+interface ToolbarProps {
+  onEdit?: () => void;
+}
+
 const styles: Record<string, React.CSSProperties> = {
   dock: {
     position: 'absolute',
@@ -38,9 +42,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
 };
 
-export default function Toolbar() {
+export default function Toolbar({ onEdit }: ToolbarProps) {
   const graph = useStore((s) => s.graph);
   const planJson = useStore((s) => s.planJson);
+  const sourceCode = useStore((s) => s.sourceCode);
   const fitToView = useStore((s) => s.fitToView);
 
   if (!planJson) return null;
@@ -49,9 +54,12 @@ export default function Toolbar() {
   const edgeCount = graph?.edges.length ?? 0;
 
   const handleFit = () => {
+    // Get the canvas container (parent of canvas element), not the canvas itself
+    // PixiJS canvas has different dimensions due to resolution/autoDensity
     const canvas = document.querySelector('canvas');
-    if (canvas) {
-      fitToView(canvas.clientWidth, canvas.clientHeight);
+    const container = canvas?.parentElement;
+    if (container) {
+      fitToView(container.clientWidth, container.clientHeight);
     }
   };
 
@@ -68,6 +76,16 @@ export default function Toolbar() {
       >
         Fit
       </button>
+      {sourceCode && onEdit && (
+        <button
+          style={{ ...styles.button, background: dracula.green, color: dracula.background }}
+          onClick={onEdit}
+          onMouseOver={(e) => (e.currentTarget.style.opacity = '0.8')}
+          onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+        >
+          Edit
+        </button>
+      )}
     </div>
   );
 }

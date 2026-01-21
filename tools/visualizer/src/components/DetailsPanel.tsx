@@ -2,6 +2,15 @@ import { useStore } from '../state/store';
 import type { ExprNode, PredNode } from '../types';
 import { dracula } from '../theme';
 
+// Navigate to registry entry
+function navigateToRegistry(tab: 'keys' | 'params', id: number) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('view', 'registries');
+  url.searchParams.set('tab', tab);
+  url.searchParams.set('selected', String(id));
+  window.location.href = url.toString();
+}
+
 const styles: Record<string, React.CSSProperties> = {
   panel: {
     width: '100%',
@@ -83,6 +92,12 @@ const styles: Record<string, React.CSSProperties> = {
     marginRight: '4px',
     fontWeight: 600,
     border: `1px solid ${dracula.border}`,
+  },
+  link: {
+    color: dracula.purple,
+    cursor: 'pointer',
+    textDecoration: 'none',
+    borderBottom: `1px dotted ${dracula.purple}`,
   },
 };
 
@@ -224,68 +239,140 @@ export default function DetailsPanel() {
       {expr && (
         <div style={styles.section}>
           <div style={styles.label}>Expression ({exprId})</div>
-          <pre style={styles.code}>{formatExpr(expr)}</pre>
+          <pre style={styles.code}>{formatExprJsx(expr)}</pre>
         </div>
       )}
 
       {pred && (
         <div style={styles.section}>
           <div style={styles.label}>Predicate ({predId})</div>
-          <pre style={styles.code}>{formatPred(pred)}</pre>
+          <pre style={styles.code}>{formatPredJsx(pred)}</pre>
         </div>
       )}
     </div>
   );
 }
 
-function formatExpr(expr: ExprNode): string {
+// Clickable key reference
+function KeyRef({ keyId }: { keyId: number }) {
+  return (
+    <span
+      style={styles.link}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigateToRegistry('keys', keyId);
+      }}
+      title={`View Key ${keyId} in registry`}
+    >
+      Key[{keyId}]
+    </span>
+  );
+}
+
+// Clickable param reference
+function ParamRef({ paramId }: { paramId: number }) {
+  return (
+    <span
+      style={styles.link}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigateToRegistry('params', paramId);
+      }}
+      title={`View Param ${paramId} in registry`}
+    >
+      Param[{paramId}]
+    </span>
+  );
+}
+
+function formatExprJsx(expr: ExprNode, key: number = 0): React.ReactNode {
   switch (expr.op) {
     case 'const_number':
-      return `${expr.value}`;
+      return <span key={key}>{expr.value}</span>;
     case 'const_null':
-      return 'null';
+      return <span key={key}>null</span>;
     case 'key_ref':
-      return `Key[${expr.key_id}]`;
+      return <KeyRef key={key} keyId={expr.key_id!} />;
     case 'param_ref':
-      return `Param[${expr.param_id}]`;
+      return <ParamRef key={key} paramId={expr.param_id!} />;
     case 'add':
     case 'sub':
     case 'mul':
-      return `(${formatExpr(expr.a!)} ${expr.op === 'add' ? '+' : expr.op === 'sub' ? '-' : '*'} ${formatExpr(expr.b!)})`;
+      return (
+        <span key={key}>
+          ({formatExprJsx(expr.a!, key * 10 + 1)} {expr.op === 'add' ? '+' : expr.op === 'sub' ? '-' : '*'} {formatExprJsx(expr.b!, key * 10 + 2)})
+        </span>
+      );
     case 'neg':
-      return `-${formatExpr(expr.x!)}`;
+      return <span key={key}>-{formatExprJsx(expr.x!, key * 10 + 1)}</span>;
     case 'coalesce':
-      return `coalesce(${formatExpr(expr.a!)}, ${formatExpr(expr.b!)})`;
+      return (
+        <span key={key}>
+          coalesce({formatExprJsx(expr.a!, key * 10 + 1)}, {formatExprJsx(expr.b!, key * 10 + 2)})
+        </span>
+      );
     default:
-      return JSON.stringify(expr);
+      return <span key={key}>{JSON.stringify(expr)}</span>;
   }
 }
 
-function formatPred(pred: PredNode): string {
+function formatPredJsx(pred: PredNode, key: number = 0): React.ReactNode {
   switch (pred.op) {
     case 'const_bool':
-      return String(pred.value);
+      return <span key={key}>{String(pred.value)}</span>;
     case 'and':
-      return `(${formatPred(pred.a as PredNode)} AND ${formatPred(pred.b as PredNode)})`;
+      return (
+        <span key={key}>
+          ({formatPredJsx(pred.a as PredNode, key * 10 + 1)} AND {formatPredJsx(pred.b as PredNode, key * 10 + 2)})
+        </span>
+      );
     case 'or':
-      return `(${formatPred(pred.a as PredNode)} OR ${formatPred(pred.b as PredNode)})`;
+      return (
+        <span key={key}>
+          ({formatPredJsx(pred.a as PredNode, key * 10 + 1)} OR {formatPredJsx(pred.b as PredNode, key * 10 + 2)})
+        </span>
+      );
     case 'not':
-      return `NOT ${formatPred(pred.x as PredNode)}`;
+      return <span key={key}>NOT {formatPredJsx(pred.x as PredNode, key * 10 + 1)}</span>;
     case 'cmp':
-      return `(${formatExpr(pred.a as ExprNode)} ${pred.cmp} ${formatExpr(pred.b as ExprNode)})`;
+      return (
+        <span key={key}>
+          ({formatExprJsx(pred.a as ExprNode, key * 10 + 1)} {pred.cmp} {formatExprJsx(pred.b as ExprNode, key * 10 + 2)})
+        </span>
+      );
     case 'in':
-      return `${formatExpr(pred.lhs!)} IN [${pred.list!.join(', ')}]`;
+      return (
+        <span key={key}>
+          {formatExprJsx(pred.lhs!, key * 10 + 1)} IN [{pred.list!.join(', ')}]
+        </span>
+      );
     case 'is_null':
-      return `IS_NULL(${formatExpr(pred.x as ExprNode)})`;
+      return (
+        <span key={key}>
+          IS_NULL({formatExprJsx(pred.x as ExprNode, key * 10 + 1)})
+        </span>
+      );
     case 'not_null':
-      return `NOT_NULL(${formatExpr(pred.x as ExprNode)})`;
-    case 'regex':
-      const pattern =
-        pred.pattern?.kind === 'literal'
-          ? `"${pred.pattern.value}"`
-          : `Param[${pred.pattern?.param_id}]`;
-      return `Key[${pred.key_id}] REGEX ${pattern}`;
+      return (
+        <span key={key}>
+          NOT_NULL({formatExprJsx(pred.x as ExprNode, key * 10 + 1)})
+        </span>
+      );
+    case 'regex': {
+      const patternNode =
+        pred.pattern?.kind === 'literal' ? (
+          <span>"{pred.pattern.value}"</span>
+        ) : (
+          <ParamRef paramId={pred.pattern?.param_id!} />
+        );
+      return (
+        <span key={key}>
+          <KeyRef keyId={pred.key_id!} /> REGEX {patternNode}
+        </span>
+      );
+    }
     default:
-      return JSON.stringify(pred);
+      return <span key={key}>{JSON.stringify(pred)}</span>;
   }
 }
+

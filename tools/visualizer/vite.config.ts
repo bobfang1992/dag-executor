@@ -152,9 +152,17 @@ function compileApi() {
   };
 }
 
+// Get project root directory name for display
+const projectRoot = path.resolve(__dirname, '../..');
+const projectName = path.basename(projectRoot);
+
 export default defineConfig({
   plugins: [react(), serveLocalPublic(), servePlanSources(), compileApi()],
   publicDir: path.resolve(__dirname, '../../artifacts'),
+  define: {
+    __PROJECT_ROOT__: JSON.stringify(projectRoot),
+    __PROJECT_NAME__: JSON.stringify(projectName),
+  },
   server: {
     port: 5175,
     open: true,
