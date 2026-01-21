@@ -7,11 +7,19 @@ on:
     branches: [main]
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  build-linux:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -24,13 +32,50 @@ jobs:
       - name: Set up pnpm
         run: corepack enable && corepack prepare pnpm@latest --activate
 
-      - name: Install dependencies (Ubuntu)
-        if: runner.os == 'Linux'
+      - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake clang-format
 
-      - name: Install dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: brew install clang-format
+      - name: Seed Redis test data
+        run: ./scripts/seed_redis.sh
+
+      - name: Run CI
+        run: ./scripts/ci.sh
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up pnpm
+        run: corepack enable && corepack prepare pnpm@latest --activate
+
+      - name: Install dependencies
+        run: brew install clang-format redis
+
+      - name: Start Redis
+        run: brew services start redis
+
+      - name: Wait for Redis
+        run: |
+          for i in {1..30}; do
+            if redis-cli ping 2>/dev/null | grep -q PONG; then
+              echo "Redis is ready"
+              exit 0
+            fi
+            echo "Waiting for Redis..."
+            sleep 1
+          done
+          echo "Redis failed to start"
+          exit 1
+
+      - name: Seed Redis test data
+        run: ./scripts/seed_redis.sh
 
       - name: Run CI
         run: ./scripts/ci.sh
