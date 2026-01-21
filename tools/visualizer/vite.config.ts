@@ -6,6 +6,31 @@ import { spawn } from 'child_process';
 import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
 
+// Serve local public files (favicon, etc.)
+function serveLocalPublic() {
+  return {
+    name: 'serve-local-public',
+    configureServer(server: any) {
+      server.middlewares.use((req: any, res: any, next: any) => {
+        const urlPath = req.url?.split('?')[0] || '';
+        const localPath = path.resolve(__dirname, 'public', urlPath.slice(1));
+        if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+          const ext = path.extname(localPath);
+          const mimeTypes: Record<string, string> = {
+            '.svg': 'image/svg+xml',
+            '.png': 'image/png',
+            '.ico': 'image/x-icon',
+          };
+          res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+          fs.createReadStream(localPath).pipe(res);
+          return;
+        }
+        next();
+      });
+    },
+  };
+}
+
 // Custom plugin to serve plan source files
 function servePlanSources() {
   return {
@@ -128,7 +153,7 @@ function compileApi() {
 }
 
 export default defineConfig({
-  plugins: [react(), servePlanSources(), compileApi()],
+  plugins: [react(), serveLocalPublic(), servePlanSources(), compileApi()],
   publicDir: path.resolve(__dirname, '../../artifacts'),
   server: {
     port: 5175,
