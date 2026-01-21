@@ -445,9 +445,9 @@ import json
 with open(\"/tmp/ci-valid-caps/valid_capabilities.plan.json\") as f:
     plan = json.load(f)
 assert plan[\"capabilities_required\"] == [\"cap.rfc.0001.extensions_capabilities.v1\"]
-# Check node-level extensions
-assert plan[\"nodes\"][0][\"extensions\"][\"cap.rfc.0001.extensions_capabilities.v1\"] == {}
+# Check node-level extensions (viewer=n0 has none, follow=n1 and take=n2 have extensions)
 assert plan[\"nodes\"][1][\"extensions\"][\"cap.rfc.0001.extensions_capabilities.v1\"] == {}
+assert plan[\"nodes\"][2][\"extensions\"][\"cap.rfc.0001.extensions_capabilities.v1\"] == {}
 "'
 wait_all
 
