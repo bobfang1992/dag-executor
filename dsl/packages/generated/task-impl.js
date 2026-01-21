@@ -88,8 +88,11 @@ function assertEndpointId(value, name) {
     if (typeof value !== "string") {
         throw new Error(`${name} must be a string (EndpointId), got ${typeof value}`);
     }
-    if (!/^ep_\d{4}$/.test(value)) {
-        throw new Error(`${name} must be a valid EndpointId (ep_NNNN format), got "${value}"`);
+    if (!value.startsWith("ep_")) {
+        throw new Error(`${name} must start with "ep_", got "${value}"`);
+    }
+    if (value.length > 64) {
+        throw new Error(`${name} too long (max 64 chars), got ${value.length}`);
     }
 }
 // =====================================================
