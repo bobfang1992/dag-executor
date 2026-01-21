@@ -8,9 +8,13 @@
 
 namespace rankd {
 
+// Forward declaration
+class EndpointRegistry;
+
 // Validate plan (fail-closed). Throws std::runtime_error on failure.
 // Also populates node.writes_eval_kind and node.writes_eval_keys (RFC0005).
-void validate_plan(Plan &plan);
+// If endpoints is provided, EndpointRef params are validated against the registry.
+void validate_plan(Plan &plan, const EndpointRegistry *endpoints = nullptr);
 
 // Result of executing a plan, including optional trace data
 struct ExecutionResult {

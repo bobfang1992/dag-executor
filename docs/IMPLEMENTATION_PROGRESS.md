@@ -114,6 +114,17 @@ This document tracks the implementation status of all features in the dag-execut
 - Required `user_id` field in rank requests (positive uint32)
 - Fail-closed validation
 
+### Step 14.2: Endpoint Registry + EndpointRef
+- `registry/endpoints.{dev,test,prod}.toml` - Per-env endpoint definitions
+- `dsl/packages/generated/endpoints.ts` - Generated branded EndpointId type and EP object
+- `artifacts/endpoints.{dev,test,prod}.json` - Per-env JSON with two digests
+- `engine/include/endpoint_registry.h` - C++ EndpointRegistry with LoadFromJson
+- `engine/include/task_registry.h` - Added EndpointRef to TaskParamType
+- `engine/src/main.cpp` - `--env` and `--artifacts_dir` flags
+- Two-digest system: `endpoint_registry_digest` (env-invariant) + `endpoints_config_digest` (env-specific)
+- Cross-env validation: same endpoint_ids with same name/kind across envs
+- Fail-closed: only `static` resolver supported
+
 ---
 
 ## 🔲 Not Yet Implemented

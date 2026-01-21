@@ -10,6 +10,7 @@ export { Feat, FEATURE_REGISTRY_DIGEST, FEATURE_COUNT } from "./features.js";
 export type { FeatureToken, FeatureType } from "./features.js";
 export * from "./validation.js";
 export * from "./capabilities.js";
+export * from "./endpoints.js";
 export * from "./tasks.js";
 export * from "./task-impl.js";
 export { DSL_TYPES } from "./monaco-types.js";

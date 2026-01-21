@@ -12,6 +12,7 @@ EXPECTED_PARAMS=3
 EXPECTED_FEATURES=2
 EXPECTED_CAPABILITIES=2
 EXPECTED_TASKS=7
+EXPECTED_ENDPOINTS=2
 
 # Create temp directory for parallel job outputs
 # Note: Don't use TMPDIR as variable name - it's a system env var on macOS
@@ -185,11 +186,15 @@ assert \"param_registry_digest\" in r
 assert \"feature_registry_digest\" in r
 assert \"capability_registry_digest\" in r
 assert \"task_manifest_digest\" in r
+assert \"endpoint_registry_digest\" in r
+assert \"endpoints_config_digest\" in r
+assert \"endpoints_env\" in r
 assert r[\"num_keys\"] == $EXPECTED_KEYS, f\"Expected $EXPECTED_KEYS keys, got {r[\"num_keys\"]}\"
 assert r[\"num_params\"] == $EXPECTED_PARAMS, f\"Expected $EXPECTED_PARAMS params, got {r[\"num_params\"]}\"
 assert r[\"num_features\"] == $EXPECTED_FEATURES, f\"Expected $EXPECTED_FEATURES features, got {r[\"num_features\"]}\"
 assert r[\"num_capabilities\"] == $EXPECTED_CAPABILITIES, f\"Expected $EXPECTED_CAPABILITIES capabilities, got {r[\"num_capabilities\"]}\"
 assert r[\"num_tasks\"] == $EXPECTED_TASKS, f\"Expected $EXPECTED_TASKS tasks, got {r[\"num_tasks\"]}\"
+assert r[\"num_endpoints\"] == $EXPECTED_ENDPOINTS, f\"Expected $EXPECTED_ENDPOINTS endpoints, got {r[\"num_endpoints\"]}\"
 '"
 wait_all
 
@@ -780,6 +785,59 @@ if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/bad_trace_ty
     exit 0
 else
     echo "Expected rejection with string error"
+    exit 1
+fi
+'
+wait_all
+
+# Batch 16: Endpoint registry tests
+echo "--- Batch 16: Endpoint registry tests ---"
+run_bg "Test 73: Endpoint registry digest parity (TS == C++)" bash -c '
+# Get TS digest from generated endpoints.ts
+TS_DIGEST=$(grep "ENDPOINT_REGISTRY_DIGEST" dsl/packages/generated/endpoints.ts | sed "s/.*\"\(.*\)\".*/\1/")
+
+# Get C++ digest from print-registry
+CPP_DIGEST=$(engine/bin/rankd --print-registry | python3 -c "import json,sys; print(json.load(sys.stdin)[\"endpoint_registry_digest\"])")
+
+if [ "$TS_DIGEST" = "$CPP_DIGEST" ]; then
+    exit 0
+else
+    echo "Endpoint registry digest mismatch: TS=$TS_DIGEST C++=$CPP_DIGEST"
+    exit 1
+fi
+'
+
+run_bg "Test 74: Endpoint env switching" bash -c '
+# Test dev env
+DEV_DIGEST=$(engine/bin/rankd --env dev --print-registry | python3 -c "import json,sys; print(json.load(sys.stdin)[\"endpoints_config_digest\"])")
+
+# Test prod env (should have different config_digest)
+PROD_DIGEST=$(engine/bin/rankd --env prod --print-registry | python3 -c "import json,sys; print(json.load(sys.stdin)[\"endpoints_config_digest\"])")
+
+# Registry digest should be the same (env-invariant)
+DEV_REG=$(engine/bin/rankd --env dev --print-registry | python3 -c "import json,sys; print(json.load(sys.stdin)[\"endpoint_registry_digest\"])")
+PROD_REG=$(engine/bin/rankd --env prod --print-registry | python3 -c "import json,sys; print(json.load(sys.stdin)[\"endpoint_registry_digest\"])")
+
+if [ "$DEV_DIGEST" != "$PROD_DIGEST" ] && [ "$DEV_REG" = "$PROD_REG" ]; then
+    exit 0
+else
+    echo "Endpoint env test failed:"
+    echo "  DEV config_digest: $DEV_DIGEST"
+    echo "  PROD config_digest: $PROD_DIGEST"
+    echo "  DEV registry_digest: $DEV_REG"
+    echo "  PROD registry_digest: $PROD_REG"
+    exit 1
+fi
+'
+
+run_bg "Test 75: Endpoints.ts exports correct count" bash -c '
+TS_COUNT=$(grep "ENDPOINT_COUNT" dsl/packages/generated/endpoints.ts | sed "s/.*= \([0-9]*\).*/\1/")
+CPP_COUNT=$(engine/bin/rankd --print-registry | python3 -c "import json,sys; print(json.load(sys.stdin)[\"num_endpoints\"])")
+
+if [ "$TS_COUNT" = "$CPP_COUNT" ]; then
+    exit 0
+else
+    echo "Endpoint count mismatch: TS=$TS_COUNT C++=$CPP_COUNT"
     exit 1
 fi
 '

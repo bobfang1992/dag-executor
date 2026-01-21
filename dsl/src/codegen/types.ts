@@ -10,7 +10,9 @@ export type ParamType = "int" | "float" | "string" | "bool";
 export type FeatureType = "int" | "float" | "string" | "bool";
 export type Status = "active" | "deprecated" | "blocked";
 export type CapabilityStatus = "implemented" | "draft" | "deprecated" | "blocked";
-export type TaskParamType = "int" | "float" | "bool" | "string" | "expr_id" | "pred_id" | "node_ref";
+export type TaskParamType = "int" | "float" | "bool" | "string" | "expr_id" | "pred_id" | "node_ref" | "endpoint_ref";
+export type EndpointKind = "redis" | "http";
+export type ResolverType = "static" | "consul" | "dns_srv" | "https";
 
 export interface KeyEntry {
   key_id: number;
@@ -91,6 +93,32 @@ export interface TaskRegistry {
   tasks: TaskEntry[];
 }
 
+// Endpoint types
+export interface StaticResolver {
+  type: "static";
+  host: string;
+  port: number;
+}
+
+export interface EndpointPolicy {
+  max_inflight?: number;
+  connect_timeout_ms?: number;
+  request_timeout_ms?: number;
+}
+
+export interface EndpointEntry {
+  endpoint_id: string;  // "ep_0001" - stable, never reused
+  name: string;         // human-friendly alias
+  kind: EndpointKind;
+  resolver: StaticResolver;  // Step 14.2: only static supported
+  policy: EndpointPolicy;
+}
+
+export interface EndpointRegistry {
+  schema_version: number;
+  endpoints: EndpointEntry[];
+}
+
 // =====================================================
 // Type Constants
 // =====================================================
@@ -100,7 +128,9 @@ export const PARAM_TYPES: readonly string[] = ["int", "float", "string", "bool"]
 export const FEATURE_TYPES: readonly string[] = ["int", "float", "string", "bool"];
 export const STATUSES: readonly string[] = ["active", "deprecated", "blocked"];
 export const CAPABILITY_STATUSES: readonly string[] = ["implemented", "draft", "deprecated", "blocked"];
-export const TASK_PARAM_TYPES: readonly string[] = ["int", "float", "bool", "string", "expr_id", "pred_id", "node_ref"];
+export const TASK_PARAM_TYPES: readonly string[] = ["int", "float", "bool", "string", "expr_id", "pred_id", "node_ref", "endpoint_ref"];
+export const ENDPOINT_KINDS: readonly string[] = ["redis", "http"];
+export const RESOLVER_TYPES: readonly string[] = ["static", "consul", "dns_srv", "https"];
 
 // =====================================================
 // Type Guards
@@ -128,6 +158,14 @@ export function isCapabilityStatus(v: unknown): v is CapabilityStatus {
 
 export function isTaskParamType(v: unknown): v is TaskParamType {
   return typeof v === "string" && TASK_PARAM_TYPES.includes(v);
+}
+
+export function isEndpointKind(v: unknown): v is EndpointKind {
+  return typeof v === "string" && ENDPOINT_KINDS.includes(v);
+}
+
+export function isResolverType(v: unknown): v is ResolverType {
+  return typeof v === "string" && RESOLVER_TYPES.includes(v);
 }
 
 // =====================================================

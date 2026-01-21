@@ -1,0 +1,34 @@
+# Endpoint Registry (test environment)
+# Must have identical endpoint_id/name/kind as dev; resolver/policy may differ
+
+version = 1
+
+[[endpoint]]
+endpoint_id = "ep_0001"
+name = "redis_default"
+kind = "redis"
+
+  [endpoint.resolver]
+  type = "static"
+  host = "redis.test.internal"
+  port = 6379
+
+  [endpoint.policy]
+  max_inflight = 64
+  connect_timeout_ms = 100
+  request_timeout_ms = 50
+
+[[endpoint]]
+endpoint_id = "ep_0002"
+name = "http_api"
+kind = "http"
+
+  [endpoint.resolver]
+  type = "static"
+  host = "api.test.internal"
+  port = 8080
+
+  [endpoint.policy]
+  max_inflight = 128
+  connect_timeout_ms = 200
+  request_timeout_ms = 1000

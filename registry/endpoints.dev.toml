@@ -1,0 +1,41 @@
+# Endpoint Registry (dev environment)
+# AUTO-GENERATED outputs: artifacts/endpoints.dev.json, dsl/packages/generated/endpoints.ts
+#
+# Rules:
+# - endpoint_id must be unique, start with "ep_", max 64 chars, never reused
+# - name must be unique (case-sensitive)
+# - kind must be: redis, http
+# - resolver.type must be: static (Step 14.2), consul/dns_srv/https (future)
+# - All envs must have identical endpoint_id sets with matching name/kind
+
+version = 1
+
+[[endpoint]]
+endpoint_id = "ep_0001"
+name = "redis_default"
+kind = "redis"
+
+  [endpoint.resolver]
+  type = "static"
+  host = "127.0.0.1"
+  port = 6379
+
+  [endpoint.policy]
+  max_inflight = 64
+  connect_timeout_ms = 50
+  request_timeout_ms = 20
+
+[[endpoint]]
+endpoint_id = "ep_0002"
+name = "http_api"
+kind = "http"
+
+  [endpoint.resolver]
+  type = "static"
+  host = "127.0.0.1"
+  port = 8080
+
+  [endpoint.policy]
+  max_inflight = 128
+  connect_timeout_ms = 100
+  request_timeout_ms = 500

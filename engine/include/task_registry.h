@@ -24,10 +24,14 @@ enum class TaskParamType {
   Float,
   Bool,
   String,
-  ExprId,  // Reference to expr_table entry (validated at plan load)
-  PredId,  // Reference to pred_table entry (validated at plan load)
-  NodeRef  // Reference to another node in the DAG (resolved by executor)
+  ExprId,      // Reference to expr_table entry (validated at plan load)
+  PredId,      // Reference to pred_table entry (validated at plan load)
+  NodeRef,     // Reference to another node in the DAG (resolved by executor)
+  EndpointRef  // Reference to endpoint_id in EndpointRegistry
 };
+
+// Forward declaration for EndpointKind (defined in endpoint_registry.h)
+enum class EndpointKind;
 
 // Default value type for task params
 using ParamDefaultValue = std::variant<int64_t, double, bool, std::string>;
@@ -39,6 +43,7 @@ struct ParamField {
   bool required;
   bool nullable = false; // if true, null is a valid value
   std::optional<ParamDefaultValue> default_value; // used when absent or null
+  std::optional<EndpointKind> endpoint_kind;  // For EndpointRef: required kind
 };
 
 // Default budget for task execution (MVP: included but ignored by executor)
