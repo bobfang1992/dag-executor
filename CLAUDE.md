@@ -766,3 +766,4 @@ See [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) for detai
 - Fragment authoring, budget enforcement, HTTP server
 - Tasks: fetch_features, call_models, dedupe, join, extract_features
 - Audit logging, SourceRef generation
+
