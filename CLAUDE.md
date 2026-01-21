@@ -312,8 +312,8 @@ export const esr = defineFragment({
 - **StringDictColumn**: Dictionary-encoded strings for regex optimization
 
 ### Task Categories
-- **Source**: `ctx.viewer()`, `ctx.follow()`, `ctx.recommendation()` (Redis-backed, Step 14.4)
-- **Transform (IO)**: `cs.media()` - expands each input row to media items
+- **Source**: `ctx.viewer()` - returns single row with viewer's user_id and country
+- **Transform (fan-out)**: `cs.follow()`, `cs.recommendation()`, `cs.media()` - expand input rows to related items
 - **Composition**: `a.concat({ rhs: b })` (uses NodeRef param)
 - **Feature/Model**: `fetch_features()`, `call_models()`
 - **Transform**: `vm()`, `filter()`, `dedupe()`, `sort()`, `take()`, `extract_features()`
@@ -393,10 +393,10 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 ### Tasks
 | Task | Engine | DSL | Notes |
 |------|--------|-----|-------|
-| viewer | ✅ | ✅ `ctx.viewer()` | Redis HGETALL user:{uid} |
-| follow | ✅ | ✅ `ctx.follow()` | Redis LRANGE follow:{uid} |
-| media | ✅ | ✅ `.media()` | Redis LRANGE media:{id} per input |
-| recommendation | ✅ | ✅ `ctx.recommendation()` | Redis LRANGE recommendation:{uid} |
+| viewer | ✅ | ✅ `ctx.viewer()` | Source: Redis HGETALL user:{uid}, returns country |
+| follow | ✅ | ✅ `.follow()` | Transform: fan-out per input row, hydrates country |
+| recommendation | ✅ | ✅ `.recommendation()` | Transform: fan-out per input row, hydrates country |
+| media | ✅ | ✅ `.media()` | Transform: Redis LRANGE media:{id} per input |
 | vm | ✅ | ✅ `.vm()` | Expression evaluation |
 | filter | ✅ | ✅ `.filter()` | Predicate evaluation |
 | take | ✅ | ✅ `.take()` | |
