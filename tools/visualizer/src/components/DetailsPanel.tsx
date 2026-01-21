@@ -10,13 +10,38 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px',
     overflowY: 'auto',
   },
-  hidden: {
-    display: 'none',
+  collapsedPanel: {
+    width: '36px',
+    background: dracula.headerBg,
+    borderLeft: `1px solid ${dracula.border}`,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    paddingTop: '8px',
+  },
+  toggleButton: {
+    width: '28px',
+    height: '28px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: `1px solid ${dracula.border}`,
+    borderRadius: '4px',
+    cursor: 'pointer',
+    color: dracula.comment,
+    fontSize: '14px',
+    transition: 'all 0.2s',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '12px',
   },
   title: {
     fontSize: '14px',
     fontWeight: 600,
-    marginBottom: '12px',
     color: dracula.foreground,
     fontFamily: 'ui-monospace, monospace',
   },
@@ -63,11 +88,52 @@ export default function DetailsPanel() {
   const selectedNodeId = useStore((s) => s.selectedNodeId);
   const graph = useStore((s) => s.graph);
   const planJson = useStore((s) => s.planJson);
+  const collapsed = useStore((s) => s.detailsCollapsed);
+  const toggleCollapsed = useStore((s) => s.toggleDetailsCollapsed);
+
+  if (collapsed) {
+    return (
+      <div style={styles.collapsedPanel}>
+        <button
+          style={styles.toggleButton}
+          onClick={toggleCollapsed}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = dracula.purple;
+            e.currentTarget.style.color = dracula.foreground;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = dracula.border;
+            e.currentTarget.style.color = dracula.comment;
+          }}
+          title="Show details panel"
+        >
+          ‹
+        </button>
+      </div>
+    );
+  }
 
   if (!selectedNodeId || !graph || !planJson) {
     return (
       <div style={styles.panel}>
-        <div style={styles.title}>Details</div>
+        <div style={styles.header}>
+          <div style={styles.title}>Details</div>
+          <button
+            style={styles.toggleButton}
+            onClick={toggleCollapsed}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = dracula.purple;
+              e.currentTarget.style.color = dracula.foreground;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = dracula.border;
+              e.currentTarget.style.color = dracula.comment;
+            }}
+            title="Hide details panel"
+          >
+            ›
+          </button>
+        </div>
         <div style={{ ...styles.value, color: dracula.comment }}>
           Click a node to see details
         </div>
@@ -89,7 +155,24 @@ export default function DetailsPanel() {
 
   return (
     <div style={styles.panel}>
-      <div style={styles.title}>{node.label}</div>
+      <div style={styles.header}>
+        <div style={styles.title}>{node.label}</div>
+        <button
+          style={styles.toggleButton}
+          onClick={toggleCollapsed}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = dracula.purple;
+            e.currentTarget.style.color = dracula.foreground;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = dracula.border;
+            e.currentTarget.style.color = dracula.comment;
+          }}
+          title="Hide details panel"
+        >
+          ›
+        </button>
+      </div>
 
       <div style={styles.section}>
         <div style={styles.label}>Node ID</div>

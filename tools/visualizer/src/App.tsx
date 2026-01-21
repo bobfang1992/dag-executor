@@ -66,11 +66,13 @@ export default function App() {
   const planJson = useStore((s) => s.planJson);
   const fileName = useStore((s) => s.fileName);
   const showSource = useStore((s) => s.showSource);
+  const sourceCollapsed = useStore((s) => s.sourceCollapsed);
   const clearPlan = useStore((s) => s.clearPlan);
 
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [sourceWidth, setSourceWidth] = useState(50); // percentage
   const [editorWidth, setEditorWidth] = useState(50); // percentage for edit mode
+  const [previewCollapsed, setPreviewCollapsed] = useState(false); // collapse preview panel in edit mode
   const isDraggingRef = useRef<'source' | 'editor' | false>(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const editContainerRef = useRef<HTMLDivElement>(null);
@@ -154,35 +156,116 @@ export default function App() {
         {mode === 'edit' ? (
           // Edit mode: Editor on left, Canvas on right
           <div ref={editContainerRef} style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            <div style={{ width: `${editorWidth}%`, height: '100%', flexShrink: 0, overflow: 'hidden' }}>
+            <div style={{ width: previewCollapsed ? 'calc(100% - 36px)' : `${editorWidth}%`, height: '100%', flexShrink: 0, overflow: 'hidden' }}>
               <EditorPanel />
             </div>
-            <div
-              style={{
-                width: '6px',
-                height: '100%',
-                background: dracula.border,
-                cursor: 'col-resize',
-                flexShrink: 0,
-                transition: 'background 0.2s',
-              }}
-              onMouseDown={handleEditorDividerMouseDown}
-              onMouseEnter={(e) => (e.currentTarget.style.background = dracula.purple)}
-              onMouseLeave={(e) => (e.currentTarget.style.background = dracula.border)}
-            />
-            <div style={{ flex: 1, position: 'relative', minWidth: 0, overflow: 'hidden' }}>
-              {planJson ? (
-                <>
-                  <Canvas />
-                  <Toolbar />
-                </>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: dracula.comment }}>
-                  Compile a plan to see the DAG
+            {previewCollapsed ? (
+              // Collapsed preview: thin bar with expand button
+              <div
+                style={{
+                  width: '36px',
+                  height: '100%',
+                  background: dracula.headerBg,
+                  borderLeft: `1px solid ${dracula.border}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  paddingTop: '8px',
+                }}
+              >
+                <button
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'transparent',
+                    border: `1px solid ${dracula.border}`,
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    color: dracula.comment,
+                    fontSize: '14px',
+                    transition: 'all 0.2s',
+                  }}
+                  onClick={() => setPreviewCollapsed(false)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = dracula.purple;
+                    e.currentTarget.style.color = dracula.foreground;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = dracula.border;
+                    e.currentTarget.style.color = dracula.comment;
+                  }}
+                  title="Show preview panel"
+                >
+                  ‹
+                </button>
+              </div>
+            ) : (
+              // Expanded preview: divider + canvas + details
+              <>
+                <div
+                  style={{
+                    width: '6px',
+                    height: '100%',
+                    background: dracula.border,
+                    cursor: 'col-resize',
+                    flexShrink: 0,
+                    transition: 'background 0.2s',
+                  }}
+                  onMouseDown={handleEditorDividerMouseDown}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = dracula.purple)}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = dracula.border)}
+                />
+                <div style={{ flex: 1, position: 'relative', minWidth: 0, overflow: 'hidden' }}>
+                  {/* Collapse button in top-right corner */}
+                  <button
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      left: '8px',
+                      zIndex: 10,
+                      width: '28px',
+                      height: '28px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: dracula.headerBg,
+                      border: `1px solid ${dracula.border}`,
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      color: dracula.comment,
+                      fontSize: '14px',
+                      transition: 'all 0.2s',
+                    }}
+                    onClick={() => setPreviewCollapsed(true)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = dracula.purple;
+                      e.currentTarget.style.color = dracula.foreground;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = dracula.border;
+                      e.currentTarget.style.color = dracula.comment;
+                    }}
+                    title="Hide preview panel"
+                  >
+                    ›
+                  </button>
+                  {planJson ? (
+                    <>
+                      <Canvas />
+                      <Toolbar />
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: dracula.comment }}>
+                      Compile a plan to see the DAG
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <DetailsPanel />
+                <DetailsPanel />
+              </>
+            )}
           </div>
         ) : (
           // View mode: Original layout
@@ -192,24 +275,28 @@ export default function App() {
                 <>
                   <div ref={containerRef} style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden' }}>
                     {showSource && (
-                      <>
-                        <div style={{ width: `${sourceWidth}%`, height: '100%', flexShrink: 0, overflow: 'hidden' }}>
-                          <SourcePanel />
-                        </div>
-                        <div
-                          style={{
-                            width: '6px',
-                            height: '100%',
-                            background: dracula.border,
-                            cursor: 'col-resize',
-                            flexShrink: 0,
-                            transition: 'background 0.2s',
-                          }}
-                          onMouseDown={handleSourceDividerMouseDown}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = dracula.purple)}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = dracula.border)}
-                        />
-                      </>
+                      sourceCollapsed ? (
+                        <SourcePanel />
+                      ) : (
+                        <>
+                          <div style={{ width: `${sourceWidth}%`, height: '100%', flexShrink: 0, overflow: 'hidden' }}>
+                            <SourcePanel />
+                          </div>
+                          <div
+                            style={{
+                              width: '6px',
+                              height: '100%',
+                              background: dracula.border,
+                              cursor: 'col-resize',
+                              flexShrink: 0,
+                              transition: 'background 0.2s',
+                            }}
+                            onMouseDown={handleSourceDividerMouseDown}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = dracula.purple)}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = dracula.border)}
+                          />
+                        </>
+                      )
                     )}
                     <div style={{ flex: 1, height: '100%', position: 'relative', minWidth: 0, overflow: 'hidden' }}>
                       <Canvas />

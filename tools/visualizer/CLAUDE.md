@@ -86,7 +86,15 @@ pnpm -C tools/visualizer run test:headed   # Run tests in headed browser
 - Reusable UI components (Button, Dropdown, Modal)
 - E2E tests with Playwright
 
-### Step 02: Fragment Support (Next) 🔲
+### Step 02: Editor DX & Collapsible Panels ✅
+
+- Suppress TypeScript errors for DSL natural syntax in Monaco (2304, 2362, 2363, 2322, 2365, 2367)
+- Add global declarations for Key, P, coalesce, regex in monaco-types.ts
+- Collapsible Details panel (right side)
+- Collapsible Preview panel in edit mode (canvas + details)
+- Collapsible Source panel in view mode
+
+### Step 03: Fragment Support 🔲
 
 - Detect fragment boundaries in plan
 - Render fragments as collapsible supernodes
@@ -94,14 +102,23 @@ pnpm -C tools/visualizer run test:headed   # Run tests in headed browser
 - Auto-collapse when visible nodes > threshold
 - LRU eviction for expanded fragments
 
-### Step 03: Enhanced UX 🔲
+### Step 04: Dockable Panels 🔲
+
+- Integrate [dockview](https://github.com/mathuo/dockview) for VS Code-like panel docking
+- Enable drag-to-dock for Editor, Canvas, Details panels
+- Support snapping to edges (left, right, top, bottom)
+- Tab grouping for multiple panels
+- Floating panel support
+- Save/restore layout preferences to localStorage
+
+### Step 05: Enhanced UX 🔲
 
 - Keyboard shortcuts (Escape=deselect, +/-=zoom, F=fit)
 - Minimap for large graphs
 - Search/filter nodes
 - Export as PNG/SVG
 
-### Step 04: Production 🔲
+### Step 06: Production 🔲
 
 - Production build optimization
 - Deploy to GitHub Pages or similar
@@ -242,7 +259,7 @@ The live editor uses **server-side compilation** for full parity with the produc
 **Monaco Type Definitions**:
 - Generated from registries (`dsl/packages/generated/monaco-types.ts`)
 - Includes all Keys, Params, and task methods from `tasks.toml`
-- Suppresses TypeScript errors 2362/2363/2322 for natural expression syntax
+- Suppresses TypeScript errors 2304/2362/2363/2322/2365/2367 for globals and natural expression/predicate syntax
 
 ## Vite Config Notes
 

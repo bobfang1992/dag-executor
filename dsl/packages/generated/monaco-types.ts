@@ -150,4 +150,33 @@ declare module '@ranking-dsl/runtime' {
     readonly esr_cutoff: ParamToken;
   };
 }
+
+// =====================================================
+// Global declarations (injected by compiler)
+// =====================================================
+
+type _KeyToken = import('@ranking-dsl/runtime').KeyToken;
+type _ParamToken = import('@ranking-dsl/runtime').ParamToken;
+type _PredNode = import('@ranking-dsl/runtime').PredNode;
+
+declare const Key: {
+  readonly id: _KeyToken;
+  readonly model_score_1: _KeyToken;
+  readonly model_score_2: _KeyToken;
+  readonly final_score: _KeyToken;
+  readonly country: _KeyToken;
+  readonly title: _KeyToken;
+  readonly features_esr: _KeyToken;
+  readonly features_lsr: _KeyToken;
+};
+
+declare const P: {
+  readonly media_age_penalty_weight: _ParamToken;
+  readonly blocklist_regex: _ParamToken;
+  readonly esr_cutoff: _ParamToken;
+};
+
+declare function coalesce(a: _KeyToken | _ParamToken | number | null, b: _KeyToken | _ParamToken | number): number;
+
+declare function regex(key: _KeyToken, pattern: string | _ParamToken, flags?: '' | 'i'): _PredNode;
 `;
