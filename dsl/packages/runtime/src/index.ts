@@ -14,6 +14,8 @@ export type { PlanDef, PlanArtifact } from "./plan.js";
 // Re-export guards for validation
 export {
   assertNotUndefined,
+  assertStringOrNull,
+  assertEndpointId,
   checkNoUndefined,
   normalizeCapabilitiesRequired,
   isSortedUnique,

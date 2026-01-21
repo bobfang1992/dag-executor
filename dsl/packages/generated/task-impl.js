@@ -84,6 +84,14 @@ function checkNoUndefined(obj, context) {
         }
     }
 }
+function assertEndpointId(value, name) {
+    if (typeof value !== "string") {
+        throw new Error(`${name} must be a string (EndpointId), got ${typeof value}`);
+    }
+    if (!/^ep_\d{4}$/.test(value)) {
+        throw new Error(`${name} must be a valid EndpointId (ep_NNNN format), got "${value}"`);
+    }
+}
 // =====================================================
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
@@ -135,6 +143,7 @@ export function filterImpl(ctx, inputNodeId, opts) {
 export function followImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "follow(opts)");
     assertNotUndefined(opts.endpoint, "follow({ endpoint })");
+    assertEndpointId(opts.endpoint, "follow({ endpoint })");
     assertNotUndefined(opts.fanout, "follow({ fanout })");
     assertInteger(opts.fanout, "follow({ fanout })");
     const { extensions, ...rest } = opts;
@@ -154,6 +163,7 @@ export function followImpl(ctx, inputNodeId, opts) {
 export function mediaImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "media(opts)");
     assertNotUndefined(opts.endpoint, "media({ endpoint })");
+    assertEndpointId(opts.endpoint, "media({ endpoint })");
     assertNotUndefined(opts.fanout, "media({ fanout })");
     assertInteger(opts.fanout, "media({ fanout })");
     const { extensions, ...rest } = opts;
@@ -173,6 +183,7 @@ export function mediaImpl(ctx, inputNodeId, opts) {
 export function recommendationImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "recommendation(opts)");
     assertNotUndefined(opts.endpoint, "recommendation({ endpoint })");
+    assertEndpointId(opts.endpoint, "recommendation({ endpoint })");
     assertNotUndefined(opts.fanout, "recommendation({ fanout })");
     assertInteger(opts.fanout, "recommendation({ fanout })");
     const { extensions, ...rest } = opts;
@@ -227,6 +238,7 @@ export function takeImpl(ctx, inputNodeId, opts) {
 export function viewerImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "viewer(opts)");
     assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
+    assertEndpointId(opts.endpoint, "viewer({ endpoint })");
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest, "viewer(opts)");
     // Validate trace

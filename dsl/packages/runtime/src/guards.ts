@@ -36,6 +36,18 @@ export function assertStringOrNull(value: unknown, path: string): void {
   }
 }
 
+/**
+ * Assert that value is a valid EndpointId (string matching ep_NNNN pattern).
+ */
+export function assertEndpointId(value: unknown, path: string): void {
+  if (typeof value !== "string") {
+    throw new Error(`${path} must be a string (EndpointId), got ${typeof value}`);
+  }
+  if (!/^ep_\d{4}$/.test(value)) {
+    throw new Error(`${path} must be a valid EndpointId (ep_NNNN format), got "${value}"`);
+  }
+}
+
 // ============================================================
 // RFC0001: Capabilities and Extensions validation helpers
 // ============================================================
