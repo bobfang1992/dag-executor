@@ -119,6 +119,18 @@ function checkNoUndefined(obj: Record<string, unknown>, context: string): void {
   }
 }
 
+function assertEndpointId(value: unknown, name: string): void {
+  if (typeof value !== "string") {
+    throw new Error(`${name} must be a string (EndpointId), got ${typeof value}`);
+  }
+  if (!value.startsWith("ep_")) {
+    throw new Error(`${name} must start with "ep_", got "${value}"`);
+  }
+  if (value.length > 64) {
+    throw new Error(`${name} too long (max 64 chars), got ${value.length}`);
+  }
+}
+
 // =====================================================
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
@@ -204,6 +216,7 @@ export function followImpl(
 ): string {
   assertNotUndefined(opts, "follow(opts)");
   assertNotUndefined(opts.endpoint, "follow({ endpoint })");
+  assertEndpointId(opts.endpoint, "follow({ endpoint })");
   assertNotUndefined(opts.fanout, "follow({ fanout })");
   assertInteger(opts.fanout, "follow({ fanout })");
   const { extensions, ...rest } = opts;
@@ -236,6 +249,7 @@ export function mediaImpl(
 ): string {
   assertNotUndefined(opts, "media(opts)");
   assertNotUndefined(opts.endpoint, "media({ endpoint })");
+  assertEndpointId(opts.endpoint, "media({ endpoint })");
   assertNotUndefined(opts.fanout, "media({ fanout })");
   assertInteger(opts.fanout, "media({ fanout })");
   const { extensions, ...rest } = opts;
@@ -268,6 +282,7 @@ export function recommendationImpl(
 ): string {
   assertNotUndefined(opts, "recommendation(opts)");
   assertNotUndefined(opts.endpoint, "recommendation({ endpoint })");
+  assertEndpointId(opts.endpoint, "recommendation({ endpoint })");
   assertNotUndefined(opts.fanout, "recommendation({ fanout })");
   assertInteger(opts.fanout, "recommendation({ fanout })");
   const { extensions, ...rest } = opts;
@@ -359,6 +374,7 @@ export function viewerImpl(
 ): string {
   assertNotUndefined(opts, "viewer(opts)");
   assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
+  assertEndpointId(opts.endpoint, "viewer({ endpoint })");
   const { extensions, ...rest } = opts;
   checkNoUndefined(rest as Record<string, unknown>, "viewer(opts)");
 

@@ -19,7 +19,7 @@ import {
   followImpl,
   recommendationImpl,
 } from "@ranking-dsl/generated";
-import { assertNotUndefined, checkNoUndefined } from "./guards.js";
+import { assertNotUndefined, assertStringOrNull, assertEndpointId, checkNoUndefined } from "./guards.js";
 
 /**
  * Internal node representation (before JSON serialization).
@@ -54,8 +54,15 @@ export class PlanCtx {
     // Source task - no inputs
     assertNotUndefined(opts, "viewer(opts)");
     assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
+    assertEndpointId(opts.endpoint, "viewer({ endpoint })");
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest as Record<string, unknown>, "viewer(opts)");
+
+    // Validate trace (same as generated tasks)
+    if (opts.trace !== undefined) {
+      assertStringOrNull(opts.trace, "viewer({ trace })");
+    }
+
     const nodeId = this.addNode(
       "viewer",
       [],

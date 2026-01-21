@@ -748,6 +748,18 @@ export function generateTaskImplTs(registry: TaskRegistry): string {
     "  }",
     "}",
     "",
+    "function assertEndpointId(value: unknown, name: string): void {",
+    "  if (typeof value !== \"string\") {",
+    "    throw new Error(`${name} must be a string (EndpointId), got ${typeof value}`);",
+    "  }",
+    '  if (!value.startsWith("ep_")) {',
+    '    throw new Error(`${name} must start with "ep_", got "${value}"`);',
+    "  }",
+    "  if (value.length > 64) {",
+    "    throw new Error(`${name} too long (max 64 chars), got ${value.length}`);",
+    "  }",
+    "}",
+    "",
   ];
 
   // Classify tasks
@@ -789,6 +801,8 @@ export function generateTaskImplTs(registry: TaskRegistry): string {
           // Add type-specific validation
           if (param.type === "int") {
             lines.push(`  assertInteger(opts.${tsName}, "${methodName}({ ${tsName} })");`);
+          } else if (param.type === "endpoint_ref") {
+            lines.push(`  assertEndpointId(opts.${tsName}, "${methodName}({ ${tsName} })");`);
           }
         }
       }
@@ -869,6 +883,8 @@ export function generateTaskImplTs(registry: TaskRegistry): string {
             lines.push(`  assertInteger(opts.${tsName}, "${methodName}({ ${tsName} })");`);
           } else if (param.type === "node_ref") {
             lines.push(`  assertCandidateSet(opts.${tsName}, "${methodName}({ ${tsName} })");`);
+          } else if (param.type === "endpoint_ref") {
+            lines.push(`  assertEndpointId(opts.${tsName}, "${methodName}({ ${tsName} })");`);
           }
         }
       }

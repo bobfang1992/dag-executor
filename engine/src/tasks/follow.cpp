@@ -112,23 +112,26 @@ class FollowTask {
       // Fetch user data for this followee
       std::string user_key = "user:" + std::to_string(followee_id);
       auto user_result = redis.hgetall(user_key);
-      if (user_result) {
-        auto country_it = user_result.value().find("country");
-        if (country_it != user_result.value().end()) {
-          const std::string& country = country_it->second;
-          auto it = country_to_code.find(country);
-          if (it == country_to_code.end()) {
-            int32_t code = static_cast<int32_t>(country_dict->size());
-            country_dict->push_back(country);
-            country_to_code[country] = code;
-            (*country_codes)[i] = code;
-          } else {
-            (*country_codes)[i] = it->second;
-          }
-          (*country_valid)[i] = 1;
-        }
+      if (!user_result) {
+        // Fail on Redis errors (consistent with LRANGE above)
+        throw std::runtime_error("follow: " + user_result.error());
       }
-      // If user not found or no country, leave as null (valid=0, code=-1)
+      // Empty result means user doesn't exist - leave country as null
+      auto country_it = user_result.value().find("country");
+      if (country_it != user_result.value().end()) {
+        const std::string& country = country_it->second;
+        auto it = country_to_code.find(country);
+        if (it == country_to_code.end()) {
+          int32_t code = static_cast<int32_t>(country_dict->size());
+          country_dict->push_back(country);
+          country_to_code[country] = code;
+          (*country_codes)[i] = code;
+        } else {
+          (*country_codes)[i] = it->second;
+        }
+        (*country_valid)[i] = 1;
+      }
+      // If user not found or no country field, leave as null (valid=0, code=-1)
     }
 
     // Add country column

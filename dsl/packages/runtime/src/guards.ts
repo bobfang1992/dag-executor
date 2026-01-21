@@ -36,6 +36,22 @@ export function assertStringOrNull(value: unknown, path: string): void {
   }
 }
 
+/**
+ * Assert that value is a valid EndpointId.
+ * Must start with "ep_" and be at most 64 characters (matches registry validation).
+ */
+export function assertEndpointId(value: unknown, path: string): void {
+  if (typeof value !== "string") {
+    throw new Error(`${path} must be a string (EndpointId), got ${typeof value}`);
+  }
+  if (!value.startsWith("ep_")) {
+    throw new Error(`${path} must start with "ep_", got "${value}"`);
+  }
+  if (value.length > 64) {
+    throw new Error(`${path} too long (max 64 chars), got ${value.length}`);
+  }
+}
+
 // ============================================================
 // RFC0001: Capabilities and Extensions validation helpers
 // ============================================================
