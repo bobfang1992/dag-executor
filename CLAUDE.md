@@ -481,6 +481,9 @@ node dsl/packages/compiler/dist/cli.js build plans/foo.plan.ts --out artifacts/p
 
 # Custom manifest and output directory
 tsx dsl/tools/build_all_plans.ts --manifest custom.json --out custom/dir
+
+# Visualizer e2e tests (NOT run in CI - run locally when modifying visualizer)
+pnpm -C tools/visualizer run test
 ```
 
 ---
