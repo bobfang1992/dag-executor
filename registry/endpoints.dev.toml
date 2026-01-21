@@ -12,7 +12,7 @@ version = 1
 
 [[endpoint]]
 endpoint_id = "ep_0001"
-name = "redis_default"
+name = "default"
 kind = "redis"
 
   [endpoint.resolver]

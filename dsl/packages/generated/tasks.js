@@ -4,8 +4,8 @@
 // =====================================================
 // Metadata
 // =====================================================
-export const TASK_MANIFEST_DIGEST = "c02b01d9e7d4f7c0a2ef2734f12b16c76f83c6f8d0e12b6426cf816debe839c0";
-export const TASK_COUNT = 7;
+export const TASK_MANIFEST_DIGEST = "efe90a1e182d6bac9faf18c0a93ea239534b2e6f2e387cf1f6c052ef86acf125";
+export const TASK_COUNT = 9;
 /** Map from method name to extraction info */
 export const TASK_EXTRACTION_INFO = {
     "filter": { predProp: "pred" },

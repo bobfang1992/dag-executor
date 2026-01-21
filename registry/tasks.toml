@@ -1,7 +1,7 @@
 # AUTO-GENERATED from C++ TaskSpec - DO NOT EDIT
 # Regenerate with: engine/bin/rankd --print-task-manifest > registry/tasks.toml
 schema_version = 1
-manifest_digest = "c02b01d9e7d4f7c0a2ef2734f12b16c76f83c6f8d0e12b6426cf816debe839c0"
+manifest_digest = "a23520564ef30a2a2ee8080c9e81f7d1f3a8eae772c565ff825e12e101db3670"
 
 [[task]]
 op = "concat"
@@ -26,6 +26,75 @@ output_pattern = "StableFilter"
   [[task.param]]
   name = "pred_id"
   type = "pred_id"
+  required = true
+  nullable = false
+
+  [[task.param]]
+  name = "trace"
+  type = "string"
+  required = false
+  nullable = true
+
+[[task]]
+op = "follow"
+output_pattern = "VariableDense"
+
+  [[task.param]]
+  name = "endpoint"
+  type = "endpoint_ref"
+  endpoint_kind = "redis"
+  required = true
+  nullable = false
+
+  [[task.param]]
+  name = "fanout"
+  type = "int"
+  required = true
+  nullable = false
+
+  [[task.param]]
+  name = "trace"
+  type = "string"
+  required = false
+  nullable = true
+
+[[task]]
+op = "media"
+output_pattern = "VariableDense"
+
+  [[task.param]]
+  name = "endpoint"
+  type = "endpoint_ref"
+  endpoint_kind = "redis"
+  required = true
+  nullable = false
+
+  [[task.param]]
+  name = "fanout"
+  type = "int"
+  required = true
+  nullable = false
+
+  [[task.param]]
+  name = "trace"
+  type = "string"
+  required = false
+  nullable = true
+
+[[task]]
+op = "recommendation"
+output_pattern = "VariableDense"
+
+  [[task.param]]
+  name = "endpoint"
+  type = "endpoint_ref"
+  endpoint_kind = "redis"
+  required = true
+  nullable = false
+
+  [[task.param]]
+  name = "fanout"
+  type = "int"
   required = true
   nullable = false
 
@@ -74,28 +143,13 @@ output_pattern = "PrefixOfInput"
   nullable = true
 
 [[task]]
-op = "viewer.fetch_cached_recommendation"
-output_pattern = "SourceFanoutDense"
+op = "viewer"
+output_pattern = "VariableDense"
 
   [[task.param]]
-  name = "fanout"
-  type = "int"
-  required = true
-  nullable = false
-
-  [[task.param]]
-  name = "trace"
-  type = "string"
-  required = false
-  nullable = true
-
-[[task]]
-op = "viewer.follow"
-output_pattern = "SourceFanoutDense"
-
-  [[task.param]]
-  name = "fanout"
-  type = "int"
+  name = "endpoint"
+  type = "endpoint_ref"
+  endpoint_kind = "redis"
   required = true
   nullable = false
 

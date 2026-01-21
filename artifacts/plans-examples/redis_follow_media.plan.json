@@ -1,0 +1,48 @@
+{
+  "built_by": {
+    "backend": "quickjs",
+    "bundle_digest": "9e6f1d2198ce8480",
+    "tool": "dslc",
+    "tool_version": "0.1.0"
+  },
+  "nodes": [
+    {
+      "inputs": [],
+      "node_id": "n0",
+      "op": "follow",
+      "params": {
+        "endpoint": "ep_0001",
+        "fanout": 10,
+        "trace": "follow_source"
+      }
+    },
+    {
+      "inputs": [
+        "n0"
+      ],
+      "node_id": "n1",
+      "op": "media",
+      "params": {
+        "endpoint": "ep_0001",
+        "fanout": 5,
+        "trace": "media_expand"
+      }
+    },
+    {
+      "inputs": [
+        "n1"
+      ],
+      "node_id": "n2",
+      "op": "take",
+      "params": {
+        "count": 50,
+        "trace": "take_50"
+      }
+    }
+  ],
+  "outputs": [
+    "n2"
+  ],
+  "plan_name": "redis_follow_media",
+  "schema_version": 1
+}

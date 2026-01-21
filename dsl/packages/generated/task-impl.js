@@ -85,43 +85,6 @@ function checkNoUndefined(obj, context) {
     }
 }
 // =====================================================
-// Source task implementations (for PlanCtx.viewer)
-// =====================================================
-/** Implementation for viewer.fetch_cached_recommendation */
-export function fetchCachedRecommendationImpl(ctx, opts) {
-    assertNotUndefined(opts, "fetchCachedRecommendation(opts)");
-    assertNotUndefined(opts.fanout, "fetchCachedRecommendation({ fanout })");
-    assertInteger(opts.fanout, "fetchCachedRecommendation({ fanout })");
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest, "fetchCachedRecommendation(opts)");
-    // Validate trace
-    if (opts.trace !== undefined) {
-        assertStringOrNull(opts.trace, "fetchCachedRecommendation({ trace })");
-    }
-    const params = {
-        fanout: opts.fanout,
-        trace: opts.trace ?? null,
-    };
-    return ctx.addNode("viewer.fetch_cached_recommendation", [], params, extensions);
-}
-/** Implementation for viewer.follow */
-export function followImpl(ctx, opts) {
-    assertNotUndefined(opts, "follow(opts)");
-    assertNotUndefined(opts.fanout, "follow({ fanout })");
-    assertInteger(opts.fanout, "follow({ fanout })");
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest, "follow(opts)");
-    // Validate trace
-    if (opts.trace !== undefined) {
-        assertStringOrNull(opts.trace, "follow({ trace })");
-    }
-    const params = {
-        fanout: opts.fanout,
-        trace: opts.trace ?? null,
-    };
-    return ctx.addNode("viewer.follow", [], params, extensions);
-}
-// =====================================================
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
 /** Implementation for concat */
@@ -168,6 +131,63 @@ export function filterImpl(ctx, inputNodeId, opts) {
     };
     return ctx.addNode("filter", [inputNodeId], params, extensions);
 }
+/** Implementation for follow */
+export function followImpl(ctx, inputNodeId, opts) {
+    assertNotUndefined(opts, "follow(opts)");
+    assertNotUndefined(opts.endpoint, "follow({ endpoint })");
+    assertNotUndefined(opts.fanout, "follow({ fanout })");
+    assertInteger(opts.fanout, "follow({ fanout })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "follow(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "follow({ trace })");
+    }
+    const params = {
+        endpoint: opts.endpoint,
+        fanout: opts.fanout,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("follow", [inputNodeId], params, extensions);
+}
+/** Implementation for media */
+export function mediaImpl(ctx, inputNodeId, opts) {
+    assertNotUndefined(opts, "media(opts)");
+    assertNotUndefined(opts.endpoint, "media({ endpoint })");
+    assertNotUndefined(opts.fanout, "media({ fanout })");
+    assertInteger(opts.fanout, "media({ fanout })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "media(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "media({ trace })");
+    }
+    const params = {
+        endpoint: opts.endpoint,
+        fanout: opts.fanout,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("media", [inputNodeId], params, extensions);
+}
+/** Implementation for recommendation */
+export function recommendationImpl(ctx, inputNodeId, opts) {
+    assertNotUndefined(opts, "recommendation(opts)");
+    assertNotUndefined(opts.endpoint, "recommendation({ endpoint })");
+    assertNotUndefined(opts.fanout, "recommendation({ fanout })");
+    assertInteger(opts.fanout, "recommendation({ fanout })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "recommendation(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "recommendation({ trace })");
+    }
+    const params = {
+        endpoint: opts.endpoint,
+        fanout: opts.fanout,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("recommendation", [inputNodeId], params, extensions);
+}
 /** Implementation for sort */
 export function sortImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "sort(opts)");
@@ -203,6 +223,22 @@ export function takeImpl(ctx, inputNodeId, opts) {
     };
     return ctx.addNode("take", [inputNodeId], params, extensions);
 }
+/** Implementation for viewer */
+export function viewerImpl(ctx, inputNodeId, opts) {
+    assertNotUndefined(opts, "viewer(opts)");
+    assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "viewer(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "viewer({ trace })");
+    }
+    const params = {
+        endpoint: opts.endpoint,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("viewer", [inputNodeId], params, extensions);
+}
 /** Implementation for vm */
 export function vmImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "vm(opts)");
@@ -237,6 +273,6 @@ export function vmImpl(ctx, inputNodeId, opts) {
 // Task metadata for runtime use
 // =====================================================
 export const GENERATED_TASKS = {
-    source: ["fetchCachedRecommendation", "follow"],
-    transform: ["concat", "filter", "sort", "take", "vm"],
+    source: [],
+    transform: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "viewer", "vm"],
 };

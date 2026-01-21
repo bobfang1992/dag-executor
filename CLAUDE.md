@@ -311,7 +311,8 @@ export const esr = defineFragment({
 - **StringDictColumn**: Dictionary-encoded strings for regex optimization
 
 ### Task Categories
-- **Source**: `viewer.follow()`, `viewer.fetch_cached_recommendation()`
+- **Source**: `ctx.viewer()`, `ctx.follow()`, `ctx.recommendation()` (Redis-backed, Step 14.4)
+- **Transform (IO)**: `cs.media()` - expands each input row to media items
 - **Composition**: `a.concat({ rhs: b })` (uses NodeRef param)
 - **Feature/Model**: `fetch_features()`, `call_models()`
 - **Transform**: `vm()`, `filter()`, `dedupe()`, `sort()`, `take()`, `extract_features()`
@@ -391,8 +392,10 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 ### Tasks
 | Task | Engine | DSL | Notes |
 |------|--------|-----|-------|
-| viewer.follow | ✅ | ✅ `ctx.viewer.follow()` | |
-| viewer.fetch_cached_recommendation | ✅ | ✅ `ctx.viewer.fetch_cached_recommendation()` | |
+| viewer | ✅ | ✅ `ctx.viewer()` | Redis HGETALL user:{uid} |
+| follow | ✅ | ✅ `ctx.follow()` | Redis LRANGE follow:{uid} |
+| media | ✅ | ✅ `.media()` | Redis LRANGE media:{id} per input |
+| recommendation | ✅ | ✅ `ctx.recommendation()` | Redis LRANGE recommendation:{uid} |
 | vm | ✅ | ✅ `.vm()` | Expression evaluation |
 | filter | ✅ | ✅ `.filter()` | Predicate evaluation |
 | take | ✅ | ✅ `.take()` | |
@@ -751,12 +754,13 @@ See [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) for detai
 ### Quick Status
 
 **✅ Completed:**
-- Steps 00-14.2: Core engine, registries, codegen, DSL runtime, QuickJS compiler
-- Tasks: viewer.follow, vm, filter, take, concat, sort
+- Steps 00-14.4: Core engine, registries, codegen, DSL runtime, QuickJS compiler
+- Tasks: viewer, follow, media, recommendation (Redis-backed), vm, filter, take, concat, sort
 - Capabilities system (RFC 0001), writes_effect (RFC 0005)
 - AST extraction for natural expressions and predicates
 - Visualizer with live plan editing, registry browser, and edit existing plan support
 - Endpoint Registry with per-env config, EndpointRef param type
+- Local Redis harness (Docker Compose + seed script)
 
 **🔲 Remaining:**
 - Fragment authoring, budget enforcement, HTTP server

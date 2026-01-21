@@ -38,6 +38,78 @@
       ]
     },
     {
+      "op": "follow",
+      "output_pattern": "VariableDense",
+      "params": [
+        {
+          "name": "endpoint",
+          "type": "endpoint_ref",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "fanout",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "op": "media",
+      "output_pattern": "VariableDense",
+      "params": [
+        {
+          "name": "endpoint",
+          "type": "endpoint_ref",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "fanout",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "op": "recommendation",
+      "output_pattern": "VariableDense",
+      "params": [
+        {
+          "name": "endpoint",
+          "type": "endpoint_ref",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "fanout",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
       "op": "sort",
       "output_pattern": "PermutationOfInput",
       "params": [
@@ -80,30 +152,12 @@
       ]
     },
     {
-      "op": "viewer.fetch_cached_recommendation",
-      "output_pattern": "SourceFanoutDense",
+      "op": "viewer",
+      "output_pattern": "VariableDense",
       "params": [
         {
-          "name": "fanout",
-          "type": "int",
-          "required": true,
-          "nullable": false
-        },
-        {
-          "name": "trace",
-          "type": "string",
-          "required": false,
-          "nullable": true
-        }
-      ]
-    },
-    {
-      "op": "viewer.follow",
-      "output_pattern": "SourceFanoutDense",
-      "params": [
-        {
-          "name": "fanout",
-          "type": "int",
+          "name": "endpoint",
+          "type": "endpoint_ref",
           "required": true,
           "nullable": false
         },

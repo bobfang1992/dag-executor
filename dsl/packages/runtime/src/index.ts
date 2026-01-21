@@ -47,5 +47,5 @@ export type {
 } from "./writes-effect.js";
 
 // Re-export tokens for convenience
-export { Key, P } from "@ranking-dsl/generated";
-export type { KeyToken, ParamToken } from "@ranking-dsl/generated";
+export { Key, P, EP } from "@ranking-dsl/generated";
+export type { KeyToken, ParamToken, EndpointId } from "@ranking-dsl/generated";

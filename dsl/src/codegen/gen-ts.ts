@@ -636,6 +636,7 @@ export function generateTaskImplTs(registry: TaskRegistry): string {
     "",
     'import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput, CandidateSetLike } from "./tasks.js";',
     'import type { KeyToken } from "./keys.js";',
+    'import type { EndpointId } from "./endpoints.js";',
     "",
     "// =====================================================",
     "// Types for plan context interface",

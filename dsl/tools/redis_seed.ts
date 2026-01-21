@@ -19,6 +19,7 @@ import { createClient } from "redis";
 const NUM_USERS = 20;
 const FOLLOW_FANOUT = 5;
 const MEDIA_PER_USER = 10;
+const RECOMMENDATION_PER_USER = 10;
 
 const COUNTRIES = ["US", "CA", "GB"] as const;
 
@@ -45,6 +46,14 @@ function getMediaIds(uid: number): string[] {
     mediaIds.push(String(uid * 1000 + j));
   }
   return mediaIds;
+}
+
+function getRecommendationIds(uid: number): string[] {
+  const recIds: string[] = [];
+  for (let j = 1; j <= RECOMMENDATION_PER_USER; j++) {
+    recIds.push(String(uid * 1000 + j));
+  }
+  return recIds;
 }
 
 // =====================================================
@@ -97,6 +106,13 @@ async function main(): Promise<void> {
       await client.rPush(`media:${uid}`, mediaIds);
     }
 
+    // Seed recommendation fanout
+    console.log(`Seeding recommendation lists (${RECOMMENDATION_PER_USER} per user)...`);
+    for (let uid = 1; uid <= NUM_USERS; uid++) {
+      const recIds = getRecommendationIds(uid);
+      await client.rPush(`recommendation:${uid}`, recIds);
+    }
+
     // =====================================================
     // Smoke checks
     // =====================================================
@@ -138,6 +154,15 @@ async function main(): Promise<void> {
       );
     }
     console.log(`  [OK] media:1 length = ${MEDIA_PER_USER}`);
+
+    // Check recommendation:1 length
+    const rec1Len = await client.lLen("recommendation:1");
+    if (rec1Len !== RECOMMENDATION_PER_USER) {
+      throw new Error(
+        `Smoke check failed: recommendation:1 length expected ${RECOMMENDATION_PER_USER}, got ${rec1Len}`
+      );
+    }
+    console.log(`  [OK] recommendation:1 length = ${RECOMMENDATION_PER_USER}`);
 
     console.log("\nSeed complete. All smoke checks passed.");
   } finally {

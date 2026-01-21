@@ -1,5 +1,6 @@
 import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput, CandidateSetLike } from "./tasks.js";
 import type { KeyToken } from "./keys.js";
+import type { EndpointId } from "./endpoints.js";
 /** Interface for expression placeholder detection */
 export declare function isExprPlaceholder(value: unknown): value is ExprPlaceholder;
 /** Interface for predicate placeholder detection */
@@ -10,18 +11,6 @@ export interface TaskContext {
     addExpr(expr: ExprNode): string;
     addPred(pred: PredNode): string;
 }
-/** Implementation for viewer.fetch_cached_recommendation */
-export declare function fetchCachedRecommendationImpl(ctx: TaskContext, opts: {
-    fanout: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-}): string;
-/** Implementation for viewer.follow */
-export declare function followImpl(ctx: TaskContext, opts: {
-    fanout: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-}): string;
 /** Implementation for concat */
 export declare function concatImpl(ctx: TaskContext, inputNodeId: string, opts: {
     rhs: CandidateSetLike;
@@ -31,6 +20,27 @@ export declare function concatImpl(ctx: TaskContext, inputNodeId: string, opts: 
 /** Implementation for filter */
 export declare function filterImpl(ctx: TaskContext, inputNodeId: string, opts: {
     pred: PredInput;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}): string;
+/** Implementation for follow */
+export declare function followImpl(ctx: TaskContext, inputNodeId: string, opts: {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}): string;
+/** Implementation for media */
+export declare function mediaImpl(ctx: TaskContext, inputNodeId: string, opts: {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}): string;
+/** Implementation for recommendation */
+export declare function recommendationImpl(ctx: TaskContext, inputNodeId: string, opts: {
+    endpoint: EndpointId;
+    fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;
@@ -47,6 +57,12 @@ export declare function takeImpl(ctx: TaskContext, inputNodeId: string, opts: {
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;
+/** Implementation for viewer */
+export declare function viewerImpl(ctx: TaskContext, inputNodeId: string, opts: {
+    endpoint: EndpointId;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}): string;
 /** Implementation for vm */
 export declare function vmImpl(ctx: TaskContext, inputNodeId: string, opts: {
     expr: ExprInput;
@@ -55,7 +71,7 @@ export declare function vmImpl(ctx: TaskContext, inputNodeId: string, opts: {
     extensions?: Record<string, unknown>;
 }): string;
 export declare const GENERATED_TASKS: {
-    readonly source: readonly ["fetchCachedRecommendation", "follow"];
-    readonly transform: readonly ["concat", "filter", "sort", "take", "vm"];
+    readonly source: readonly [];
+    readonly transform: readonly ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "viewer", "vm"];
 };
 //# sourceMappingURL=task-impl.d.ts.map

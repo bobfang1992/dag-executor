@@ -8,14 +8,14 @@
  * This file only contains the PlanCtx, CandidateSet wrappers, and definePlan.
  */
 
-import type { KeyToken, ExprNode, PredNode, ExprInput } from "@ranking-dsl/generated";
+import type { KeyToken, ExprNode, PredNode, ExprInput, EndpointId } from "@ranking-dsl/generated";
 import {
-  followImpl,
-  fetchCachedRecommendationImpl,
+  mediaImpl,
   vmImpl,
   filterImpl,
   takeImpl,
   concatImpl,
+  sortImpl,
 } from "@ranking-dsl/generated";
 import { assertNotUndefined, checkNoUndefined } from "./guards.js";
 
@@ -41,25 +41,83 @@ export class PlanCtx {
   private capabilitiesRequired: Set<string> = new Set();
   private planExtensions: Map<string, unknown> = new Map();
 
-  readonly viewer = {
-    follow: (opts: {
-      fanout: number;
-      trace?: string | null;
-      extensions?: Record<string, unknown>;
-    }): CandidateSet => {
-      const nodeId = followImpl(this, opts);
-      return new CandidateSet(this, nodeId);
-    },
+  /**
+   * viewer: get viewer's user data (returns single row with country).
+   */
+  viewer(opts: {
+    endpoint: EndpointId;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    // Source task - no inputs
+    assertNotUndefined(opts, "viewer(opts)");
+    assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest as Record<string, unknown>, "viewer(opts)");
+    const nodeId = this.addNode(
+      "viewer",
+      [],
+      { endpoint: opts.endpoint, trace: opts.trace ?? null },
+      extensions
+    );
+    return new CandidateSet(this, nodeId);
+  }
 
-    fetch_cached_recommendation: (opts: {
-      fanout: number;
-      trace?: string | null;
-      extensions?: Record<string, unknown>;
-    }): CandidateSet => {
-      const nodeId = fetchCachedRecommendationImpl(this, opts);
-      return new CandidateSet(this, nodeId);
-    },
-  };
+  /**
+   * follow: get followees for current user (source task).
+   */
+  follow(opts: {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    // Source task - no inputs
+    assertNotUndefined(opts, "follow(opts)");
+    assertNotUndefined(opts.endpoint, "follow({ endpoint })");
+    assertNotUndefined(opts.fanout, "follow({ fanout })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest as Record<string, unknown>, "follow(opts)");
+    const nodeId = this.addNode(
+      "follow",
+      [],
+      {
+        endpoint: opts.endpoint,
+        fanout: opts.fanout,
+        trace: opts.trace ?? null,
+      },
+      extensions
+    );
+    return new CandidateSet(this, nodeId);
+  }
+
+  /**
+   * recommendation: get recommendations for current user (source task).
+   */
+  recommendation(opts: {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    // Source task - no inputs
+    assertNotUndefined(opts, "recommendation(opts)");
+    assertNotUndefined(opts.endpoint, "recommendation({ endpoint })");
+    assertNotUndefined(opts.fanout, "recommendation({ fanout })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest as Record<string, unknown>, "recommendation(opts)");
+    const nodeId = this.addNode(
+      "recommendation",
+      [],
+      {
+        endpoint: opts.endpoint,
+        fanout: opts.fanout,
+        trace: opts.trace ?? null,
+      },
+      extensions
+    );
+    return new CandidateSet(this, nodeId);
+  }
 
   private allocateNodeId(): string {
     return `n${this.nodeCounter++}`;
@@ -188,28 +246,20 @@ export class CandidateSet {
     trace?: string | null;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
-    assertNotUndefined(opts, "sort(opts)");
-    assertNotUndefined(opts.by, "sort({ by })");
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest as Record<string, unknown>, "sort(opts)");
-    if (
-      opts.order !== undefined &&
-      opts.order !== "asc" &&
-      opts.order !== "desc"
-    ) {
-      throw new Error('sort({ order }) must be "asc" or "desc" when provided');
-    }
+    const newNodeId = sortImpl(this.ctx, this.nodeId, opts);
+    return new CandidateSet(this.ctx, newNodeId);
+  }
 
-    const newNodeId = this.ctx.addNode(
-      "sort",
-      [this.nodeId],
-      {
-        by: opts.by.id,
-        order: opts.order ?? "asc",
-        trace: opts.trace ?? null,
-      },
-      extensions
-    );
+  /**
+   * media: expand each row to its media items.
+   */
+  media(opts: {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    const newNodeId = mediaImpl(this.ctx, this.nodeId, opts);
     return new CandidateSet(this.ctx, newNodeId);
   }
 

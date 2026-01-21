@@ -20,6 +20,8 @@ const char *outputPatternToString(OutputPattern pattern) {
     return "PermutationOfInput";
   case OutputPattern::ConcatDense:
     return "ConcatDense";
+  case OutputPattern::VariableDense:
+    return "VariableDense";
   }
   return "Unknown";
 }
@@ -219,6 +221,14 @@ void validateTaskOutput(const std::string &node_id, const std::string &op,
     // Active rows must be dense [0..N)
     if (!isDenseActive(output)) {
       makeError("ConcatDense requires dense active rows [0..N)");
+    }
+    break;
+  }
+
+  case OutputPattern::VariableDense: {
+    // IO tasks with variable output size - just validate dense active rows
+    if (!isDenseActive(output)) {
+      makeError("VariableDense requires dense active rows [0..N)");
     }
     break;
   }
