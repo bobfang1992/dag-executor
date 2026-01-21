@@ -133,6 +133,9 @@ importers:
       dagre:
         specifier: ^0.8.5
         version: 0.8.5
+      dockview:
+        specifier: ^4.13.1
+        version: 4.13.1(react@18.3.1)
       monaco-editor:
         specifier: ^0.45.0
         version: 0.45.0
@@ -1196,6 +1199,14 @@ packages:
 
   deep-is@0.1.4:
     resolution: {integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==}
+
+  dockview-core@4.13.1:
+    resolution: {integrity: sha512-+7vR0ZEoL8CNck6NqDVUMqBT22niwBu5CMMI137dZ3c8NDc7c5Si+3dGEqQgM4lNtHBLAtvypo1C4p21J2wkiQ==}
+
+  dockview@4.13.1:
+    resolution: {integrity: sha512-K8xnYt3Rvkx8MYKHaEsb8aFaPyQclKRRkXS9JcpQPZUgqxumTLnSidgdd6uIfzEps6yJsXoZGQGJ9PtcaKyDcQ==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   earcut@3.0.2:
     resolution: {integrity: sha512-X7hshQbLyMJ/3RPhyObLARM2sNxxmRALLKx1+NVFFnQ9gKzmCrxm9+uLIAdBcvc8FNLpctqlQ2V6AE92Ol9UDQ==}
@@ -2568,6 +2579,13 @@ snapshots:
       character-entities: 2.0.2
 
   deep-is@0.1.4: {}
+
+  dockview-core@4.13.1: {}
+
+  dockview@4.13.1(react@18.3.1):
+    dependencies:
+      dockview-core: 4.13.1
+      react: 18.3.1
 
   earcut@3.0.2: {}
 

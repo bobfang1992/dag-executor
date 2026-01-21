@@ -17,6 +17,7 @@
     "@pixi/react": "^8.0.0-beta.8",
     "@ranking-dsl/generated": "workspace:*",
     "dagre": "^0.8.5",
+    "dockview": "^4.13.1",
     "monaco-editor": "^0.45.0",
     "pixi.js": "^8.6.6",
     "react": "^18.3.1",

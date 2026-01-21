@@ -5,42 +5,15 @@ import { useStore } from '../state/store';
 import { dracula } from '../theme';
 import { PromptModal, ConfirmModal } from './Modal';
 import Dropdown from './Dropdown';
+import * as prefs from '../state/preferences';
+import type { SavedPlan, SavedPlansState } from '../state/preferences';
 
 // Import generated DSL types for Monaco intellisense
 import { DSL_TYPES } from '@ranking-dsl/generated';
 
-const STORAGE_KEY = 'visualizer:editor:code';
-const SAVED_PLANS_KEY = 'visualizer:saved-plans';
-
 // Detect Mac for keyboard shortcut display
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const modKey = isMac ? '⌘' : 'Ctrl+';
-
-interface SavedPlan {
-  id: string;
-  name: string;
-  code: string;
-  updatedAt: number;
-}
-
-interface SavedPlansState {
-  plans: SavedPlan[];
-  currentId: string | null;
-}
-
-function loadSavedPlans(): SavedPlansState {
-  try {
-    const saved = localStorage.getItem(SAVED_PLANS_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
-  return { plans: [], currentId: null };
-}
-
-function savePlansState(state: SavedPlansState): void {
-  try {
-    localStorage.setItem(SAVED_PLANS_KEY, JSON.stringify(state));
-  } catch { /* ignore */ }
-}
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 10);
@@ -244,15 +217,9 @@ function getInitialCode(): string {
     }
   }
 
-  // Check localStorage (wrapped in try/catch for Safari private mode, etc.)
-  try {
-    if (typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return saved;
-    }
-  } catch {
-    // localStorage access blocked (Safari private mode, strict settings)
-  }
+  // Check localStorage via preferences module
+  const saved = prefs.getEditorCode();
+  if (saved) return saved;
 
   return DEFAULT_PLAN;
 }
@@ -264,7 +231,7 @@ export default function EditorPanel() {
   const [status, setStatus] = useState<'ready' | 'compiling' | 'success' | 'error'>('ready');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [savedPlans, setSavedPlans] = useState<SavedPlansState>(loadSavedPlans);
+  const [savedPlans, setSavedPlans] = useState<SavedPlansState>(prefs.getSavedPlans);
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(savedPlans.currentId);
   const [modal, setModal] = useState<
     | { type: 'saveAs'; defaultName: string }
@@ -285,23 +252,19 @@ export default function EditorPanel() {
   // Save to localStorage on code change (debounced)
   useEffect(() => {
     const timer = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, code);
-        // Also update current plan if one is selected
-        if (currentPlanId) {
-          setSavedPlans(prev => {
-            const updated = {
-              ...prev,
-              plans: prev.plans.map(p =>
-                p.id === currentPlanId ? { ...p, code, updatedAt: Date.now() } : p
-              ),
-            };
-            savePlansState(updated);
-            return updated;
-          });
-        }
-      } catch {
-        // localStorage might be full or disabled
+      prefs.setEditorCode(code);
+      // Also update current plan if one is selected
+      if (currentPlanId) {
+        setSavedPlans(prev => {
+          const updated = {
+            ...prev,
+            plans: prev.plans.map(p =>
+              p.id === currentPlanId ? { ...p, code, updatedAt: Date.now() } : p
+            ),
+          };
+          prefs.setSavedPlans(updated);
+          return updated;
+        });
       }
     }, 500);
     return () => clearTimeout(timer);
@@ -424,14 +387,10 @@ export default function EditorPanel() {
   const handleReset = useCallback(() => {
     setCode(DEFAULT_PLAN);
     setCurrentPlanId(null);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // localStorage access blocked (Safari private mode, etc.)
-    }
+    prefs.removeEditorCode();
     const updated = { ...savedPlans, currentId: null };
     setSavedPlans(updated);
-    savePlansState(updated);
+    prefs.setSavedPlans(updated);
   }, [savedPlans]);
 
   const handleFormat = useCallback(() => {
@@ -473,7 +432,7 @@ export default function EditorPanel() {
     };
     setSavedPlans(updated);
     setCurrentPlanId(newPlan.id);
-    savePlansState(updated);
+    prefs.setSavedPlans(updated);
     setModal(null);
     showToastWithMessage(`Saved "${name}"`);
   }, [code, savedPlans, showToastWithMessage]);
@@ -484,7 +443,7 @@ export default function EditorPanel() {
       setCurrentPlanId(null);
       const updated = { ...savedPlans, currentId: null };
       setSavedPlans(updated);
-      savePlansState(updated);
+      prefs.setSavedPlans(updated);
       return;
     }
 
@@ -494,7 +453,7 @@ export default function EditorPanel() {
       setCurrentPlanId(plan.id);
       const updated = { ...savedPlans, currentId: plan.id };
       setSavedPlans(updated);
-      savePlansState(updated);
+      prefs.setSavedPlans(updated);
     }
   }, [savedPlans]);
 
@@ -515,7 +474,7 @@ export default function EditorPanel() {
     };
     setSavedPlans(updated);
     setCurrentPlanId(null);
-    savePlansState(updated);
+    prefs.setSavedPlans(updated);
     setModal(null);
     if (plan) showToastWithMessage(`Deleted "${plan.name}"`);
   }, [currentPlanId, savedPlans, showToastWithMessage]);
@@ -537,7 +496,7 @@ export default function EditorPanel() {
       ),
     };
     setSavedPlans(updated);
-    savePlansState(updated);
+    prefs.setSavedPlans(updated);
     setModal(null);
     showToastWithMessage(`Renamed to "${newName}"`);
   }, [currentPlanId, savedPlans, showToastWithMessage]);

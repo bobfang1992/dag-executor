@@ -4,11 +4,13 @@ import { dracula } from '../theme';
 
 const styles: Record<string, React.CSSProperties> = {
   panel: {
-    width: '280px',
+    width: '100%',
+    height: '100%',
     background: dracula.headerBg,
     borderLeft: `1px solid ${dracula.border}`,
     padding: '16px',
     overflowY: 'auto',
+    boxSizing: 'border-box',
   },
   collapsedPanel: {
     width: '36px',
