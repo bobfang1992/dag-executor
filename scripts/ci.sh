@@ -119,7 +119,7 @@ test_engine() {
 # Test runner for rejection tests
 test_reject() {
     local plan="$1"
-    if echo '{}' | engine/bin/rankd --plan "$plan" 2>/dev/null; then
+    if echo '{"user_id": 1}' | engine/bin/rankd --plan "$plan" 2>/dev/null; then
         return 1
     fi
     return 0
@@ -144,7 +144,7 @@ test_error_msg() {
 # Batch 1: Basic engine tests (parallel)
 echo "--- Batch 1: Basic engine tests ---"
 run_bg "Test 1: Step 00 fallback" bash -c '
-response=$(echo "{\"request_id\": \"test-123\"}" | engine/bin/rankd)
+response=$(echo "{\"request_id\": \"test-123\", \"user_id\": 1}" | engine/bin/rankd)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
@@ -157,7 +157,7 @@ for i, c in enumerate(r[\"candidates\"], 1):
 "'
 
 run_bg "Test 2: Demo plan" bash -c '
-response=$(echo "{\"request_id\": \"demo-test\"}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json)
+response=$(echo "{\"request_id\": \"demo-test\", \"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
@@ -169,11 +169,11 @@ assert actual_ids == expected_ids
 "'
 
 run_bg "Test 3: Reject cycle.plan.json" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/cycle.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/cycle.plan.json 2>/dev/null; then exit 1; fi
 '
 
 run_bg "Test 4: Reject missing_input.plan.json" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/missing_input.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/missing_input.plan.json 2>/dev/null; then exit 1; fi
 '
 
 run_bg "Test 5: Print registry" bash -c "
@@ -196,49 +196,49 @@ wait_all
 # Batch 2: Param validation tests (parallel)
 echo "--- Batch 2: Param validation tests ---"
 run_bg "Test 6: Reject bad_type_fanout" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_type_fanout.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/bad_type_fanout.plan.json 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 7: Reject missing_fanout" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/missing_fanout.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/missing_fanout.plan.json 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 8: Reject extra_param" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/extra_param.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/extra_param.plan.json 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 9: Reject bad_trace_type" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_trace_type.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/bad_trace_type.plan.json 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 10: Accept null_trace" bash -c '
-response=$(echo "{\"request_id\": \"null-trace\"}" | engine/bin/rankd --plan artifacts/plans/null_trace.plan.json 2>&1)
+response=$(echo "{\"request_id\": \"null-trace\", \"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/null_trace.plan.json 2>&1)
 echo "$response" | grep -q "\"candidates\""
 '
 run_bg "Test 11: Reject large_fanout" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/large_fanout.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/large_fanout.plan.json 2>/dev/null; then exit 1; fi
 '
 wait_all
 
 # Batch 3: param_overrides tests (parallel)
 echo "--- Batch 3: param_overrides tests ---"
 run_bg "Test 12: Valid param_overrides" bash -c '
-response=$(echo "{\"request_id\": \"p\", \"param_overrides\": {\"media_age_penalty_weight\": 0.5, \"esr_cutoff\": 2.0}}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json)
+response=$(echo "{\"request_id\": \"p\", \"user_id\": 1, \"param_overrides\": {\"media_age_penalty_weight\": 0.5, \"esr_cutoff\": 2.0}}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
 assert [c[\"id\"] for c in r[\"candidates\"]] == [2, 3, 4, 5, 6]
 "'
 run_bg "Test 13: Reject unknown param" bash -c '
-response=$(echo "{\"request_id\": \"x\", \"param_overrides\": {\"unknown_param\": 42}}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json 2>&1 || true)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1, \"param_overrides\": {\"unknown_param\": 42}}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json 2>&1 || true)
 echo "$response" | grep -q "unknown param"
 '
 run_bg "Test 14: Reject wrong type" bash -c '
-response=$(echo "{\"request_id\": \"x\", \"param_overrides\": {\"media_age_penalty_weight\": \"bad\"}}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json 2>&1 || true)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1, \"param_overrides\": {\"media_age_penalty_weight\": \"bad\"}}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json 2>&1 || true)
 echo "$response" | grep -q "must be float"
 '
 run_bg "Test 15: Reject null non-nullable" bash -c '
-response=$(echo "{\"request_id\": \"x\", \"param_overrides\": {\"media_age_penalty_weight\": null}}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json 2>&1 || true)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1, \"param_overrides\": {\"media_age_penalty_weight\": null}}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json 2>&1 || true)
 echo "$response" | grep -q "cannot be null"
 '
 run_bg "Test 16: Accept null nullable" bash -c '
-response=$(echo "{\"request_id\": \"x\", \"param_overrides\": {\"blocklist_regex\": null}}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1, \"param_overrides\": {\"blocklist_regex\": null}}" | engine/bin/rankd --plan artifacts/plans/demo.plan.json)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
@@ -249,19 +249,19 @@ wait_all
 # Batch 4: Predicate tests (parallel)
 echo "--- Batch 4: Predicate tests ---"
 run_bg "Test 17: Reject missing_pred_id" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/missing_pred_id.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/missing_pred_id.plan.json 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 18: Reject unknown_pred_id" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/unknown_pred_id.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/unknown_pred_id.plan.json 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 19: Reject bad_pred_table_shape" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_pred_table_shape.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/bad_pred_table_shape.plan.json 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 20: Reject bad_in_list" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_in_list.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/bad_in_list.plan.json 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 21: String in-list" bash -c '
-response=$(echo "{\"request_id\": \"x\"}" | engine/bin/rankd --plan artifacts/plans/string_in_list.plan.json)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/string_in_list.plan.json)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
@@ -273,38 +273,38 @@ wait_all
 # Batch 5: Concat and TypeScript plans (parallel)
 echo "--- Batch 5: Concat and TS plans ---"
 run_bg "Test 22: concat_demo" bash -c '
-response=$(echo "{\"request_id\": \"x\"}" | engine/bin/rankd --plan artifacts/plans/concat_demo.plan.json)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/concat_demo.plan.json)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
 assert [c[\"id\"] for c in r[\"candidates\"]] == [1, 2, 3, 4, 1001, 1002, 1003, 1004]
 "'
 run_bg "Test 23: Reject concat_bad_arity" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/concat_bad_arity.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/concat_bad_arity.plan.json 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 24: reels_plan_a" bash -c '
-response=$(echo "{\"request_id\": \"x\"}" | engine/bin/rankd --plan artifacts/plans/reels_plan_a.plan.json)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/reels_plan_a.plan.json)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
 assert [c[\"id\"] for c in r[\"candidates\"]] == [3, 4, 5, 6, 7]
 "'
 run_bg "Test 25: reels_plan_a with overrides" bash -c '
-response=$(echo "{\"request_id\": \"x\", \"param_overrides\": {\"media_age_penalty_weight\": 0.5}}" | engine/bin/rankd --plan artifacts/plans/reels_plan_a.plan.json)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1, \"param_overrides\": {\"media_age_penalty_weight\": 0.5}}" | engine/bin/rankd --plan artifacts/plans/reels_plan_a.plan.json)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
 assert [c[\"id\"] for c in r[\"candidates\"]] == [2, 3, 4, 5, 6]
 "'
 run_bg "Test 26: concat_plan" bash -c '
-response=$(echo "{\"request_id\": \"x\"}" | engine/bin/rankd --plan artifacts/plans/concat_plan.plan.json)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/concat_plan.plan.json)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
 assert [c[\"id\"] for c in r[\"candidates\"]] == [1, 2, 3, 4, 1001, 1002, 1003, 1004]
 "'
 run_bg "Test 27: regex_plan" bash -c '
-response=$(echo "{\"request_id\": \"x\"}" | engine/bin/rankd --plan artifacts/plans/regex_plan.plan.json)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/regex_plan.plan.json)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
@@ -320,21 +320,21 @@ if grep -r --include="*.cpp" --include="*.h" -E "\.(selection_|order_)\b" engine
 fi
 '
 run_bg "Test 29: regex_demo" bash -c '
-response=$(echo "{\"request_id\": \"x\"}" | engine/bin/rankd --plan artifacts/plans/regex_demo.plan.json)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/regex_demo.plan.json)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
 assert [c[\"id\"] for c in r[\"candidates\"]] == [1, 3, 5, 7, 9]
 "'
 run_bg "Test 30: regex_param_demo" bash -c '
-response=$(echo "{\"request_id\": \"x\", \"param_overrides\": {\"blocklist_regex\": \"CA\"}}" | engine/bin/rankd --plan artifacts/plans/regex_param_demo.plan.json)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1, \"param_overrides\": {\"blocklist_regex\": \"CA\"}}" | engine/bin/rankd --plan artifacts/plans/regex_param_demo.plan.json)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
 assert [c[\"id\"] for c in r[\"candidates\"]] == [2, 4, 6, 8, 10]
 "'
 run_bg "Test 31: Reject bad_regex_flags" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_regex_flags.plan.json 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/bad_regex_flags.plan.json 2>/dev/null; then exit 1; fi
 '
 wait_all
 
@@ -347,17 +347,17 @@ run_bg "Test 33: Reject evil_proto.plan.ts" bash -c '
 if node dsl/packages/compiler/dist/cli.js build test/fixtures/plans/evil_proto.plan.ts --out /tmp/ci-evil-33 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 34: --plan_name" bash -c '
-response=$(echo "{\"request_id\": \"x\"}" | engine/bin/rankd --plan_name reels_plan_a)
+response=$(echo "{\"request_id\": \"x\", \"user_id\": 1}" | engine/bin/rankd --plan_name reels_plan_a)
 echo "$response" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
 assert [c[\"id\"] for c in r[\"candidates\"]] == [3, 4, 5, 6, 7]
 "'
 run_bg "Test 35: Reject path traversal" bash -c '
-if echo "{}" | engine/bin/rankd --plan_name "../x" 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan_name "../x" 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 36: Reject slash in name" bash -c '
-if echo "{}" | engine/bin/rankd --plan_name "a/b" 2>/dev/null; then exit 1; fi
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan_name "a/b" 2>/dev/null; then exit 1; fi
 '
 run_bg "Test 37: index.json" bash -c '
 python3 -c "
@@ -433,35 +433,35 @@ wait_all
 # Batch 10: Engine RFC0001 validation (parallel)
 echo "--- Batch 10: Engine RFC0001 validation ---"
 run_bg "Test 45: Reject unknown capability" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_unknown_cap.plan.json 2>&1 | grep -q "unsupported capability"; then
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/bad_engine_unknown_cap.plan.json 2>&1 | grep -q "unsupported capability"; then
     exit 0
 else
     exit 1
 fi
 '
 run_bg "Test 46: Reject unsorted capabilities" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_caps_unsorted.plan.json 2>&1 | grep -q "must be sorted"; then
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/bad_engine_caps_unsorted.plan.json 2>&1 | grep -q "must be sorted"; then
     exit 0
 else
     exit 1
 fi
 '
 run_bg "Test 47: Reject extension not in capabilities" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_ext_not_required.plan.json 2>&1 | grep -q "not in capabilities_required"; then
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/bad_engine_ext_not_required.plan.json 2>&1 | grep -q "not in capabilities_required"; then
     exit 0
 else
     exit 1
 fi
 '
 run_bg "Test 48: Reject node extension without capability" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_node_ext_not_declared.plan.json 2>&1 | grep -q "requires plan capability"; then
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/bad_engine_node_ext_not_declared.plan.json 2>&1 | grep -q "requires plan capability"; then
     exit 0
 else
     exit 1
 fi
 '
 run_bg "Test 49: Reject non-empty payload for base capability" bash -c '
-if echo "{}" | engine/bin/rankd --plan artifacts/plans/bad_engine_nonempty_payload.plan.json 2>&1 | grep -q "unexpected key"; then
+if echo "{\"user_id\": 1}" | engine/bin/rankd --plan artifacts/plans/bad_engine_nonempty_payload.plan.json 2>&1 | grep -q "unexpected key"; then
     exit 0
 else
     exit 1
@@ -618,7 +618,7 @@ PYEOF
 '
 
 run_bg "Test 57: dump-run-trace shows schema_deltas" bash -c '
-echo "{\"request_id\": \"test\"}" | engine/bin/rankd --plan engine/tests/fixtures/plan_info/vm_and_row_ops.plan.json --dump-run-trace > /tmp/ci-schema-deltas.json
+echo "{\"request_id\": \"test\", \"user_id\": 1}" | engine/bin/rankd --plan engine/tests/fixtures/plan_info/vm_and_row_ops.plan.json --dump-run-trace > /tmp/ci-schema-deltas.json
 python3 scripts/ci-helpers/validate_schema_deltas.py /tmp/ci-schema-deltas.json
 '
 wait_all

@@ -240,6 +240,9 @@ struct ExecStats {
 // Forward declaration for RowSet
 class RowSet;
 
+// Forward declaration for RequestContext
+struct RequestContext;
+
 // Execution context passed to task run functions
 struct ExecCtx {
   const ParamTable *params = nullptr;
@@ -248,7 +251,8 @@ struct ExecCtx {
   ExecStats *stats = nullptr; // nullable, for instrumentation
   // Resolved NodeRef params: param_name -> RowSet from referenced node
   const std::unordered_map<std::string, RowSet> *resolved_node_refs = nullptr;
-  // Future: request_id, engine_request_id, mode, logger, budgets...
+  // Request context (user_id, request_id, etc.)
+  const RequestContext *request = nullptr;
 };
 
 } // namespace rankd
