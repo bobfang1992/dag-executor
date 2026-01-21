@@ -88,15 +88,15 @@ function checkNoUndefined(obj, context) {
 // Source task implementations (for PlanCtx.viewer)
 // =====================================================
 /** Implementation for viewer.fetch_cached_recommendation */
-export function fetch_cached_recommendationImpl(ctx, opts) {
-    assertNotUndefined(opts, "fetch_cached_recommendation(opts)");
-    assertNotUndefined(opts.fanout, "fetch_cached_recommendation({ fanout })");
-    assertInteger(opts.fanout, "fetch_cached_recommendation({ fanout })");
+export function fetchCachedRecommendationImpl(ctx, opts) {
+    assertNotUndefined(opts, "fetchCachedRecommendation(opts)");
+    assertNotUndefined(opts.fanout, "fetchCachedRecommendation({ fanout })");
+    assertInteger(opts.fanout, "fetchCachedRecommendation({ fanout })");
     const { extensions, ...rest } = opts;
-    checkNoUndefined(rest, "fetch_cached_recommendation(opts)");
+    checkNoUndefined(rest, "fetchCachedRecommendation(opts)");
     // Validate trace
     if (opts.trace !== undefined) {
-        assertStringOrNull(opts.trace, "fetch_cached_recommendation({ trace })");
+        assertStringOrNull(opts.trace, "fetchCachedRecommendation({ trace })");
     }
     const params = {
         fanout: opts.fanout,
@@ -172,7 +172,7 @@ export function filterImpl(ctx, inputNodeId, opts) {
 export function sortImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "sort(opts)");
     assertNotUndefined(opts.by, "sort({ by })");
-    assertInteger(opts.by, "sort({ by })");
+    assertKeyToken(opts.by, "sort({ by })");
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest, "sort(opts)");
     // Validate trace
@@ -180,7 +180,7 @@ export function sortImpl(ctx, inputNodeId, opts) {
         assertStringOrNull(opts.trace, "sort({ trace })");
     }
     const params = {
-        by: opts.by,
+        by: opts.by.id,
         order: opts.order,
         trace: opts.trace ?? null,
     };
@@ -237,6 +237,6 @@ export function vmImpl(ctx, inputNodeId, opts) {
 // Task metadata for runtime use
 // =====================================================
 export const GENERATED_TASKS = {
-    source: ["fetch_cached_recommendation", "follow"],
+    source: ["fetchCachedRecommendation", "follow"],
     transform: ["concat", "filter", "sort", "take", "vm"],
 };

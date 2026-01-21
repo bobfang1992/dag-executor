@@ -11,7 +11,7 @@
 import type { KeyToken, ExprNode, PredNode, ExprInput } from "@ranking-dsl/generated";
 import {
   followImpl,
-  fetch_cached_recommendationImpl,
+  fetchCachedRecommendationImpl,
   vmImpl,
   filterImpl,
   takeImpl,
@@ -56,7 +56,7 @@ export class PlanCtx {
       trace?: string | null;
       extensions?: Record<string, unknown>;
     }): CandidateSet => {
-      const nodeId = fetch_cached_recommendationImpl(this, opts);
+      const nodeId = fetchCachedRecommendationImpl(this, opts);
       return new CandidateSet(this, nodeId);
     },
   };
