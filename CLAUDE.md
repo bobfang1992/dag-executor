@@ -706,8 +706,10 @@ bash scripts/ci_redis_local.sh
 | Key Pattern | Type | Description |
 |-------------|------|-------------|
 | `user:{uid}` | HASH | User object with `id`, `country` fields |
-| `follow:{uid}` | LIST | List of followed user IDs (strings) |
-| `media:{uid}` | LIST | List of media IDs (numeric strings) |
+| `follow:{uid}` | LIST | List of followed user IDs |
+| `media:{uid}` | LIST | List of media IDs |
+
+**Note:** All values are stored as strings (Redis convention). User IDs and media IDs are numeric strings.
 
 ### Deterministic Dataset Constants
 
