@@ -129,6 +129,12 @@ This document tracks the implementation status of all features in the dag-execut
 
 ## 🔲 Not Yet Implemented
 
+### Step 14.3: Endpoint Registry Hardening
+- [ ] Validate endpoint digests: recompute from parsed entries, compare against JSON values, reject mismatched --env
+- [ ] Enforce integer checks in TOML parser for ports/timeouts (floats currently accepted but C++ requires int)
+- [ ] Propagate endpoint_kind constraint to TS types (narrow EndpointId to RedisEndpointId/HttpEndpointId)
+- [ ] Add identifier sanitization for endpoint names (guard against digits at start, reserved words, collisions)
+
 ### Registries
 - [ ] Lifecycle/deprecation enforcement
 
