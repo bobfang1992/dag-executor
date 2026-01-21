@@ -105,6 +105,27 @@ void validate_plan(Plan &plan, const EndpointRegistry *endpoints) {
                                    "': node_ref '" + field.name +
                                    "' references missing node: " + ref);
         }
+      } else if (field.type == TaskParamType::EndpointRef) {
+        // EndpointRef must reference an endpoint in the registry
+        if (endpoints == nullptr) {
+          throw std::runtime_error("Node '" + node.node_id +
+                                   "': EndpointRef param '" + field.name +
+                                   "' requires EndpointRegistry but none provided");
+        }
+        const EndpointSpec *ep = endpoints->by_id(ref);
+        if (ep == nullptr) {
+          throw std::runtime_error("Node '" + node.node_id +
+                                   "': endpoint_id '" + ref +
+                                   "' not found in EndpointRegistry");
+        }
+        // Check kind constraint if specified
+        if (field.endpoint_kind && ep->kind != *field.endpoint_kind) {
+          throw std::runtime_error("Node '" + node.node_id +
+                                   "': endpoint '" + ref +
+                                   "' has kind '" + std::string(endpoint_kind_to_string(ep->kind)) +
+                                   "' but param requires '" +
+                                   std::string(endpoint_kind_to_string(*field.endpoint_kind)) + "'");
+        }
       }
     }
 
