@@ -2,7 +2,7 @@
  * Test plan with mismatched name - should be rejected by compiler.
  * Filename is "name_mismatch.plan.ts" but plan_name is "wrong_name".
  */
-import { definePlan, EP } from "@ranking-dsl/runtime";
+import { definePlan } from "@ranking-dsl/runtime";
 // Key, P, coalesce are globals injected by the compiler
 
 export default definePlan({

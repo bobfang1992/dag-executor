@@ -10,7 +10,7 @@
  * Expected ids after sort+take: [7,6,5,4,3]
  */
 
-import { definePlan, EP } from "@ranking-dsl/runtime";
+import { definePlan } from "@ranking-dsl/runtime";
 
 export default definePlan({
   name: "sort_demo",

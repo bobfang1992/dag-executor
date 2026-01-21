@@ -51,7 +51,7 @@ plans/              # Official plans (CI, production) → artifacts/plans/
 examples/plans/     # Example/tutorial plans → artifacts/plans-examples/
 artifacts/          # Compiled JSON artifacts
 docs/               # Developer guides
-plan-globals.d.ts   # Generated: declares Key/P/coalesce globals for editor support
+plan-globals.d.ts   # Generated: declares Key/P/EP/coalesce globals for editor support
 tsconfig.json       # Root TS config for plan files
 ```
 
@@ -126,6 +126,7 @@ Plans may only import from:
 **Global Tokens (no import needed):**
 - `Key` - Column key references (e.g., `Key.final_score`)
 - `P` - Parameter references (e.g., `P.media_age_penalty_weight`)
+- `EP` - Endpoint references (e.g., `EP.redis.default`)
 - `coalesce` - Null fallback function (e.g., `coalesce(P.x, 0.2)`)
 - `regex` - Regex predicate function (e.g., `regex(Key.title, "^test")`)
 
@@ -136,7 +137,7 @@ The compiler injects these via esbuild's `inject` option. **Do not import them.*
 **Enforcement:**
 - esbuild plugin in `bundler.ts` rejects at compile time
 - ESLint rule `@ranking-dsl/plan-restricted-imports` catches in editor
-- ESLint rule `@ranking-dsl/no-dsl-import-alias` rejects Key/P/coalesce imports
+- ESLint rule `@ranking-dsl/no-dsl-import-alias` rejects Key/P/EP/coalesce imports
 - ESLint rule `@ranking-dsl/no-dsl-reassign` rejects reassignment (`const JK = Key`)
 
 ### AST Extraction Limitations
@@ -149,7 +150,7 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
 
 2. **Inline expressions only**: The `expr` value must be an inline expression in the task call. Variables, shorthand, or spread patterns are NOT extracted:
    ```typescript
-   // WORKS - inline expression (Key, P, coalesce are globals)
+   // WORKS - inline expression (Key, P, EP, coalesce are globals)
    c.vm({ outKey: Key.x, expr: Key.id * coalesce(P.y, 0.2) })
 
    // DOES NOT WORK - variable reference
@@ -163,7 +164,7 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
 
 3. **Fragments**: When implemented, fragments must use builder-style expressions OR extraction must be extended to process them.
 
-4. **No reassignment**: Extraction only recognizes exact identifiers `Key`, `P`, `coalesce`. Reassigning is not supported:
+4. **No reassignment**: Extraction only recognizes exact identifiers `Key`, `P`, `EP`, `coalesce`. Reassigning is not supported:
    ```typescript
    // WORKS - use globals directly (no import needed)
    c.vm({ expr: Key.id * coalesce(P.weight, 0.2) })
@@ -174,7 +175,7 @@ Natural expression syntax (e.g., `vm({ expr: Key.x * coalesce(P.y, 0.2) })`) is 
    ```
 
 **ESLint enforcement:** `@ranking-dsl/eslint-plugin` catches these issues in editor:
-- `@ranking-dsl/no-dsl-import-alias` - rejects importing Key/P/coalesce (they are globals)
+- `@ranking-dsl/no-dsl-import-alias` - rejects importing Key/P/EP/coalesce (they are globals)
 - `@ranking-dsl/no-dsl-reassign` - rejects reassignment (`const JK = Key`)
 - `@ranking-dsl/inline-expr-only` - rejects variable references in expr
 - `@ranking-dsl/plan-restricted-imports` - restricts imports in .plan.ts files
@@ -255,7 +256,7 @@ See [docs/PLAN_COMPILER_GUIDE.md](docs/PLAN_COMPILER_GUIDE.md) for detailed usag
 
 ### Key Access
 ```typescript
-// Key, P, coalesce are globals (no import needed)
+// Key, P, EP, coalesce are globals (no import needed)
 row.get(Key.some_key)      // Standard access via tokens
 row.set(Key.some_key, val) // Returns new RowSet (pure functional)
 row._debug.get("key")      // Debug-only string access
@@ -572,7 +573,7 @@ payload_schema = '''
 Codegen generates:
 - `dsl/packages/generated/capabilities.ts` - TS registry + `validatePayload()`
 - `engine/include/capability_registry_gen.h` - C++ constexpr metadata
-- `plan-globals.d.ts` - Global type declarations for Key/P/coalesce (editor support)
+- `plan-globals.d.ts` - Global type declarations for Key/P/EP/coalesce (editor support)
 
 ### Registered Capabilities
 

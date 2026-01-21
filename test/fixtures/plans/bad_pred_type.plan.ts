@@ -1,5 +1,5 @@
 // Test: pred must be PredNode with 'op' field
-import { definePlan, EP } from '@ranking-dsl/runtime';
+import { definePlan } from '@ranking-dsl/runtime';
 
 export default definePlan({
   name: 'bad_pred_type',

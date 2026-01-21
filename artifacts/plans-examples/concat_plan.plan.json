@@ -1,7 +1,7 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "bd8ab3e481ce46cb",
+    "bundle_digest": "5d4fa2a0123b02c8",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
@@ -9,8 +9,9 @@
     {
       "inputs": [],
       "node_id": "n0",
-      "op": "viewer.follow",
+      "op": "follow",
       "params": {
+        "endpoint": "ep_0001",
         "fanout": 4,
         "trace": "L"
       }
@@ -18,8 +19,9 @@
     {
       "inputs": [],
       "node_id": "n1",
-      "op": "viewer.fetch_cached_recommendation",
+      "op": "recommendation",
       "params": {
+        "endpoint": "ep_0001",
         "fanout": 4,
         "trace": "R"
       }

@@ -10,5 +10,5 @@
  *   c.filter({ pred: Key.score > 0.5 && regex(Key.title, "^test") })
  */
 
-export { Key, P } from "@ranking-dsl/generated";
+export { Key, P, EP } from "@ranking-dsl/generated";
 export { coalesce, regex } from "@ranking-dsl/runtime";

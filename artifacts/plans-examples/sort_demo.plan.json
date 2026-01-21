@@ -1,7 +1,7 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "bea5a997287e6496",
+    "bundle_digest": "e0a6931981bba3ef",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
@@ -22,8 +22,9 @@
     {
       "inputs": [],
       "node_id": "n0",
-      "op": "viewer.follow",
+      "op": "follow",
       "params": {
+        "endpoint": "ep_0001",
         "fanout": 7,
         "trace": "src"
       }

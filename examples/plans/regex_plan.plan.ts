@@ -2,7 +2,7 @@
  * Example plan: regex_plan
  *
  * Pipeline:
- * 1. viewer.follow fanout=10
+ * 1. follow fanout=10
  * 2. filter regex(country, "US")
  * 3. take 5
  *
@@ -11,13 +11,13 @@
  */
 
 import { definePlan, Pred } from "@ranking-dsl/runtime";
-// Key, P, coalesce are globals injected by the compiler
+// Key, P, EP, coalesce are globals injected by the compiler
 
 export default definePlan({
   name: "regex_plan",
   build: (ctx) => {
-    return ctx.viewer
-      .follow({ fanout: 10, trace: "src" })
+    return ctx
+      .follow({ endpoint: EP.redis.default, fanout: 10, trace: "src" })
       .filter({
         pred: Pred.regex(Key.country, "US"),
         trace: "regex_filter",

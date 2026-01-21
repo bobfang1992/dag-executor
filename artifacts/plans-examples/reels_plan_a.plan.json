@@ -1,12 +1,16 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "840ae7ddfb943edf",
+    "bundle_digest": "ced19ef533e3c60a",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
   "expr_table": {
     "e0": {
+      "key_id": 2001,
+      "op": "key_ref"
+    },
+    "e1": {
       "a": {
         "key_id": 1,
         "op": "key_ref"
@@ -29,8 +33,9 @@
     {
       "inputs": [],
       "node_id": "n0",
-      "op": "viewer.follow",
+      "op": "follow",
       "params": {
+        "endpoint": "ep_0001",
         "fanout": 10,
         "trace": "src"
       }
@@ -42,7 +47,7 @@
       "node_id": "n1",
       "op": "vm",
       "params": {
-        "expr_id": "e0",
+        "expr_id": "e1",
         "out_key": 2001,
         "trace": "vm_final"
       }
@@ -63,6 +68,18 @@
         "n2"
       ],
       "node_id": "n3",
+      "op": "vm",
+      "params": {
+        "expr_id": "e0",
+        "out_key": 2001,
+        "trace": "vm_passthrough"
+      }
+    },
+    {
+      "inputs": [
+        "n3"
+      ],
+      "node_id": "n4",
       "op": "take",
       "params": {
         "count": 5,
@@ -71,7 +88,7 @@
     }
   ],
   "outputs": [
-    "n3"
+    "n4"
   ],
   "plan_name": "reels_plan_a",
   "pred_table": {

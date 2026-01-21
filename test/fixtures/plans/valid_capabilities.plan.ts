@@ -2,7 +2,7 @@
  * Test fixture: valid capabilities and extensions.
  * Should compile successfully - demonstrates RFC0001 functionality.
  */
-import { definePlan, EP } from "@ranking-dsl/runtime";
+import { definePlan } from "@ranking-dsl/runtime";
 // Key, P, coalesce are globals injected by the compiler
 
 export default definePlan({

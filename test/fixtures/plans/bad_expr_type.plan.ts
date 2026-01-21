@@ -1,5 +1,5 @@
 // Test: expr must be ExprNode or ExprPlaceholder, not string
-import { definePlan, EP } from '@ranking-dsl/runtime';
+import { definePlan } from '@ranking-dsl/runtime';
 
 export default definePlan({
   name: 'bad_expr_type',

@@ -1,5 +1,5 @@
 // Test: count must be integer, not null
-import { definePlan, EP } from '@ranking-dsl/runtime';
+import { definePlan } from '@ranking-dsl/runtime';
 
 export default definePlan({
   name: 'bad_count_type',

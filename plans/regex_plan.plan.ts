@@ -10,7 +10,7 @@
  * - ids: [1,3,5,7,9] (odd ids have country="US")
  */
 
-import { definePlan, EP, Pred } from "@ranking-dsl/runtime";
+import { definePlan, Pred } from "@ranking-dsl/runtime";
 // Key, P, coalesce are globals injected by the compiler
 
 export default definePlan({

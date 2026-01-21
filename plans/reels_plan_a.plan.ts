@@ -13,7 +13,7 @@
  * - With overrides media_age_penalty_weight=0.5: ids [2,3,4,5,6]
  */
 
-import { definePlan, E, EP, Pred } from "@ranking-dsl/runtime";
+import { definePlan, E, Pred } from "@ranking-dsl/runtime";
 // Key, P, coalesce are globals injected by the compiler
 
 export default definePlan({

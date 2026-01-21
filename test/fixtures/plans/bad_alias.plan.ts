@@ -4,7 +4,7 @@
  * Key is a global provided by the compiler. Importing it (even without alias)
  * should be flagged by the no-dsl-import-alias rule.
  */
-import { definePlan, EP, Pred } from "@ranking-dsl/runtime";
+import { definePlan, Pred } from "@ranking-dsl/runtime";
 import { Key as JK } from "@ranking-dsl/generated";  // ESLint should reject this
 
 export default definePlan({

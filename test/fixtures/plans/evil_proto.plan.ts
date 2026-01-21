@@ -6,7 +6,7 @@
  * Expected: dslc should fail with non-zero exit code.
  */
 
-import { definePlan, EP } from "@ranking-dsl/runtime";
+import { definePlan } from "@ranking-dsl/runtime";
 
 export default definePlan({
   name: "evil_proto_plan",

@@ -12,7 +12,7 @@
  * - country/title behavior per concat_demo plan
  */
 
-import { definePlan, EP } from "@ranking-dsl/runtime";
+import { definePlan } from "@ranking-dsl/runtime";
 
 export default definePlan({
   name: "concat_plan",

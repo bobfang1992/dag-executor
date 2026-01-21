@@ -7,7 +7,7 @@
  * 3. take: Limit to first 50 results
  */
 
-import { definePlan, EP } from "@ranking-dsl/runtime";
+import { definePlan } from "@ranking-dsl/runtime";
 
 export default definePlan({
   name: "redis_follow_media",

@@ -1,5 +1,5 @@
 // Test: outKey must be KeyToken, not a number/NaN
-import { definePlan, E, EP } from '@ranking-dsl/runtime';
+import { definePlan, E } from '@ranking-dsl/runtime';
 
 export default definePlan({
   name: 'bad_outkey_type',

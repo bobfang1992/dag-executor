@@ -1,5 +1,5 @@
 // Test: trace must be string or null, not number
-import { definePlan, EP } from '@ranking-dsl/runtime';
+import { definePlan } from '@ranking-dsl/runtime';
 
 export default definePlan({
   name: 'bad_trace_type',
