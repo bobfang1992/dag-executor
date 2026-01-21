@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include "endpoint_registry.h"
 #include <fstream>
+#include <iostream>
 #include <nlohmann/json.hpp>
 
 using namespace rankd;
@@ -14,12 +16,57 @@ static std::string write_temp_json(const nlohmann::json& j, const std::string& s
   return path;
 }
 
+static nlohmann::json sort_endpoints_json(nlohmann::json endpoints) {
+  std::sort(endpoints.begin(), endpoints.end(), [](const nlohmann::json& a, const nlohmann::json& b) {
+    return a.at("endpoint_id").get<std::string>() < b.at("endpoint_id").get<std::string>();
+  });
+  return endpoints;
+}
+
+// Attach registry/config digests to JSON (mirrors codegen + C++ loader)
+static void add_endpoint_digests(nlohmann::json& j) {
+  try {
+    std::vector<rankd::EndpointSpec> specs;
+    for (const auto& ep : j.at("endpoints")) {
+      rankd::EndpointSpec spec;
+      spec.endpoint_id = ep.at("endpoint_id").get<std::string>();
+      spec.name = ep.at("name").get<std::string>();
+      spec.kind = *rankd::string_to_endpoint_kind(ep.at("kind").get<std::string>());
+
+      const auto& resolver = ep.at("resolver");
+      spec.resolver_type = *rankd::string_to_resolver_type(resolver.at("type").get<std::string>());
+      spec.static_resolver.host = resolver.at("host").get<std::string>();
+      spec.static_resolver.port = resolver.at("port").get<int>();
+
+      if (ep.contains("policy")) {
+        const auto& policy = ep.at("policy");
+        if (policy.contains("max_inflight")) {
+          spec.policy.max_inflight = policy.at("max_inflight").get<int>();
+        }
+        if (policy.contains("connect_timeout_ms")) {
+          spec.policy.connect_timeout_ms = policy.at("connect_timeout_ms").get<int>();
+        }
+        if (policy.contains("request_timeout_ms")) {
+          spec.policy.request_timeout_ms = policy.at("request_timeout_ms").get<int>();
+        }
+      }
+
+      specs.push_back(std::move(spec));
+    }
+
+    j["registry_digest"] = rankd::compute_digest(rankd::registry_canonical_json(specs));
+    j["config_digest"] = rankd::compute_digest(rankd::config_canonical_json(specs));
+  } catch (...) {
+    // For malformed fixtures (expected to fail before digest check), attach dummy digests.
+    j["registry_digest"] = "invalid";
+    j["config_digest"] = "invalid";
+  }
+}
+
 TEST_CASE("EndpointRegistry loads valid JSON", "[endpoint_registry]") {
   nlohmann::json j = {
     {"schema_version", 1},
     {"env", "dev"},
-    {"registry_digest", "abc123"},
-    {"config_digest", "def456"},
     {"endpoints", nlohmann::json::array({
       {
         {"endpoint_id", "ep_0001"},
@@ -38,17 +85,25 @@ TEST_CASE("EndpointRegistry loads valid JSON", "[endpoint_registry]") {
     })}
   };
 
-  std::string path = write_temp_json(j, "valid");
-  auto result = EndpointRegistry::LoadFromJson(path);
+  add_endpoint_digests(j);
 
+  const std::string expected_registry_digest = j["registry_digest"].get<std::string>();
+  const std::string expected_config_digest = j["config_digest"].get<std::string>();
+
+  std::string path = write_temp_json(j, "valid");
+  auto result = EndpointRegistry::LoadFromJson(path, "dev");
+
+  if (std::holds_alternative<std::string>(result)) {
+    std::cerr << "LoadFromJson error: " << std::get<std::string>(result) << std::endl;
+  }
   REQUIRE(std::holds_alternative<EndpointRegistry>(result));
 
   const auto& reg = std::get<EndpointRegistry>(result);
 
   SECTION("basic properties") {
     REQUIRE(reg.env() == "dev");
-    REQUIRE(reg.registry_digest() == "abc123");
-    REQUIRE(reg.config_digest() == "def456");
+    REQUIRE(reg.registry_digest() == expected_registry_digest);
+    REQUIRE(reg.config_digest() == expected_config_digest);
     REQUIRE(reg.size() == 2);
   }
 
@@ -95,6 +150,8 @@ TEST_CASE("EndpointRegistry rejects duplicate endpoint_id", "[endpoint_registry]
     })}
   };
 
+  add_endpoint_digests(j);
+
   std::string path = write_temp_json(j, "dup_id");
   auto result = EndpointRegistry::LoadFromJson(path);
 
@@ -116,6 +173,8 @@ TEST_CASE("EndpointRegistry rejects duplicate name", "[endpoint_registry]") {
     })}
   };
 
+  add_endpoint_digests(j);
+
   std::string path = write_temp_json(j, "dup_name");
   auto result = EndpointRegistry::LoadFromJson(path);
 
@@ -128,13 +187,13 @@ TEST_CASE("EndpointRegistry rejects invalid port", "[endpoint_registry]") {
     nlohmann::json j = {
       {"schema_version", 1},
       {"env", "dev"},
-      {"registry_digest", "abc"},
-      {"config_digest", "def"},
       {"endpoints", nlohmann::json::array({
         {{"endpoint_id", "ep_0001"}, {"name", "bad"}, {"kind", "redis"},
          {"resolver", {{"type", "static"}, {"host", "127.0.0.1"}, {"port", 0}}}}
       })}
     };
+
+    add_endpoint_digests(j);
 
     std::string path = write_temp_json(j, "bad_port_0");
     auto result = EndpointRegistry::LoadFromJson(path);
@@ -147,13 +206,13 @@ TEST_CASE("EndpointRegistry rejects invalid port", "[endpoint_registry]") {
     nlohmann::json j = {
       {"schema_version", 1},
       {"env", "dev"},
-      {"registry_digest", "abc"},
-      {"config_digest", "def"},
       {"endpoints", nlohmann::json::array({
         {{"endpoint_id", "ep_0001"}, {"name", "bad"}, {"kind", "redis"},
          {"resolver", {{"type", "static"}, {"host", "127.0.0.1"}, {"port", 70000}}}}
       })}
     };
+
+    add_endpoint_digests(j);
 
     std::string path = write_temp_json(j, "bad_port_70000");
     auto result = EndpointRegistry::LoadFromJson(path);
@@ -167,13 +226,13 @@ TEST_CASE("EndpointRegistry rejects unknown kind", "[endpoint_registry]") {
   nlohmann::json j = {
     {"schema_version", 1},
     {"env", "dev"},
-    {"registry_digest", "abc"},
-    {"config_digest", "def"},
     {"endpoints", nlohmann::json::array({
       {{"endpoint_id", "ep_0001"}, {"name", "bad"}, {"kind", "kafka"},
        {"resolver", {{"type", "static"}, {"host", "127.0.0.1"}, {"port", 9092}}}}
     })}
   };
+
+  add_endpoint_digests(j);
 
   std::string path = write_temp_json(j, "unknown_kind");
   auto result = EndpointRegistry::LoadFromJson(path);
@@ -186,13 +245,13 @@ TEST_CASE("EndpointRegistry rejects non-static resolver", "[endpoint_registry]")
   nlohmann::json j = {
     {"schema_version", 1},
     {"env", "dev"},
-    {"registry_digest", "abc"},
-    {"config_digest", "def"},
     {"endpoints", nlohmann::json::array({
       {{"endpoint_id", "ep_0001"}, {"name", "consul_ep"}, {"kind", "redis"},
        {"resolver", {{"type", "consul"}, {"service", "redis"}}}}
     })}
   };
+
+  add_endpoint_digests(j);
 
   std::string path = write_temp_json(j, "consul_resolver");
   auto result = EndpointRegistry::LoadFromJson(path);
@@ -206,13 +265,13 @@ TEST_CASE("EndpointRegistry rejects invalid endpoint_id format", "[endpoint_regi
     nlohmann::json j = {
       {"schema_version", 1},
       {"env", "dev"},
-      {"registry_digest", "abc"},
-      {"config_digest", "def"},
       {"endpoints", nlohmann::json::array({
         {{"endpoint_id", "0001"}, {"name", "bad"}, {"kind", "redis"},
          {"resolver", {{"type", "static"}, {"host", "127.0.0.1"}, {"port", 6379}}}}
       })}
     };
+
+    add_endpoint_digests(j);
 
     std::string path = write_temp_json(j, "no_prefix");
     auto result = EndpointRegistry::LoadFromJson(path);
@@ -226,13 +285,13 @@ TEST_CASE("EndpointRegistry rejects invalid endpoint_id format", "[endpoint_regi
     nlohmann::json j = {
       {"schema_version", 1},
       {"env", "dev"},
-      {"registry_digest", "abc"},
-      {"config_digest", "def"},
       {"endpoints", nlohmann::json::array({
         {{"endpoint_id", long_id}, {"name", "bad"}, {"kind", "redis"},
          {"resolver", {{"type", "static"}, {"host", "127.0.0.1"}, {"port", 6379}}}}
       })}
     };
+
+    add_endpoint_digests(j);
 
     std::string path = write_temp_json(j, "too_long");
     auto result = EndpointRegistry::LoadFromJson(path);
@@ -240,6 +299,43 @@ TEST_CASE("EndpointRegistry rejects invalid endpoint_id format", "[endpoint_regi
     REQUIRE(std::holds_alternative<std::string>(result));
     REQUIRE(std::get<std::string>(result).find("too long") != std::string::npos);
   }
+}
+
+TEST_CASE("EndpointRegistry rejects env mismatch", "[endpoint_registry]") {
+  nlohmann::json j = {
+    {"schema_version", 1},
+    {"env", "dev"},
+    {"endpoints", nlohmann::json::array({
+      {{"endpoint_id", "ep_0001"}, {"name", "redis"}, {"kind", "redis"},
+       {"resolver", {{"type", "static"}, {"host", "127.0.0.1"}, {"port", 6379}}}}
+    })}
+  };
+
+  add_endpoint_digests(j);
+  std::string path = write_temp_json(j, "env_mismatch");
+
+  auto result = EndpointRegistry::LoadFromJson(path, "prod");
+  REQUIRE(std::holds_alternative<std::string>(result));
+  REQUIRE(std::get<std::string>(result).find("Env mismatch") != std::string::npos);
+}
+
+TEST_CASE("EndpointRegistry rejects digest mismatch", "[endpoint_registry]") {
+  nlohmann::json j = {
+    {"schema_version", 1},
+    {"env", "dev"},
+    {"endpoints", nlohmann::json::array({
+      {{"endpoint_id", "ep_0001"}, {"name", "redis"}, {"kind", "redis"},
+       {"resolver", {{"type", "static"}, {"host", "127.0.0.1"}, {"port", 6379}}}}
+    })}
+  };
+
+  add_endpoint_digests(j);
+  j["registry_digest"] = "bad_digest";
+  std::string path = write_temp_json(j, "digest_mismatch");
+
+  auto result = EndpointRegistry::LoadFromJson(path);
+  REQUIRE(std::holds_alternative<std::string>(result));
+  REQUIRE(std::get<std::string>(result).find("registry_digest mismatch") != std::string::npos);
 }
 
 TEST_CASE("EndpointRegistry helper functions work", "[endpoint_registry]") {

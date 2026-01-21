@@ -78,6 +78,7 @@ export interface TaskParamEntry {
   type: TaskParamType;
   required: boolean;
   nullable: boolean;
+  endpoint_kind?: EndpointKind;
 }
 
 export interface TaskEntry {
@@ -179,6 +180,13 @@ export function assertString(v: unknown, field: string): string {
 
 export function assertNumber(v: unknown, field: string): number {
   if (typeof v !== "number") throw new Error(`${field} must be a number`);
+  return v;
+}
+
+export function assertInteger(v: unknown, field: string): number {
+  if (typeof v !== "number" || !Number.isInteger(v)) {
+    throw new Error(`${field} must be an integer`);
+  }
   return v;
 }
 

@@ -84,7 +84,8 @@ int main(int argc, char *argv[]) {
 
   // Load endpoint registry
   std::string endpoints_path = artifacts_dir + "/endpoints." + env + ".json";
-  auto endpoints_result = rankd::EndpointRegistry::LoadFromJson(endpoints_path);
+  auto endpoints_result =
+      rankd::EndpointRegistry::LoadFromJson(endpoints_path, env);
   if (std::holds_alternative<std::string>(endpoints_result)) {
     // Only fail if we actually need endpoints (not for print-registry without endpoints)
     // For now, we'll allow print-registry to work without endpoints loaded

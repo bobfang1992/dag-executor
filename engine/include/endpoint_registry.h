@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -8,6 +9,8 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
+
+#include "sha256.h"
 
 namespace rankd {
 
@@ -47,8 +50,9 @@ class EndpointRegistry {
  public:
   // Load from JSON file (artifacts/endpoints.<env>.json)
   // Returns either a valid registry or an error message
+  // If expected_env is non-empty, the env in the file must match.
   static std::variant<EndpointRegistry, std::string> LoadFromJson(
-      const std::string& path);
+      const std::string& path, const std::string& expected_env = "");
 
   // Lookup by endpoint_id (e.g., "ep_0001")
   const EndpointSpec* by_id(std::string_view endpoint_id) const;
@@ -81,6 +85,108 @@ class EndpointRegistry {
 // =====================================================
 // Helper functions
 // =====================================================
+
+inline std::string_view endpoint_kind_to_string(EndpointKind kind);
+inline std::optional<EndpointKind> string_to_endpoint_kind(std::string_view s);
+inline std::string_view resolver_type_to_string(ResolverType type);
+inline std::optional<ResolverType> string_to_resolver_type(std::string_view s);
+
+// Deterministic JSON stringify (matches dsl/src/codegen/utils.ts stableStringify)
+inline std::string stable_stringify(const nlohmann::json& value) {
+  if (value.is_null() || value.is_boolean() || value.is_number() ||
+      value.is_string()) {
+    return value.dump();
+  }
+
+  if (value.is_array()) {
+    std::string out = "[";
+    bool first = true;
+    for (const auto& elem : value) {
+      if (!first) out += ",";
+      first = false;
+      out += stable_stringify(elem);
+    }
+    out += "]";
+    return out;
+  }
+
+  if (value.is_object()) {
+    std::vector<std::string> keys;
+    keys.reserve(value.size());
+    for (auto it = value.begin(); it != value.end(); ++it) {
+      keys.push_back(it.key());
+    }
+    std::sort(keys.begin(), keys.end());
+
+    std::string out = "{";
+    bool first = true;
+    for (const auto& key : keys) {
+      if (!first) out += ",";
+      first = false;
+      out += nlohmann::json(key).dump();
+      out += ":";
+      out += stable_stringify(value.at(key));
+    }
+    out += "}";
+    return out;
+  }
+
+  throw std::runtime_error("Unsupported JSON type in stable_stringify");
+}
+
+inline std::string compute_digest(const nlohmann::json& value) {
+  return sha256::hash(stable_stringify(value));
+}
+
+inline std::vector<EndpointSpec> sort_endpoints(std::vector<EndpointSpec> eps) {
+  std::sort(eps.begin(), eps.end(),
+            [](const EndpointSpec& a, const EndpointSpec& b) {
+              return a.endpoint_id < b.endpoint_id;
+            });
+  return eps;
+}
+
+inline nlohmann::json registry_canonical_json(
+    const std::vector<EndpointSpec>& endpoints) {
+  nlohmann::json entries = nlohmann::json::array();
+  for (const auto& ep : sort_endpoints(endpoints)) {
+    entries.push_back({{"endpoint_id", ep.endpoint_id},
+                       {"name", ep.name},
+                       {"kind", endpoint_kind_to_string(ep.kind)}});
+  }
+  return {{"schema_version", 1}, {"entries", entries}};
+}
+
+inline nlohmann::json config_canonical_json(
+    const std::vector<EndpointSpec>& endpoints) {
+  nlohmann::json entries = nlohmann::json::array();
+  for (const auto& ep : sort_endpoints(endpoints)) {
+    nlohmann::json policy = nlohmann::json::object();
+    if (ep.policy.max_inflight) {
+      policy["max_inflight"] = *ep.policy.max_inflight;
+    }
+    if (ep.policy.connect_timeout_ms) {
+      policy["connect_timeout_ms"] = *ep.policy.connect_timeout_ms;
+    }
+    if (ep.policy.request_timeout_ms) {
+      policy["request_timeout_ms"] = *ep.policy.request_timeout_ms;
+    }
+
+    nlohmann::json resolver = {
+        {"type", resolver_type_to_string(ep.resolver_type)},
+        {"host", ep.static_resolver.host},
+        {"port", ep.static_resolver.port},
+    };
+
+    entries.push_back({{"endpoint_id", ep.endpoint_id},
+                       {"name", ep.name},
+                       {"kind", endpoint_kind_to_string(ep.kind)},
+                       {"resolver", resolver},
+                       {"policy", policy}});
+  }
+
+  return {{"schema_version", 1}, {"endpoints", entries}};
+}
 
 inline std::string_view endpoint_kind_to_string(EndpointKind kind) {
   switch (kind) {
@@ -125,7 +231,7 @@ inline std::optional<ResolverType> string_to_resolver_type(std::string_view s) {
 // =====================================================
 
 inline std::variant<EndpointRegistry, std::string> EndpointRegistry::LoadFromJson(
-    const std::string& path) {
+    const std::string& path, const std::string& expected_env) {
   // Read file
   std::ifstream file(path);
   if (!file) {
@@ -155,17 +261,21 @@ inline std::variant<EndpointRegistry, std::string> EndpointRegistry::LoadFromJso
     return "Missing or invalid env field";
   }
   registry.env_ = j["env"].get<std::string>();
+  if (!expected_env.empty() && registry.env_ != expected_env) {
+    return "Env mismatch: expected '" + expected_env + "', got '" +
+           registry.env_ + "'";
+  }
 
   // Parse digests
   if (!j.contains("registry_digest") || !j["registry_digest"].is_string()) {
     return "Missing or invalid registry_digest";
   }
-  registry.registry_digest_ = j["registry_digest"].get<std::string>();
+  std::string registry_digest_json = j["registry_digest"].get<std::string>();
 
   if (!j.contains("config_digest") || !j["config_digest"].is_string()) {
     return "Missing or invalid config_digest";
   }
-  registry.config_digest_ = j["config_digest"].get<std::string>();
+  std::string config_digest_json = j["config_digest"].get<std::string>();
 
   // Parse endpoints array
   if (!j.contains("endpoints") || !j["endpoints"].is_array()) {
@@ -282,6 +392,24 @@ inline std::variant<EndpointRegistry, std::string> EndpointRegistry::LoadFromJso
     registry.by_id_[spec.endpoint_id] = idx;
     registry.by_name_[spec.name] = idx;
     registry.entries_.push_back(std::move(spec));
+  }
+
+  // Compute digests from parsed entries (trust the data, not the file fields)
+  registry.registry_digest_ =
+      compute_digest(registry_canonical_json(registry.entries_));
+  registry.config_digest_ =
+      compute_digest(config_canonical_json(registry.entries_));
+
+  // Validate provided digests
+  if (registry.registry_digest_ != registry_digest_json) {
+    return "registry_digest mismatch for env '" + registry.env_ +
+           "': expected " + registry_digest_json + ", computed " +
+           registry.registry_digest_;
+  }
+  if (registry.config_digest_ != config_digest_json) {
+    return "config_digest mismatch for env '" + registry.env_ +
+           "': expected " + config_digest_json + ", computed " +
+           registry.config_digest_;
   }
 
   return registry;
