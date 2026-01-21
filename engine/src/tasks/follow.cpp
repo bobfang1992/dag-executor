@@ -1,10 +1,12 @@
 #include "endpoint_registry.h"
 #include "io_clients.h"
+#include "key_registry.h"
 #include "param_table.h"
 #include "redis_client.h"
 #include "task_registry.h"
 #include <charconv>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace rankd {
 
@@ -33,7 +35,7 @@ class FollowTask {
                  .nullable = true},
             },
         .reads = {},
-        .writes = {},  // Only ID column
+        .writes = {KeyId::country},  // ID + country (hydrated)
         .default_budget = {.timeout_ms = 100},
         .output_pattern = OutputPattern::VariableDense,
     };
@@ -93,15 +95,48 @@ class FollowTask {
       }
     }
 
-    // Create batch with all followee IDs
+    // Create batch with all followee IDs and hydrate country
     size_t n = all_followees.size();
     auto batch = std::make_shared<ColumnBatch>(n);
 
+    // Build country column (dictionary-encoded strings)
+    auto country_dict = std::make_shared<std::vector<std::string>>();
+    auto country_codes = std::make_shared<std::vector<int32_t>>(n, -1);
+    auto country_valid = std::make_shared<std::vector<uint8_t>>(n, 0);
+    std::unordered_map<std::string, int32_t> country_to_code;
+
     for (size_t i = 0; i < n; ++i) {
-      batch->setId(i, all_followees[i]);
+      int64_t followee_id = all_followees[i];
+      batch->setId(i, followee_id);
+
+      // Fetch user data for this followee
+      std::string user_key = "user:" + std::to_string(followee_id);
+      auto user_result = redis.hgetall(user_key);
+      if (user_result) {
+        auto country_it = user_result.value().find("country");
+        if (country_it != user_result.value().end()) {
+          const std::string& country = country_it->second;
+          auto it = country_to_code.find(country);
+          if (it == country_to_code.end()) {
+            int32_t code = static_cast<int32_t>(country_dict->size());
+            country_dict->push_back(country);
+            country_to_code[country] = code;
+            (*country_codes)[i] = code;
+          } else {
+            (*country_codes)[i] = it->second;
+          }
+          (*country_valid)[i] = 1;
+        }
+      }
+      // If user not found or no country, leave as null (valid=0, code=-1)
     }
 
-    return RowSet(batch);
+    // Add country column
+    auto country_col = std::make_shared<StringDictColumn>(
+        country_dict, country_codes, country_valid);
+    *batch = batch->withStringColumn(key_id(KeyId::country), country_col);
+
+    return RowSet(std::make_shared<ColumnBatch>(*batch));
   }
 };
 

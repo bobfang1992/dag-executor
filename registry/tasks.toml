@@ -1,7 +1,7 @@
 # AUTO-GENERATED from C++ TaskSpec - DO NOT EDIT
 # Regenerate with: engine/bin/rankd --print-task-manifest > registry/tasks.toml
 schema_version = 1
-manifest_digest = "a23520564ef30a2a2ee8080c9e81f7d1f3a8eae772c565ff825e12e101db3670"
+manifest_digest = "65570d9c16fd650b8c758d0b019f5db802c99e910f99bc58c8ed640e969d48b8"
 
 [[task]]
 op = "concat"
