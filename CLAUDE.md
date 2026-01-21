@@ -323,12 +323,22 @@ export const esr = defineFragment({
 POST /rank
 {
   "request_id": "...",
+  "user_id": 123,
   "plan": "reels_plan_a",
   "fragment_versions": { "esr": "v1" },
   "param_overrides": { "media_age_penalty_weight": 0.35 },
   "output_keys": ["id", "final_score"]
 }
 ```
+
+**Required fields:**
+- `user_id` - Positive uint32 (1 to 4294967295). Accepts integer or numeric string.
+
+**Optional fields:**
+- `request_id` - String. Auto-generated if missing.
+- `plan` - Plan name to execute.
+- `param_overrides` - Override param values.
+- `output_keys` - Keys to include in output.
 
 ## Complexity Budgets
 
@@ -411,13 +421,13 @@ cmake --build engine/build --parallel
 engine/bin/rowset_tests
 
 # Run rankd (Step 00 fallback - no plan)
-echo '{"request_id": "test"}' | engine/bin/rankd
+echo '{"request_id": "test", "user_id": 1}' | engine/bin/rankd
 
 # Run rankd with plan by name (recommended)
-echo '{"request_id": "test"}' | engine/bin/rankd --plan_name reels_plan_a
+echo '{"request_id": "test", "user_id": 1}' | engine/bin/rankd --plan_name reels_plan_a
 
 # Run rankd with plan by explicit path
-echo '{"request_id": "test"}' | engine/bin/rankd --plan artifacts/plans/demo.plan.json
+echo '{"request_id": "test", "user_id": 1}' | engine/bin/rankd --plan artifacts/plans/demo.plan.json
 
 # Run with custom plan store directory
 echo '{}' | engine/bin/rankd --plan_dir artifacts/plans-examples --plan_name reels_plan_a
@@ -435,7 +445,7 @@ engine/bin/rankd --print-task-manifest
 engine/bin/rankd --print-plan-info --plan_name reels_plan_a
 
 # Run with schema delta trace (runtime audit)
-echo '{"request_id": "test"}' | engine/bin/rankd --plan_name reels_plan_a --dump-run-trace
+echo '{"request_id": "test", "user_id": 1}' | engine/bin/rankd --plan_name reels_plan_a --dump-run-trace
 
 # Run all CI tests
 ./scripts/ci.sh
@@ -862,6 +872,14 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - Server-side compilation via `/api/compile` endpoint (calls real dslc CLI)
 - DAG visualization with force-directed graph layout
 - URL sharing via base64-encoded plan code
+
+**Step 14.1: RequestContext with user_id**
+- `engine/include/request.h` - RequestContext, ParseResult, parse_user_id, parse_request_context
+- `engine/include/param_table.h` - ExecCtx extended with `const RequestContext* request`
+- Required `user_id` field in rank requests (positive uint32, 1 to UINT32_MAX)
+- Accepts user_id as integer or numeric string
+- Fail-closed validation: rejects null, bool, float, object, array, zero, negative
+- `engine/tests/test_request.cpp` - Catch2 tests (60 assertions in 6 test cases)
 
 ### 🔲 Not Yet Implemented
 

@@ -16,6 +16,7 @@
 #include "param_table.h"
 #include "plan.h"
 #include "pred_eval.h"
+#include "request.h"
 #include "task_registry.h"
 #include "validation.h"
 
@@ -216,7 +217,7 @@ int main(int argc, char *argv[]) {
   input_buf << std::cin.rdbuf();
   std::string input = input_buf.str();
 
-  // Parse request
+  // Parse request JSON
   json request;
   try {
     request = json::parse(input);
@@ -228,15 +229,20 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // Parse and validate request context (request_id, user_id)
+  auto parse_result = rankd::parse_request_context(request);
+  if (!parse_result.ok) {
+    json error_response;
+    error_response["error"] = "Invalid request";
+    error_response["detail"] = parse_result.error;
+    std::cout << error_response.dump() << std::endl;
+    return 1;
+  }
+  rankd::RequestContext request_context = std::move(parse_result.context);
+
   // Build response
   json response;
-
-  // request_id: echo if provided, generate otherwise
-  if (request.contains("request_id") && request["request_id"].is_string()) {
-    response["request_id"] = request["request_id"];
-  } else {
-    response["request_id"] = generate_uuid();
-  }
+  response["request_id"] = request_context.request_id;
 
   // engine_request_id: always generated
   response["engine_request_id"] = generate_uuid();
@@ -261,6 +267,7 @@ int main(int argc, char *argv[]) {
   // Build execution context
   rankd::ExecCtx ctx;
   ctx.params = &param_table;
+  ctx.request = &request_context;
 
   // Generate candidates
   json candidates = json::array();
