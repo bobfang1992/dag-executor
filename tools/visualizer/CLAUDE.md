@@ -6,10 +6,11 @@ Interactive DAG visualization tool for `*.plan.json` files.
 
 - **React 18** - UI framework
 - **PixiJS 8** - WebGL canvas rendering (60fps at scale)
+- **dockview** - Draggable, resizable panel layout
 - **dagre** - Hierarchical DAG layout
 - **Zustand** - State management
 - **Vite** - Build tooling
-- **US Graphics** - Color theme (light, Univers font)
+- **Dracula** - Color theme
 
 ## Commands
 
@@ -73,7 +74,7 @@ pnpm -C tools/visualizer run test:headed   # Run tests in headed browser
 - Full TypeScript editor with syntax highlighting
 - DSL type definitions for intellisense (generated from registries)
 - Auto-complete for `definePlan`, `Key`, `P`, task methods, etc.
-- Suppresses arithmetic errors for natural expression syntax
+- Suppresses TypeScript errors for natural expression/predicate syntax (2304, 2362, 2363, 2322, 2365, 2367)
 
 **Phase 3: Persistence & Sharing** ✅
 - Auto-save to localStorage (debounced)
@@ -86,15 +87,29 @@ pnpm -C tools/visualizer run test:headed   # Run tests in headed browser
 - Reusable UI components (Button, Dropdown, Modal)
 - E2E tests with Playwright
 
-### Step 02: Editor DX & Collapsible Panels ✅
+### Step 02: Dockview Panel Layout ✅
 
-- Suppress TypeScript errors for DSL natural syntax in Monaco (2304, 2362, 2363, 2322, 2365, 2367)
-- Add global declarations for Key, P, coalesce, regex in monaco-types.ts
-- Collapsible Details panel (right side)
-- Collapsible Preview panel in edit mode (canvas + details)
-- Collapsible Source panel in view mode
+**Dockview Integration**
+- Replaced manual flex+divider layout with dockview
+- Draggable, resizable, snappable panel windows
+- Panels: Editor, Canvas, Details, Source
 
-### Step 03: Fragment Support 🔲
+**Menu Bar**
+- "Add" menu to restore closed panels
+- "View" menu with Reset Layout option
+- Panels restore to their previous position when re-added
+
+**Persistence**
+- Layout persists across page refreshes and sessions
+- Separate layouts for view mode vs edit mode
+- Centralized preferences module for all localStorage
+
+**Polish**
+- DAG-style favicon (nodes + edges in dracula colors)
+- Simple home page when no plan loaded
+- E2E tests for panel interactions
+
+### Step 03: Fragment Support (Next) 🔲
 
 - Detect fragment boundaries in plan
 - Render fragments as collapsible supernodes
@@ -102,23 +117,14 @@ pnpm -C tools/visualizer run test:headed   # Run tests in headed browser
 - Auto-collapse when visible nodes > threshold
 - LRU eviction for expanded fragments
 
-### Step 04: Dockable Panels 🔲
-
-- Integrate [dockview](https://github.com/mathuo/dockview) for VS Code-like panel docking
-- Enable drag-to-dock for Editor, Canvas, Details panels
-- Support snapping to edges (left, right, top, bottom)
-- Tab grouping for multiple panels
-- Floating panel support
-- Save/restore layout preferences to localStorage
-
-### Step 05: Enhanced UX 🔲
+### Step 04: Enhanced UX 🔲
 
 - Keyboard shortcuts (Escape=deselect, +/-=zoom, F=fit)
 - Minimap for large graphs
 - Search/filter nodes
 - Export as PNG/SVG
 
-### Step 06: Production 🔲
+### Step 05: Production 🔲
 
 - Production build optimization
 - Deploy to GitHub Pages or similar
@@ -128,20 +134,24 @@ pnpm -C tools/visualizer run test:headed   # Run tests in headed browser
 
 ```
 tools/visualizer/
+├── public/
+│   └── favicon.svg           # DAG-style favicon
 ├── src/
-│   ├── main.tsx              # Entry point
-│   ├── App.tsx               # Layout: header + source/editor panel + canvas + details
-│   ├── theme.ts              # US Graphics color palette
+│   ├── main.tsx              # Entry point + dockview CSS
+│   ├── App.tsx               # Layout: header + menu bar + DockLayout
+│   ├── theme.ts              # Dracula color palette
 │   ├── types.ts              # VisNode, VisEdge, PlanJson interfaces
 │   ├── components/
 │   │   ├── Canvas.tsx        # PixiJS canvas with pan/zoom
 │   │   ├── DetailsPanel.tsx  # Node details + expr/pred formatting
+│   │   ├── DockLayout.tsx    # Dockview wrapper + layout persistence
 │   │   ├── Dropdown.tsx      # Custom styled dropdown
 │   │   ├── EditorPanel.tsx   # Monaco editor with live compilation
+│   │   ├── MenuBar.tsx       # Add/View dropdown menus
 │   │   ├── Modal.tsx         # PromptModal and ConfirmModal
 │   │   ├── PlanSelector.tsx  # Plan list from index.json + drag-drop
 │   │   ├── SourcePanel.tsx   # Original .plan.ts source viewer
-│   │   ├── Toolbar.tsx       # Dock-style toolbar
+│   │   ├── Toolbar.tsx       # Floating toolbar (stats + fit button)
 │   │   └── ui/
 │   │       └── Button.tsx    # Reusable button component
 │   ├── layout/
@@ -149,11 +159,13 @@ tools/visualizer/
 │   ├── parser/
 │   │   └── plan-parser.ts    # plan.json → VisGraph + node color logic
 │   └── state/
-│       └── store.ts          # Zustand store + browser history
+│       ├── store.ts          # Zustand store + browser history
+│       └── preferences.ts    # Centralized localStorage module
 ├── e2e/
-│   └── editor.spec.ts        # Playwright e2e tests
+│   ├── editor.spec.ts        # Editor e2e tests
+│   └── dockview.spec.ts      # Panel layout e2e tests
 ├── playwright.config.ts      # Playwright configuration
-├── vite.config.ts            # Vite config + source file middleware
+├── vite.config.ts            # Vite config + middlewares
 └── index.html
 ```
 
@@ -190,16 +202,23 @@ tools/visualizer/
 - Expr/Pred formatting for vm and filter nodes
 - Click "Plan Visualizer" title → go back to plan selector
 
+### Panel Layout (Dockview)
+- Draggable, resizable panel windows (like VS Code or Compiler Explorer)
+- Panels: Editor, Canvas, Details, Source
+- Close panels via tab × button
+- Restore panels via Add menu (restores to previous position)
+- Reset Layout via View menu
+- Layout persists across sessions (separate for view/edit modes)
+
 ### Source Viewer
 - Shows original `.plan.ts` source with line numbers
 - Served via Vite middleware from `plans/` or `examples/plans/`
-- Draggable divider to resize source/graph split (20%-80% range)
-- Toggle with "Source" button in dock
+- Available as dockview panel in view mode
 
-### Dock Toolbar
-- macOS-style floating dock at bottom center
-- Blur backdrop effect
-- Buttons: Source toggle, Fit, Back
+### Canvas Toolbar
+- Floating toolbar at bottom center of canvas
+- Shows node/edge count
+- Fit button to auto-fit graph to view
 
 ### Live Plan Editor (Step 01)
 - Click "Create New Plan" to open editor panel
@@ -210,7 +229,11 @@ tools/visualizer/
 - Save plans to localStorage with "Save As" (⌘+S)
 - Share plans via URL hash encoding
 - Manage saved plans: rename, delete, switch between them
-- Resizable editor panel (drag the divider)
+
+### Menu Bar
+- **Add**: Restore closed panels (Editor, Canvas, Details, Source)
+- **View**: Reset Layout to default arrangement
+- Items disabled when panel already exists or not applicable to current mode
 
 ## Data Flow
 
@@ -264,7 +287,8 @@ The live editor uses **server-side compilation** for full parity with the produc
 ## Vite Config Notes
 
 - `publicDir` points to `../../artifacts` to serve plan JSONs at `/plans/`
-- Custom middleware serves `.plan.ts` sources at `/sources/<name>.plan.ts`
+- `serveLocalPublic()` middleware serves favicon and other local assets from `public/`
+- `servePlanSources()` middleware serves `.plan.ts` sources at `/sources/<name>.plan.ts`
 - Searches both `plans/` and `examples/plans/` directories
 - `/api/compile` endpoint for server-side plan compilation (uses real `dslc` CLI)
 - **Security note**: The middlewares don't validate paths. This is acceptable since the visualizer is a local dev tool only (not deployed to production).
