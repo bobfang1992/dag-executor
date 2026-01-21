@@ -65,25 +65,36 @@ class MediaTask {
     std::vector<int64_t> media_ids;
     const auto& input = inputs[0];
 
+    // Note: Can't throw from lambda, so collect errors
+    std::string error_msg;
     input.activeRows().forEachIndex([&](RowIndex idx) {
+      if (!error_msg.empty()) return;  // Skip if already errored
+
       int64_t row_id = input.batch().getId(idx);
 
       // Fetch media list for this row's ID
       std::string key = "media:" + std::to_string(row_id);
       auto result = redis.lrange(key, 0, fanout - 1);
 
-      if (result) {
-        for (const auto& id_str : result.value()) {
-          int64_t media_id = 0;
-          auto [ptr, ec] = std::from_chars(
-              id_str.data(), id_str.data() + id_str.size(), media_id);
-          if (ec == std::errc{}) {
-            media_ids.push_back(media_id);
-          }
+      if (!result) {
+        // Fail on Redis errors (consistent with follow/recommendation)
+        error_msg = "media: " + result.error();
+        return;
+      }
+
+      for (const auto& id_str : result.value()) {
+        int64_t media_id = 0;
+        auto [ptr, ec] = std::from_chars(
+            id_str.data(), id_str.data() + id_str.size(), media_id);
+        if (ec == std::errc{}) {
+          media_ids.push_back(media_id);
         }
       }
-      // On error, just skip this row's media (fail-soft for fanout)
     });
+
+    if (!error_msg.empty()) {
+      throw std::runtime_error(error_msg);
+    }
 
     // Create batch with media IDs
     size_t n = media_ids.size();
