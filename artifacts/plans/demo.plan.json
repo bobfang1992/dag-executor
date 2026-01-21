@@ -2,7 +2,7 @@
   "schema_version": 1,
   "plan_name": "demo",
   "nodes": [
-    { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": { "fanout": 10, "trace": "src" } },
+    { "node_id": "n0", "op": "follow", "inputs": [], "params": { "endpoint": "ep_0001", "fanout": 10, "trace": "src" } },
     { "node_id": "n1", "op": "vm", "inputs": ["n0"], "params": { "out_key": 2001, "expr_id": "e0", "trace": "vm_final" } },
     { "node_id": "n2", "op": "filter", "inputs": ["n1"], "params": { "pred_id": "p0", "trace": "filter" } },
     { "node_id": "n3", "op": "take", "inputs": ["n2"], "params": { "count": 5, "trace": "take" } }

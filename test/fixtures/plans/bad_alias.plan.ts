@@ -4,13 +4,13 @@
  * Key is a global provided by the compiler. Importing it (even without alias)
  * should be flagged by the no-dsl-import-alias rule.
  */
-import { definePlan, Pred } from "@ranking-dsl/runtime";
+import { definePlan, EP, Pred } from "@ranking-dsl/runtime";
 import { Key as JK } from "@ranking-dsl/generated";  // ESLint should reject this
 
 export default definePlan({
   name: "bad_alias",
   build: (ctx) => {
-    const c = ctx.viewer.follow({ fanout: 10 });
+    const c = ctx.follow({ endpoint: EP.redis.default, fanout: 10 });
     return c.filter({
       pred: Pred.regex(JK.country, "US"),
       trace: "filter_us",

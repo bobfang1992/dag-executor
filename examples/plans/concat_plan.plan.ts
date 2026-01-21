@@ -12,13 +12,13 @@
  * - country/title behavior per concat_demo plan
  */
 
-import { definePlan } from "@ranking-dsl/runtime";
+import { definePlan, EP } from "@ranking-dsl/runtime";
 
 export default definePlan({
   name: "concat_plan",
   build: (ctx) => {
-    const a = ctx.viewer.follow({ fanout: 4, trace: "L" });
-    const b = ctx.viewer.fetch_cached_recommendation({ fanout: 4, trace: "R" });
+    const a = ctx.follow({ endpoint: EP.redis.default, fanout: 4, trace: "L" });
+    const b = ctx.recommendation({ endpoint: EP.redis.default, fanout: 4, trace: "R" });
     return a.concat({ rhs: b, trace: "C" }).take({ count: 8, trace: "T" });
   },
 });

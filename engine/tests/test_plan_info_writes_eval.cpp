@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "endpoint_registry.h"
 #include "executor.h"
 #include "key_registry.h"
 #include "plan.h"
@@ -7,6 +8,20 @@
 #include <algorithm>
 
 using namespace rankd;
+
+// Helper to load endpoint registry for tests
+static const EndpointRegistry& get_test_endpoint_registry() {
+  static std::optional<EndpointRegistry> registry;
+  if (!registry) {
+    auto result = EndpointRegistry::LoadFromJson("artifacts/endpoints.dev.json");
+    if (std::holds_alternative<EndpointRegistry>(result)) {
+      registry = std::get<EndpointRegistry>(result);
+    } else {
+      throw std::runtime_error("Failed to load endpoint registry: " + std::get<std::string>(result));
+    }
+  }
+  return *registry;
+}
 
 // Helper to find a node by op in the parsed plan
 static const Node* find_node_by_op(const Plan& plan, const std::string& op) {
@@ -32,7 +47,7 @@ TEST_CASE("Fixture A: vm + row-only ops writes_eval", "[writes_eval][plan_info]"
   Plan plan = parse_plan("engine/tests/fixtures/plan_info/vm_and_row_ops.plan.json");
 
   // Validate to populate writes_eval fields
-  validate_plan(plan);
+  validate_plan(plan, &get_test_endpoint_registry());
 
   SECTION("vm node has Exact with out_key") {
     const Node* vm = find_node_by_op(plan, "vm");
@@ -65,23 +80,13 @@ TEST_CASE("Fixture A: vm + row-only ops writes_eval", "[writes_eval][plan_info]"
     REQUIRE(take->writes_eval_keys.empty());
   }
 
-  SECTION("viewer.follow source has Exact with fixed writes") {
-    const Node* source = find_node_by_op(plan, "viewer.follow");
+  SECTION("follow source has Exact with fixed writes") {
+    const Node* source = find_node_by_op(plan, "follow");
     REQUIRE(source != nullptr);
 
     REQUIRE(source->writes_eval_kind == EffectKind::Exact);
-    REQUIRE(source->writes_eval_keys.size() == 2);
-
-    // Should contain country (3001) and title (3002)
-    REQUIRE(std::find(source->writes_eval_keys.begin(),
-                      source->writes_eval_keys.end(),
-                      static_cast<uint32_t>(KeyId::country)) != source->writes_eval_keys.end());
-    REQUIRE(std::find(source->writes_eval_keys.begin(),
-                      source->writes_eval_keys.end(),
-                      static_cast<uint32_t>(KeyId::title)) != source->writes_eval_keys.end());
-
-    // Keys should be sorted and unique
-    REQUIRE(is_sorted_unique(source->writes_eval_keys));
+    // follow task writes id only (from LIST)
+    REQUIRE(source->writes_eval_keys.empty());
   }
 }
 
@@ -90,22 +95,15 @@ TEST_CASE("Fixture B: fixed-writes source writes_eval", "[writes_eval][plan_info
   Plan plan = parse_plan("engine/tests/fixtures/plan_info/fixed_source.plan.json");
 
   // Validate to populate writes_eval fields
-  validate_plan(plan);
+  validate_plan(plan, &get_test_endpoint_registry());
 
-  SECTION("viewer.fetch_cached_recommendation has Exact with country key") {
-    const Node* cached = find_node_by_op(plan, "viewer.fetch_cached_recommendation");
+  SECTION("recommendation has Exact with empty keys") {
+    const Node* cached = find_node_by_op(plan, "recommendation");
     REQUIRE(cached != nullptr);
 
     REQUIRE(cached->writes_eval_kind == EffectKind::Exact);
-    REQUIRE(!cached->writes_eval_keys.empty());
-
-    // Should contain country (3001)
-    REQUIRE(std::find(cached->writes_eval_keys.begin(),
-                      cached->writes_eval_keys.end(),
-                      static_cast<uint32_t>(KeyId::country)) != cached->writes_eval_keys.end());
-
-    // Keys should be sorted and unique
-    REQUIRE(is_sorted_unique(cached->writes_eval_keys));
+    // recommendation task writes id only (from LIST)
+    REQUIRE(cached->writes_eval_keys.empty());
   }
 
   SECTION("concat node has Exact with empty keys") {
@@ -124,15 +122,13 @@ TEST_CASE("Fixture B: fixed-writes source writes_eval", "[writes_eval][plan_info
     REQUIRE(take->writes_eval_keys.empty());
   }
 
-  SECTION("viewer.follow source has Exact with fixed writes") {
-    const Node* source = find_node_by_op(plan, "viewer.follow");
+  SECTION("follow source has Exact with empty keys") {
+    const Node* source = find_node_by_op(plan, "follow");
     REQUIRE(source != nullptr);
 
     REQUIRE(source->writes_eval_kind == EffectKind::Exact);
-    REQUIRE(source->writes_eval_keys.size() == 2);
-
-    // Keys should be sorted and unique
-    REQUIRE(is_sorted_unique(source->writes_eval_keys));
+    // follow task writes id only (from LIST)
+    REQUIRE(source->writes_eval_keys.empty());
   }
 }
 
@@ -141,7 +137,7 @@ TEST_CASE("writes_eval keys are always sorted and unique", "[writes_eval][plan_i
 
   SECTION("vm_and_row_ops fixture") {
     Plan plan = parse_plan("engine/tests/fixtures/plan_info/vm_and_row_ops.plan.json");
-    validate_plan(plan);
+    validate_plan(plan, &get_test_endpoint_registry());
 
     for (const auto& node : plan.nodes) {
       INFO("Checking node: " << node.node_id << " (" << node.op << ")");
@@ -151,7 +147,7 @@ TEST_CASE("writes_eval keys are always sorted and unique", "[writes_eval][plan_i
 
   SECTION("fixed_source fixture") {
     Plan plan = parse_plan("engine/tests/fixtures/plan_info/fixed_source.plan.json");
-    validate_plan(plan);
+    validate_plan(plan, &get_test_endpoint_registry());
 
     for (const auto& node : plan.nodes) {
       INFO("Checking node: " << node.node_id << " (" << node.op << ")");

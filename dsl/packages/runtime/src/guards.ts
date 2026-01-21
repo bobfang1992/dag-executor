@@ -24,6 +24,18 @@ export function checkNoUndefined(obj: Record<string, unknown>, path: string): vo
   }
 }
 
+export function assertInteger(value: unknown, path: string): asserts value is number {
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    throw new Error(`${path} must be an integer, got ${typeof value === "number" ? value : typeof value}`);
+  }
+}
+
+export function assertStringOrNull(value: unknown, path: string): void {
+  if (value !== null && typeof value !== "string") {
+    throw new Error(`${path} must be a string or null, got ${typeof value}`);
+  }
+}
+
 // ============================================================
 // RFC0001: Capabilities and Extensions validation helpers
 // ============================================================

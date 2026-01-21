@@ -5,11 +5,35 @@
 #include "param_table.h"
 #include "plan.h"
 #include "pred_eval.h"
-#include "task_registry.h"
+#include "rowset.h"
 #include <cassert>
 #include <iostream>
 
 using namespace rankd;
+
+// Helper to create test RowSet with ids and alternating country strings
+static RowSet create_test_rowset_for_regex(size_t count) {
+  // Create batch with sequential ids
+  auto batch_ptr = std::make_shared<ColumnBatch>(count);
+  for (size_t i = 0; i < count; ++i) {
+    batch_ptr->setId(i, static_cast<int64_t>(i + 1));
+  }
+
+  // Build string dict column for country: alternating US/CA
+  auto dict = std::make_shared<std::vector<std::string>>(std::vector<std::string>{"US", "CA"});
+  auto codes = std::make_shared<std::vector<int32_t>>(count);
+  auto valid = std::make_shared<std::vector<uint8_t>>(count, 1);
+
+  for (size_t i = 0; i < count; ++i) {
+    (*codes)[i] = static_cast<int32_t>(i % 2);  // 0=US, 1=CA alternating
+  }
+
+  auto string_col = std::make_shared<StringDictColumn>(dict, codes, valid);
+  auto batch_with_country = std::make_shared<ColumnBatch>(
+      batch_ptr->withStringColumn(3001, string_col));  // 3001 = Key.country
+
+  return RowSet(batch_with_country);
+}
 
 void test_literal_pattern() {
   std::cout << "Test: regex with literal pattern... " << std::flush;
@@ -17,20 +41,14 @@ void test_literal_pattern() {
   // Clear regex cache to get accurate stats
   clearRegexCache();
 
-  auto &registry = TaskRegistry::instance();
-
-  // Create viewer.follow with fanout=100
-  nlohmann::json follow_params;
-  follow_params["fanout"] = 100;
-  auto fp = registry.validate_params("viewer.follow", follow_params);
+  // Create test data with 100 rows, alternating US/CA
+  RowSet source = create_test_rowset_for_regex(100);
 
   ParamTable params;
   ExecStats stats;
   ExecCtx ctx;
   ctx.params = &params;
   ctx.stats = &stats;
-
-  RowSet source = registry.execute("viewer.follow", {}, fp, ctx);
 
   // Build regex predicate: Key.country matches "US"
   PredNode pred;
@@ -65,12 +83,8 @@ void test_param_pattern() {
   // Clear regex cache to get accurate stats
   clearRegexCache();
 
-  auto &registry = TaskRegistry::instance();
-
-  // Create viewer.follow with fanout=100
-  nlohmann::json follow_params;
-  follow_params["fanout"] = 100;
-  auto fp = registry.validate_params("viewer.follow", follow_params);
+  // Create test data with 100 rows, alternating US/CA
+  RowSet source = create_test_rowset_for_regex(100);
 
   // Set blocklist_regex param to "CA"
   ParamTable params;
@@ -80,8 +94,6 @@ void test_param_pattern() {
   ExecCtx ctx;
   ctx.params = &params;
   ctx.stats = &stats;
-
-  RowSet source = registry.execute("viewer.follow", {}, fp, ctx);
 
   // Build regex predicate: Key.country matches param blocklist_regex (id=2)
   PredNode pred;
@@ -114,19 +126,14 @@ void test_case_insensitive() {
   // Clear regex cache
   clearRegexCache();
 
-  auto &registry = TaskRegistry::instance();
-
-  nlohmann::json follow_params;
-  follow_params["fanout"] = 10;
-  auto fp = registry.validate_params("viewer.follow", follow_params);
+  // Create test data with 10 rows, alternating US/CA
+  RowSet source = create_test_rowset_for_regex(10);
 
   ParamTable params;
   ExecStats stats;
   ExecCtx ctx;
   ctx.params = &params;
   ctx.stats = &stats;
-
-  RowSet source = registry.execute("viewer.follow", {}, fp, ctx);
 
   // Build regex predicate: Key.country matches "us" (lowercase) with "i" flag
   PredNode pred;

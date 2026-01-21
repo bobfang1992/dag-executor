@@ -2,7 +2,7 @@
   "schema_version": 1,
   "plan_name": "concat_bad_arity",
   "nodes": [
-    {"node_id": "n0", "op": "viewer.follow", "inputs": [], "params": {"fanout": 4, "trace": "L"}},
+    {"node_id": "n0", "op": "follow", "inputs": [], "params": {"endpoint": "ep_0001", "fanout": 4, "trace": "L"}},
     {"node_id": "n1", "op": "concat", "inputs": ["n0"], "params": {"trace": "C"}}
   ],
   "outputs": ["n1"],

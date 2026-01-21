@@ -2,7 +2,7 @@
  * Test fixture: valid capabilities and extensions.
  * Should compile successfully - demonstrates RFC0001 functionality.
  */
-import { definePlan } from "@ranking-dsl/runtime";
+import { definePlan, EP } from "@ranking-dsl/runtime";
 // Key, P, coalesce are globals injected by the compiler
 
 export default definePlan({
@@ -12,7 +12,8 @@ export default definePlan({
     ctx.requireCapability("cap.rfc.0001.extensions_capabilities.v1");
 
     // Create a node with extensions (empty payload as per schema)
-    const candidates = ctx.viewer.follow({
+    const candidates = ctx.follow({
+      endpoint: EP.redis.default,
       fanout: 10,
       trace: "src",
       extensions: {

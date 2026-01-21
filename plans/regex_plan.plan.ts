@@ -10,14 +10,14 @@
  * - ids: [1,3,5,7,9] (odd ids have country="US")
  */
 
-import { definePlan, Pred } from "@ranking-dsl/runtime";
+import { definePlan, EP, Pred } from "@ranking-dsl/runtime";
 // Key, P, coalesce are globals injected by the compiler
 
 export default definePlan({
   name: "regex_plan",
   build: (ctx) => {
-    return ctx.viewer
-      .follow({ fanout: 10, trace: "src" })
+    return ctx
+      .follow({ endpoint: EP.redis.default, fanout: 10, trace: "src" })
       .filter({
         pred: Pred.regex(Key.country, "US"),
         trace: "regex_filter",

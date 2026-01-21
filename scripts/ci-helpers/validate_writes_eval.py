@@ -21,10 +21,10 @@ for node in nodes:
     assert we["kind"] in ["Exact", "May", "Unknown"], f"Invalid kind: {we['kind']}"
 
 # Check specific nodes
-source_node = next(n for n in nodes if n["op"] == "viewer.follow")
+source_node = next(n for n in nodes if n["op"] == "follow")
 assert source_node["writes_eval"]["kind"] == "Exact"
-assert 3001 in source_node["writes_eval"]["keys"]  # features_esr_score
-assert 3002 in source_node["writes_eval"]["keys"]  # features_lsr_score
+# Source task produces id rows only (no feature keys)
+assert source_node["writes_eval"]["keys"] == []
 
 # Both vm nodes write to final_score (2001)
 vm_nodes = [n for n in nodes if n["op"] == "vm"]

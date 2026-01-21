@@ -17,7 +17,7 @@ import {
   concatImpl,
   sortImpl,
 } from "@ranking-dsl/generated";
-import { assertNotUndefined, checkNoUndefined } from "./guards.js";
+import { assertNotUndefined, checkNoUndefined, assertInteger, assertStringOrNull } from "./guards.js";
 
 /**
  * Internal node representation (before JSON serialization).
@@ -76,6 +76,10 @@ export class PlanCtx {
     assertNotUndefined(opts, "follow(opts)");
     assertNotUndefined(opts.endpoint, "follow({ endpoint })");
     assertNotUndefined(opts.fanout, "follow({ fanout })");
+    assertInteger(opts.fanout, "follow({ fanout })");
+    if (opts.trace !== undefined) {
+      assertStringOrNull(opts.trace, "follow({ trace })");
+    }
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest as Record<string, unknown>, "follow(opts)");
     const nodeId = this.addNode(
@@ -104,6 +108,10 @@ export class PlanCtx {
     assertNotUndefined(opts, "recommendation(opts)");
     assertNotUndefined(opts.endpoint, "recommendation({ endpoint })");
     assertNotUndefined(opts.fanout, "recommendation({ fanout })");
+    assertInteger(opts.fanout, "recommendation({ fanout })");
+    if (opts.trace !== undefined) {
+      assertStringOrNull(opts.trace, "recommendation({ trace })");
+    }
     const { extensions, ...rest } = opts;
     checkNoUndefined(rest as Record<string, unknown>, "recommendation(opts)");
     const nodeId = this.addNode(

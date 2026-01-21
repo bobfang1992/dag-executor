@@ -6,7 +6,7 @@
  * Expected: dslc should fail with non-zero exit code.
  */
 
-import { definePlan } from "@ranking-dsl/runtime";
+import { definePlan, EP } from "@ranking-dsl/runtime";
 
 export default definePlan({
   name: "evil_proto_plan",
@@ -20,6 +20,6 @@ export default definePlan({
     console.log(evil());
 
     // This line should never be reached
-    return ctx.viewer.follow({ fanout: 1 });
+    return ctx.follow({ endpoint: EP.redis.default, fanout: 1 });
   },
 });

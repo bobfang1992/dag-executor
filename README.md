@@ -81,8 +81,9 @@ export default definePlan({
 ### Source Tasks
 
 ```typescript
-ctx.viewer.follow({ fanout: 100, trace: "source" })
-ctx.viewer.fetch_cached_recommendation({ fanout: 50 })
+ctx.viewer({ endpoint: EP.redis.default, trace: "viewer" })
+ctx.follow({ endpoint: EP.redis.default, fanout: 100, trace: "follow" })
+ctx.recommendation({ endpoint: EP.redis.default, fanout: 50, trace: "recs" })
 ```
 
 ### Transform Tasks
