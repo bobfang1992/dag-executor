@@ -127,6 +127,7 @@ Plans may only import from:
 - `Key` - Column key references (e.g., `Key.final_score`)
 - `P` - Parameter references (e.g., `P.media_age_penalty_weight`)
 - `coalesce` - Null fallback function (e.g., `coalesce(P.x, 0.2)`)
+- `regex` - Regex predicate function (e.g., `regex(Key.title, "^test")`)
 
 The compiler injects these via esbuild's `inject` option. **Do not import them.**
 
@@ -831,6 +832,37 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
   - Validates all key arrays are sorted and unique
 - `schema_delta_tests` binary added to CMake and CI
 
+**Step 13.1: AST Extraction for vm() Natural Expressions**
+- `dsl/packages/compiler/src/expr-compiler.ts` - Compiles TS expression AST to ExprIR
+- `dsl/packages/compiler/src/ast-extractor.ts` - Extracts natural expressions, rewrites to placeholders
+- Task-based extraction using `TASK_EXTRACTION_INFO` from generated code
+- Supports: `Key.x * P.y`, `coalesce(a, b)`, arithmetic ops, negation
+- Fail-closed: rejects division, ternary, arbitrary function calls
+- Test fixtures: `vm_ast_expr_basic.plan.ts`, `vm_ast_expr_unsupported.plan.ts`
+
+**Step 13.2: AST Extraction for filter() Natural Predicates**
+- `dsl/packages/compiler/src/pred-compiler.ts` - Compiles TS predicate AST to PredIR
+- Extended `ast-extractor.ts` to handle `pred` properties in filter() calls
+- `cli.ts` post-processing merges `pred_table` after QuickJS execution
+- `regex` global function added for natural predicate syntax
+- Supports: `&&`, `||`, `!`, comparisons, null checks, `regex(Key.x, "pat")`
+- Fail-closed: rejects arithmetic in predicates, ternary, arbitrary function calls
+- Test fixtures: `filter_ast_pred_basic.plan.ts`, `filter_ast_pred_regex.plan.ts`
+
+**Sort Task Implementation**
+- `engine/src/tasks/sort.cpp` - Sort task using permutation vector
+- Updates `PermutationVector` only (no column materialization)
+- Supports `by` (key_id) and `order` ("asc"/"desc") params
+- `engine/tests/test_sort.cpp` - Unit tests
+- `examples/plans/sort_demo.plan.ts` - Example plan
+
+**Visualizer Step 01: Live Plan Editor**
+- `tools/visualizer/` - React + Monaco + Three.js visualization tool
+- Live TypeScript editing with Monaco editor and DSL intellisense
+- Server-side compilation via `/api/compile` endpoint (calls real dslc CLI)
+- DAG visualization with force-directed graph layout
+- URL sharing via base64-encoded plan code
+
 ### 🔲 Not Yet Implemented
 
 **Registries (§3)**
@@ -850,6 +882,7 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - [x] QuickJS-based plan execution with esbuild bundling
 - [x] Sandbox security (no eval, no Function, no Node globals)
 - [x] AST extraction for natural expressions in vm() (Key.x * coalesce(P.y, 0.2))
+- [x] AST extraction for natural predicates in filter() (Key.x > 0.5 && regex(Key.y, "pat"))
 - [ ] Fragment authoring surface
 - [x] C++ TaskSpec → TS task definitions codegen (single source of truth)
 
@@ -869,7 +902,8 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 - [ ] fetch_features / call_models
 - [x] vm (expression evaluation, float column output)
 - [x] filter (predicate evaluation, selection update, regex support)
-- [ ] dedupe / sort
+- [x] sort (permutation-based, no materialization)
+- [ ] dedupe
 - [x] take (columnar, no-copy)
 - [ ] join (left/inner/semi/anti)
 - [ ] extract_features
