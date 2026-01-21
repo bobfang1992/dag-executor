@@ -136,6 +136,11 @@ This document tracks the implementation status of all features in the dag-execut
 - EP global: endpoint references available as `EP.redis.default` (no import needed)
 - CI: Redis service container (Linux) / Homebrew (macOS), `scripts/seed_redis.sh` for test data
 
+### Step 14.4 Hardening
+- Runtime validation: `assertStringOrNull` for trace, `assertEndpointId` for endpoint params
+- Consistent Redis error handling: all tasks fail-fast on Redis errors (connection/command errors throw)
+- Missing data (empty Redis result) handled gracefully as null columns
+
 ---
 
 ## 🔲 Not Yet Implemented
