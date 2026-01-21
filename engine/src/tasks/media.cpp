@@ -1,4 +1,5 @@
 #include "endpoint_registry.h"
+#include "io_clients.h"
 #include "param_table.h"
 #include "redis_client.h"
 #include "request.h"
@@ -56,18 +57,9 @@ class MediaTask {
           "media: 'fanout' exceeds per-row limit (10000)");
     }
 
-    // Get endpoint
-    if (!ctx.endpoints) {
-      throw std::runtime_error("media: missing endpoint registry");
-    }
+    // Get Redis client from per-request cache
     const std::string& endpoint_id = params.get_string("endpoint");
-    const EndpointSpec* endpoint = ctx.endpoints->by_id(endpoint_id);
-    if (!endpoint) {
-      throw std::runtime_error("media: unknown endpoint: " + endpoint_id);
-    }
-
-    // Create Redis client
-    RedisClient redis(*endpoint);
+    RedisClient& redis = GetRedisClient(ctx, endpoint_id);
 
     // Collect all media IDs
     std::vector<int64_t> media_ids;

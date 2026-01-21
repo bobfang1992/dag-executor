@@ -2,10 +2,11 @@
  * Example plan: concat_plan
  *
  * Pipeline:
- * 1. a = viewer.follow fanout=4
- * 2. b = viewer.fetch_cached_recommendation fanout=4
- * 3. concat(a, b)
- * 4. take 8
+ * 1. v = viewer (current user)
+ * 2. a = v.follow fanout=4
+ * 3. b = v.recommendation fanout=4
+ * 4. concat(a, b)
+ * 5. take 8
  *
  * Expected results:
  * - ids: [1,2,3,4,1001,1002,1003,1004]
@@ -17,8 +18,9 @@ import { definePlan } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "concat_plan",
   build: (ctx) => {
-    const a = ctx.follow({ endpoint: EP.redis.default, fanout: 4, trace: "L" });
-    const b = ctx.recommendation({ endpoint: EP.redis.default, fanout: 4, trace: "R" });
+    const v = ctx.viewer({ endpoint: EP.redis.default });
+    const a = v.follow({ endpoint: EP.redis.default, fanout: 4, trace: "L" });
+    const b = v.recommendation({ endpoint: EP.redis.default, fanout: 4, trace: "R" });
     return a.concat({ rhs: b, trace: "C" }).take({ count: 8, trace: "T" });
   },
 });

@@ -10,7 +10,8 @@ import { Key as JK } from "@ranking-dsl/generated";  // ESLint should reject thi
 export default definePlan({
   name: "bad_alias",
   build: (ctx) => {
-    const c = ctx.follow({ endpoint: EP.redis.default, fanout: 10 });
+    const c = ctx.viewer({ endpoint: EP.redis.default })
+      .follow({ endpoint: EP.redis.default, fanout: 10 });
     return c.filter({
       pred: Pred.regex(JK.country, "US"),
       trace: "filter_us",

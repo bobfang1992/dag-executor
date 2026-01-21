@@ -1,7 +1,7 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "e0a6931981bba3ef",
+    "bundle_digest": "1ef33209cefb8dbb",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
@@ -22,6 +22,17 @@
     {
       "inputs": [],
       "node_id": "n0",
+      "op": "viewer",
+      "params": {
+        "endpoint": "ep_0001",
+        "trace": null
+      }
+    },
+    {
+      "inputs": [
+        "n0"
+      ],
+      "node_id": "n1",
       "op": "follow",
       "params": {
         "endpoint": "ep_0001",
@@ -31,9 +42,9 @@
     },
     {
       "inputs": [
-        "n0"
+        "n1"
       ],
-      "node_id": "n1",
+      "node_id": "n2",
       "op": "vm",
       "params": {
         "expr_id": "e0",
@@ -43,9 +54,9 @@
     },
     {
       "inputs": [
-        "n1"
+        "n2"
       ],
-      "node_id": "n2",
+      "node_id": "n3",
       "op": "sort",
       "params": {
         "by": 2001,
@@ -55,9 +66,9 @@
     },
     {
       "inputs": [
-        "n2"
+        "n3"
       ],
-      "node_id": "n3",
+      "node_id": "n4",
       "op": "take",
       "params": {
         "count": 5,
@@ -66,7 +77,7 @@
     }
   ],
   "outputs": [
-    "n3"
+    "n4"
   ],
   "plan_name": "sort_demo",
   "schema_version": 1

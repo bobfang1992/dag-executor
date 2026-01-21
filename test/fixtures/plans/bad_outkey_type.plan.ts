@@ -4,7 +4,8 @@ import { definePlan, E } from '@ranking-dsl/runtime';
 export default definePlan({
   name: 'bad_outkey_type',
   build: (ctx) => {
-    const source = ctx.follow({ endpoint: EP.redis.default, fanout: 100 });
+    const source = ctx.viewer({ endpoint: EP.redis.default })
+      .follow({ endpoint: EP.redis.default, fanout: 100 });
     // Key.final_score / 2 evaluates to NaN, not a KeyToken
     const scored = source.vm({
       outKey: Key.final_score / 2 as any,

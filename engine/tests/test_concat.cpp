@@ -4,6 +4,7 @@
 #include "column_batch.h"
 #include "endpoint_registry.h"
 #include "executor.h"
+#include "io_clients.h"
 #include "param_table.h"
 #include "plan.h"
 #include "request.h"
@@ -195,6 +196,7 @@ TEST_CASE("concat_plan.plan.json executes correctly", "[concat][plan][integratio
   Plan plan = parse_plan("artifacts/plans/concat_plan.plan.json");
   validate_plan(plan, &get_test_endpoint_registry());
 
+  IoClients io_clients;
   ExecCtx ctx;
   ParamTable params;
   RequestContext request_ctx;
@@ -205,6 +207,7 @@ TEST_CASE("concat_plan.plan.json executes correctly", "[concat][plan][integratio
   ctx.pred_table = &plan.pred_table;
   ctx.request = &request_ctx;
   ctx.endpoints = &get_test_endpoint_registry();
+  ctx.clients = &io_clients;
 
   auto result = execute_plan(plan, ctx);
 
@@ -227,5 +230,5 @@ TEST_CASE("concat_bad_arity.plan.json fails validation (missing rhs)", "[concat]
   // Validation should fail because rhs param is missing
   REQUIRE_THROWS_WITH(
       validate_plan(plan, &get_test_endpoint_registry()),
-      "Node 'n1': Invalid params for op 'concat': missing required field 'rhs'");
+      "Node 'n2': Invalid params for op 'concat': missing required field 'rhs'");
 }

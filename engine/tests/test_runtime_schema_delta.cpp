@@ -2,6 +2,7 @@
 
 #include "endpoint_registry.h"
 #include "executor.h"
+#include "io_clients.h"
 #include "key_registry.h"
 #include "param_table.h"
 #include "plan.h"
@@ -69,7 +70,7 @@ find_all_deltas_by_op(const std::vector<NodeSchemaDelta> &deltas,
 }
 
 // Test context for runtime schema delta tests
-static ExecCtx make_test_ctx(const Plan &plan) {
+static ExecCtx make_test_ctx(const Plan &plan, IoClients* clients) {
   ExecCtx ctx;
   static ParamTable empty_params;
   static RequestContext request_ctx;
@@ -80,6 +81,7 @@ static ExecCtx make_test_ctx(const Plan &plan) {
   ctx.pred_table = &plan.pred_table;
   ctx.request = &request_ctx;
   ctx.endpoints = &get_test_endpoint_registry();
+  ctx.clients = clients;
   return ctx;
 }
 
@@ -88,12 +90,13 @@ TEST_CASE("Runtime schema delta: vm_and_row_ops fixture",
   Plan plan =
       parse_plan("engine/tests/fixtures/plan_info/vm_and_row_ops.plan.json");
   validate_plan(plan, &get_test_endpoint_registry());
-  auto ctx = make_test_ctx(plan);
+  IoClients io_clients;
+  auto ctx = make_test_ctx(plan, &io_clients);
 
   auto result = execute_plan(plan, ctx);
 
   // Should have 4 nodes worth of schema deltas
-  REQUIRE(result.schema_deltas.size() == 4);
+  REQUIRE(result.schema_deltas.size() == 5);
 
   SECTION("Source node (follow) has new_keys") {
     auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "follow");
@@ -161,12 +164,13 @@ TEST_CASE("Runtime schema delta: fixed_source fixture (concat)",
   Plan plan =
       parse_plan("engine/tests/fixtures/plan_info/fixed_source.plan.json");
   validate_plan(plan, &get_test_endpoint_registry());
-  auto ctx = make_test_ctx(plan);
+  IoClients io_clients;
+  auto ctx = make_test_ctx(plan, &io_clients);
 
   auto result = execute_plan(plan, ctx);
 
   // Should have 4 nodes worth of schema deltas
-  REQUIRE(result.schema_deltas.size() == 4);
+  REQUIRE(result.schema_deltas.size() == 5);
 
   SECTION("Source nodes have schema deltas") {
     // follow source
@@ -220,7 +224,8 @@ TEST_CASE("Schema delta keys are always sorted and unique",
     Plan plan =
         parse_plan("engine/tests/fixtures/plan_info/vm_and_row_ops.plan.json");
     validate_plan(plan, &get_test_endpoint_registry());
-    auto ctx = make_test_ctx(plan);
+    IoClients io_clients;
+    auto ctx = make_test_ctx(plan, &io_clients);
     auto result = execute_plan(plan, ctx);
 
     for (const auto &nd : result.schema_deltas) {
@@ -236,7 +241,8 @@ TEST_CASE("Schema delta keys are always sorted and unique",
     Plan plan =
         parse_plan("engine/tests/fixtures/plan_info/fixed_source.plan.json");
     validate_plan(plan, &get_test_endpoint_registry());
-    auto ctx = make_test_ctx(plan);
+    IoClients io_clients;
+    auto ctx = make_test_ctx(plan, &io_clients);
     auto result = execute_plan(plan, ctx);
 
     for (const auto &nd : result.schema_deltas) {

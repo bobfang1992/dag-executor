@@ -12,6 +12,7 @@
 #include "endpoint_registry.h"
 #include "executor.h"
 #include "feature_registry.h"
+#include "io_clients.h"
 #include "key_registry.h"
 #include "param_registry.h"
 #include "param_table.h"
@@ -302,10 +303,14 @@ int main(int argc, char *argv[]) {
   }
 
   // Build execution context
+  // IoClients owns per-request client cache (Redis, etc.)
+  rankd::IoClients io_clients;
+
   rankd::ExecCtx ctx;
   ctx.params = &param_table;
   ctx.request = &request_context;
   ctx.endpoints = endpoint_registry;
+  ctx.clients = &io_clients;
 
   // Generate candidates
   json candidates = json::array();

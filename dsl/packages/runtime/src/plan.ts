@@ -16,8 +16,10 @@ import {
   takeImpl,
   concatImpl,
   sortImpl,
+  followImpl,
+  recommendationImpl,
 } from "@ranking-dsl/generated";
-import { assertNotUndefined, checkNoUndefined, assertInteger, assertStringOrNull } from "./guards.js";
+import { assertNotUndefined, checkNoUndefined } from "./guards.js";
 
 /**
  * Internal node representation (before JSON serialization).
@@ -58,70 +60,6 @@ export class PlanCtx {
       "viewer",
       [],
       { endpoint: opts.endpoint, trace: opts.trace ?? null },
-      extensions
-    );
-    return new CandidateSet(this, nodeId);
-  }
-
-  /**
-   * follow: get followees for current user (source task).
-   */
-  follow(opts: {
-    endpoint: EndpointId;
-    fanout: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-  }): CandidateSet {
-    // Source task - no inputs
-    assertNotUndefined(opts, "follow(opts)");
-    assertNotUndefined(opts.endpoint, "follow({ endpoint })");
-    assertNotUndefined(opts.fanout, "follow({ fanout })");
-    assertInteger(opts.fanout, "follow({ fanout })");
-    if (opts.trace !== undefined) {
-      assertStringOrNull(opts.trace, "follow({ trace })");
-    }
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest as Record<string, unknown>, "follow(opts)");
-    const nodeId = this.addNode(
-      "follow",
-      [],
-      {
-        endpoint: opts.endpoint,
-        fanout: opts.fanout,
-        trace: opts.trace ?? null,
-      },
-      extensions
-    );
-    return new CandidateSet(this, nodeId);
-  }
-
-  /**
-   * recommendation: get recommendations for current user (source task).
-   */
-  recommendation(opts: {
-    endpoint: EndpointId;
-    fanout: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-  }): CandidateSet {
-    // Source task - no inputs
-    assertNotUndefined(opts, "recommendation(opts)");
-    assertNotUndefined(opts.endpoint, "recommendation({ endpoint })");
-    assertNotUndefined(opts.fanout, "recommendation({ fanout })");
-    assertInteger(opts.fanout, "recommendation({ fanout })");
-    if (opts.trace !== undefined) {
-      assertStringOrNull(opts.trace, "recommendation({ trace })");
-    }
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest as Record<string, unknown>, "recommendation(opts)");
-    const nodeId = this.addNode(
-      "recommendation",
-      [],
-      {
-        endpoint: opts.endpoint,
-        fanout: opts.fanout,
-        trace: opts.trace ?? null,
-      },
       extensions
     );
     return new CandidateSet(this, nodeId);
@@ -268,6 +206,34 @@ export class CandidateSet {
     extensions?: Record<string, unknown>;
   }): CandidateSet {
     const newNodeId = mediaImpl(this.ctx, this.nodeId, opts);
+    return new CandidateSet(this.ctx, newNodeId);
+  }
+
+  /**
+   * follow: expand each user row to their follows.
+   * For each input user ID, fetches up to 'fanout' followees.
+   */
+  follow(opts: {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    const newNodeId = followImpl(this.ctx, this.nodeId, opts);
+    return new CandidateSet(this.ctx, newNodeId);
+  }
+
+  /**
+   * recommendation: expand each user row to their recommendations.
+   * For each input user ID, fetches up to 'fanout' recommendations.
+   */
+  recommendation(opts: {
+    endpoint: EndpointId;
+    fanout: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    const newNodeId = recommendationImpl(this.ctx, this.nodeId, opts);
     return new CandidateSet(this.ctx, newNodeId);
   }
 

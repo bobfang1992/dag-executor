@@ -2,7 +2,8 @@
   "schema_version": 1,
   "plan_name": "null_trace",
   "nodes": [
-    { "node_id": "n0", "op": "follow", "inputs": [], "params": { "endpoint": "ep_0001", "fanout": 3, "trace": null } }
+    { "node_id": "n0", "op": "viewer", "inputs": [], "params": { "endpoint": "ep_0001", "trace": null } },
+    { "node_id": "n1", "op": "follow", "inputs": ["n0"], "params": { "endpoint": "ep_0001", "fanout": 3, "trace": null } }
   ],
-  "outputs": ["n0"]
+  "outputs": ["n1"]
 }

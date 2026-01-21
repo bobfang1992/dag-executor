@@ -1,4 +1,5 @@
 #include "endpoint_registry.h"
+#include "io_clients.h"
 #include "param_table.h"
 #include "redis_client.h"
 #include "request.h"
@@ -47,18 +48,11 @@ class ViewerTask {
     }
     uint32_t user_id = ctx.request->user_id;
 
-    // Get endpoint
-    if (!ctx.endpoints) {
-      throw std::runtime_error("viewer: missing endpoint registry");
-    }
+    // Get Redis client from per-request cache
     const std::string& endpoint_id = params.get_string("endpoint");
-    const EndpointSpec* endpoint = ctx.endpoints->by_id(endpoint_id);
-    if (!endpoint) {
-      throw std::runtime_error("viewer: unknown endpoint: " + endpoint_id);
-    }
+    RedisClient& redis = GetRedisClient(ctx, endpoint_id);
 
-    // Create Redis client and fetch user data
-    RedisClient redis(*endpoint);
+    // Fetch user data
     std::string key = "user:" + std::to_string(user_id);
     auto result = redis.hgetall(key);
 

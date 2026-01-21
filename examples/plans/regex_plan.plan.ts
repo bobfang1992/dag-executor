@@ -2,9 +2,10 @@
  * Example plan: regex_plan
  *
  * Pipeline:
- * 1. follow fanout=10
- * 2. filter regex(country, "US")
- * 3. take 5
+ * 1. viewer (current user)
+ * 2. follow fanout=10
+ * 3. filter regex(country, "US")
+ * 4. take 5
  *
  * Expected results:
  * - ids: [1,3,5,7,9] (odd ids have country="US")
@@ -17,6 +18,7 @@ export default definePlan({
   name: "regex_plan",
   build: (ctx) => {
     return ctx
+      .viewer({ endpoint: EP.redis.default })
       .follow({ endpoint: EP.redis.default, fanout: 10, trace: "src" })
       .filter({
         pred: Pred.regex(Key.country, "US"),

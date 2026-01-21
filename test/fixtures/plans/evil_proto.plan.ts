@@ -20,6 +20,6 @@ export default definePlan({
     console.log(evil());
 
     // This line should never be reached
-    return ctx.follow({ endpoint: EP.redis.default, fanout: 1 });
+    return ctx.viewer({ endpoint: EP.redis.default }).follow({ endpoint: EP.redis.default, fanout: 1 });
   },
 });

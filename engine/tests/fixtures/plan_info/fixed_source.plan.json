@@ -9,6 +9,17 @@
     {
       "inputs": [],
       "node_id": "n0",
+      "op": "viewer",
+      "params": {
+        "endpoint": "ep_0001",
+        "trace": null
+      }
+    },
+    {
+      "inputs": [
+        "n0"
+      ],
+      "node_id": "n1",
       "op": "follow",
       "params": {
         "endpoint": "ep_0001",
@@ -17,8 +28,10 @@
       }
     },
     {
-      "inputs": [],
-      "node_id": "n1",
+      "inputs": [
+        "n0"
+      ],
+      "node_id": "n2",
       "op": "recommendation",
       "params": {
         "endpoint": "ep_0001",
@@ -28,20 +41,20 @@
     },
     {
       "inputs": [
-        "n0"
+        "n1"
       ],
-      "node_id": "n2",
+      "node_id": "n3",
       "op": "concat",
       "params": {
-        "rhs": "n1",
+        "rhs": "n2",
         "trace": "C"
       }
     },
     {
       "inputs": [
-        "n2"
+        "n3"
       ],
-      "node_id": "n3",
+      "node_id": "n4",
       "op": "take",
       "params": {
         "count": 8,
@@ -50,7 +63,7 @@
     }
   ],
   "outputs": [
-    "n3"
+    "n4"
   ],
   "plan_name": "concat_plan",
   "schema_version": 1

@@ -13,8 +13,8 @@ import { definePlan } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "vm_ast_expr_basic",
   build: (ctx) => {
-    return ctx.viewer
-      .follow({ fanout: 10, trace: "src" })
+    return ctx.viewer({ endpoint: EP.redis.default })
+      .follow({ endpoint: EP.redis.default, fanout: 10, trace: "src" })
       .vm({
         outKey: Key.final_score,
         expr: Key.id * coalesce(P.media_age_penalty_weight, 0.2),

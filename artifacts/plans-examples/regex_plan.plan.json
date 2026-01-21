@@ -1,7 +1,7 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "26461b07c0fe5a74",
+    "bundle_digest": "03058daef14bfd46",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
@@ -9,6 +9,17 @@
     {
       "inputs": [],
       "node_id": "n0",
+      "op": "viewer",
+      "params": {
+        "endpoint": "ep_0001",
+        "trace": null
+      }
+    },
+    {
+      "inputs": [
+        "n0"
+      ],
+      "node_id": "n1",
       "op": "follow",
       "params": {
         "endpoint": "ep_0001",
@@ -18,9 +29,9 @@
     },
     {
       "inputs": [
-        "n0"
+        "n1"
       ],
-      "node_id": "n1",
+      "node_id": "n2",
       "op": "filter",
       "params": {
         "pred_id": "p0",
@@ -29,9 +40,9 @@
     },
     {
       "inputs": [
-        "n1"
+        "n2"
       ],
-      "node_id": "n2",
+      "node_id": "n3",
       "op": "take",
       "params": {
         "count": 5,
@@ -40,7 +51,7 @@
     }
   ],
   "outputs": [
-    "n2"
+    "n3"
   ],
   "plan_name": "regex_plan",
   "pred_table": {

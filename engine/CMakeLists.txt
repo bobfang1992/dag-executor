@@ -74,6 +74,7 @@ add_executable(rankd
   src/capability_registry.cpp
   src/writes_effect.cpp
   src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 
@@ -97,6 +98,7 @@ add_executable(rankd_tests
   src/output_contract.cpp
   src/writes_effect.cpp
   src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 
@@ -117,6 +119,7 @@ add_executable(concat_tests
   src/capability_registry.cpp
   src/writes_effect.cpp
   src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 
@@ -137,6 +140,7 @@ add_executable(regex_tests
   src/capability_registry.cpp
   src/writes_effect.cpp
   src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 
@@ -170,6 +174,7 @@ add_executable(plan_info_tests
   src/capability_registry.cpp
   src/writes_effect.cpp
   src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 
@@ -190,6 +195,7 @@ add_executable(schema_delta_tests
   src/capability_registry.cpp
   src/writes_effect.cpp
   src/redis_client.cpp
+  src/io_clients.cpp
   ${TASK_SOURCES}
 )
 

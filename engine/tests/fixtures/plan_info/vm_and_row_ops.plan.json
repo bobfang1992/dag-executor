@@ -29,6 +29,17 @@
     {
       "inputs": [],
       "node_id": "n0",
+      "op": "viewer",
+      "params": {
+        "endpoint": "ep_0001",
+        "trace": null
+      }
+    },
+    {
+      "inputs": [
+        "n0"
+      ],
+      "node_id": "n1",
       "op": "follow",
       "params": {
         "endpoint": "ep_0001",
@@ -38,9 +49,9 @@
     },
     {
       "inputs": [
-        "n0"
+        "n1"
       ],
-      "node_id": "n1",
+      "node_id": "n2",
       "op": "vm",
       "params": {
         "expr_id": "e0",
@@ -50,9 +61,9 @@
     },
     {
       "inputs": [
-        "n1"
+        "n2"
       ],
-      "node_id": "n2",
+      "node_id": "n3",
       "op": "filter",
       "params": {
         "pred_id": "p0",
@@ -61,9 +72,9 @@
     },
     {
       "inputs": [
-        "n2"
+        "n3"
       ],
-      "node_id": "n3",
+      "node_id": "n4",
       "op": "take",
       "params": {
         "count": 5,
@@ -72,7 +83,7 @@
     }
   ],
   "outputs": [
-    "n3"
+    "n4"
   ],
   "plan_name": "reels_plan_a",
   "pred_table": {

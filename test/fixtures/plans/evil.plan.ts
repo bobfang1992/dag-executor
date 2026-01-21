@@ -16,6 +16,6 @@ export default definePlan({
     eval("console.log('This should not work')");
 
     // This line should never be reached if eval fails properly
-    return ctx.follow({ endpoint: EP.redis.default, fanout: 1 });
+    return ctx.viewer({ endpoint: EP.redis.default }).follow({ endpoint: EP.redis.default, fanout: 1 });
   },
 });
