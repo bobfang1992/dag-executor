@@ -80,13 +80,14 @@ TEST_CASE("Fixture A: vm + row-only ops writes_eval", "[writes_eval][plan_info]"
     REQUIRE(take->writes_eval_keys.empty());
   }
 
-  SECTION("follow source has Exact with fixed writes") {
+  SECTION("follow source has Exact with country") {
     const Node* source = find_node_by_op(plan, "follow");
     REQUIRE(source != nullptr);
 
     REQUIRE(source->writes_eval_kind == EffectKind::Exact);
-    // follow task writes id only (from LIST)
-    REQUIRE(source->writes_eval_keys.empty());
+    // follow task writes country (hydrated from user:{id})
+    REQUIRE(source->writes_eval_keys.size() == 1);
+    REQUIRE(source->writes_eval_keys[0] == static_cast<uint32_t>(KeyId::country));
   }
 }
 
@@ -97,13 +98,14 @@ TEST_CASE("Fixture B: fixed-writes source writes_eval", "[writes_eval][plan_info
   // Validate to populate writes_eval fields
   validate_plan(plan, &get_test_endpoint_registry());
 
-  SECTION("recommendation has Exact with empty keys") {
+  SECTION("recommendation has Exact with country") {
     const Node* cached = find_node_by_op(plan, "recommendation");
     REQUIRE(cached != nullptr);
 
     REQUIRE(cached->writes_eval_kind == EffectKind::Exact);
-    // recommendation task writes id only (from LIST)
-    REQUIRE(cached->writes_eval_keys.empty());
+    // recommendation task writes country (hydrated from user:{id})
+    REQUIRE(cached->writes_eval_keys.size() == 1);
+    REQUIRE(cached->writes_eval_keys[0] == static_cast<uint32_t>(KeyId::country));
   }
 
   SECTION("concat node has Exact with empty keys") {
@@ -122,13 +124,14 @@ TEST_CASE("Fixture B: fixed-writes source writes_eval", "[writes_eval][plan_info
     REQUIRE(take->writes_eval_keys.empty());
   }
 
-  SECTION("follow source has Exact with empty keys") {
+  SECTION("follow source has Exact with country") {
     const Node* source = find_node_by_op(plan, "follow");
     REQUIRE(source != nullptr);
 
     REQUIRE(source->writes_eval_kind == EffectKind::Exact);
-    // follow task writes id only (from LIST)
-    REQUIRE(source->writes_eval_keys.empty());
+    // follow task writes country (hydrated from user:{id})
+    REQUIRE(source->writes_eval_keys.size() == 1);
+    REQUIRE(source->writes_eval_keys[0] == static_cast<uint32_t>(KeyId::country));
   }
 }
 
