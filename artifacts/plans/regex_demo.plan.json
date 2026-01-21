@@ -2,10 +2,11 @@
   "schema_version": 1,
   "plan_name": "regex_demo",
   "nodes": [
-    { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": { "fanout": 10 } },
-    { "node_id": "n1", "op": "filter", "inputs": ["n0"], "params": { "pred_id": "p0" } }
+    { "node_id": "n0", "op": "viewer", "inputs": [], "params": { "endpoint": "ep_0001", "trace": null } },
+    { "node_id": "n1", "op": "follow", "inputs": ["n0"], "params": { "endpoint": "ep_0001", "fanout": 10, "trace": null } },
+    { "node_id": "n2", "op": "filter", "inputs": ["n1"], "params": { "pred_id": "p0", "trace": null } }
   ],
-  "outputs": ["n1"],
+  "outputs": ["n2"],
   "pred_table": {
     "p0": {
       "op": "regex",

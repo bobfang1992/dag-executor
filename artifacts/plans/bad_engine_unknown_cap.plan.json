@@ -3,12 +3,8 @@
   "plan_name": "bad_engine_unknown_cap",
   "capabilities_required": ["cap.does.not.exist.v1"],
   "nodes": [
-    {
-      "node_id": "n0",
-      "op": "viewer.follow",
-      "inputs": [],
-      "params": { "fanout": 10, "trace": null }
-    }
+    { "node_id": "n0", "op": "viewer", "inputs": [], "params": { "endpoint": "ep_0001", "trace": null } },
+    { "node_id": "n1", "op": "follow", "inputs": ["n0"], "params": { "endpoint": "ep_0001", "fanout": 10, "trace": null } }
   ],
-  "outputs": ["n0"]
+  "outputs": ["n1"]
 }

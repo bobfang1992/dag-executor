@@ -2,7 +2,8 @@
   "schema_version": 1,
   "plan_name": "missing_fanout",
   "nodes": [
-    { "node_id": "n0", "op": "viewer.follow", "inputs": [], "params": {} }
+    { "node_id": "n0", "op": "viewer", "inputs": [], "params": { "endpoint": "ep_0001", "trace": null } },
+    { "node_id": "n1", "op": "follow", "inputs": ["n0"], "params": { "endpoint": "ep_0001", "trace": null } }
   ],
-  "outputs": ["n0"]
+  "outputs": ["n1"]
 }
