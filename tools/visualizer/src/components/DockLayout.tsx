@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useImperativeHandle, forwardRef } from 'react';
+import { useEffect, useRef, useCallback, useState, useImperativeHandle, forwardRef, createContext, useContext } from 'react';
 import {
   DockviewReact,
   DockviewApi,
@@ -17,7 +17,11 @@ import * as prefs from '../state/preferences';
 interface DockLayoutProps {
   mode: 'view' | 'edit';
   onPanelsChange?: (panels: Set<string>) => void;
+  onEdit?: () => void;
 }
+
+// Context to pass onEdit callback to nested components
+const EditContext = createContext<(() => void) | undefined>(undefined);
 
 export interface DockLayoutHandle {
   addPanel: (panel: 'editor' | 'canvas' | 'details' | 'source') => void;
@@ -28,6 +32,7 @@ export interface DockLayoutHandle {
 // Panel wrapper components for dockview
 function CanvasPanelContent() {
   const planJson = useStore((s) => s.planJson);
+  const onEdit = useContext(EditContext);
 
   if (!planJson) {
     return (
@@ -47,7 +52,7 @@ function CanvasPanelContent() {
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <Canvas />
-      <Toolbar />
+      <Toolbar onEdit={onEdit} />
     </div>
   );
 }
@@ -165,7 +170,7 @@ function buildDefaultLayout(api: DockviewApi, mode: 'view' | 'edit'): void {
   }
 }
 
-const DockLayout = forwardRef<DockLayoutHandle, DockLayoutProps>(function DockLayout({ mode, onPanelsChange }, ref) {
+const DockLayout = forwardRef<DockLayoutHandle, DockLayoutProps>(function DockLayout({ mode, onPanelsChange, onEdit }, ref) {
   const apiRef = useRef<DockviewApi | null>(null);
   const initializedModeRef = useRef<string | null>(null);
   const modeRef = useRef(mode); // Track current mode for listeners
@@ -301,11 +306,13 @@ const DockLayout = forwardRef<DockLayoutHandle, DockLayoutProps>(function DockLa
   }, [mode, updateExistingPanels]);
 
   return (
-    <DockviewReact
-      onReady={handleReady}
-      components={components}
-      className="dockview-theme-light"
-    />
+    <EditContext.Provider value={onEdit}>
+      <DockviewReact
+        onReady={handleReady}
+        components={components}
+        className="dockview-theme-light"
+      />
+    </EditContext.Provider>
   );
 });
 

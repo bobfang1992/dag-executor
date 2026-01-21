@@ -102,6 +102,9 @@ function main() {
   const testEndpointsJson = buildEndpointJson(endpoints.test, "test");
   const prodEndpointsJson = buildEndpointJson(endpoints.prod, "prod");
 
+  // Build tasks canonical JSON
+  const tasksCanonical = { schema_version: 1, tasks: tasks.tasks };
+
   // Generate all outputs
   const outputs: Array<{ path: string; content: string }> = [
     // Artifacts JSON
@@ -113,6 +116,7 @@ function main() {
     { path: "artifacts/endpoints.dev.json", content: JSON.stringify(devEndpointsJson, null, 2) + "\n" },
     { path: "artifacts/endpoints.test.json", content: JSON.stringify(testEndpointsJson, null, 2) + "\n" },
     { path: "artifacts/endpoints.prod.json", content: JSON.stringify(prodEndpointsJson, null, 2) + "\n" },
+    { path: "artifacts/tasks.json", content: JSON.stringify(tasksCanonical, null, 2) + "\n" },
     // Artifacts digests
     { path: "artifacts/keys.digest", content: keysDigest + "\n" },
     { path: "artifacts/params.digest", content: paramsDigest + "\n" },

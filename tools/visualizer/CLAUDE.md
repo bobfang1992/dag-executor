@@ -109,7 +109,33 @@ pnpm -C tools/visualizer run test:headed   # Run tests in headed browser
 - Simple home page when no plan loaded
 - E2E tests for panel interactions
 
-### Step 03: Fragment Support (Next) 🔲
+### Step 03: Registry Viewer & Edit Existing Plan ✅
+
+**Registry Viewer**
+- Browse Keys, Params, Features, Capabilities, Tasks
+- Tabbed interface with search/filter
+- Status badges (active=green, deprecated=yellow, blocked=red)
+- Clickable cross-references in Details panel (`Key[3001]` → registry entry)
+- Multiple draggable detail panels
+- URL persistence (`?view=registries&tab=keys&selected=3001`)
+
+**Edit Existing Plan**
+- "Edit" button on plan cards in home page
+- "Edit" button in canvas toolbar when viewing a plan
+- Loads plan source into editor for modification
+- Only shows Edit in view mode (hidden in edit mode)
+
+**Navbar**
+- Editor / Plans / Registries navigation tabs
+- Active tab highlighted
+- Replaces "Back to Home" button
+
+**Polish**
+- Project folder indicator in header
+- Fixed Fit button to use container dimensions
+- E2E tests for edit plan flow
+
+### Step 04: Fragment Support 🔲
 
 - Detect fragment boundaries in plan
 - Render fragments as collapsible supernodes
@@ -117,14 +143,14 @@ pnpm -C tools/visualizer run test:headed   # Run tests in headed browser
 - Auto-collapse when visible nodes > threshold
 - LRU eviction for expanded fragments
 
-### Step 04: Enhanced UX 🔲
+### Step 05: Enhanced UX 🔲
 
 - Keyboard shortcuts (Escape=deselect, +/-=zoom, F=fit)
 - Minimap for large graphs
 - Search/filter nodes
 - Export as PNG/SVG
 
-### Step 05: Production 🔲
+### Step 06: Production 🔲
 
 - Production build optimization
 - Deploy to GitHub Pages or similar
@@ -149,9 +175,10 @@ tools/visualizer/
 │   │   ├── EditorPanel.tsx   # Monaco editor with live compilation
 │   │   ├── MenuBar.tsx       # Add/View dropdown menus
 │   │   ├── Modal.tsx         # PromptModal and ConfirmModal
-│   │   ├── PlanSelector.tsx  # Plan list from index.json + drag-drop
+│   │   ├── PlanSelector.tsx  # Plan list from index.json + drag-drop + edit buttons
+│   │   ├── RegistryViewer.tsx # Registry browser (keys, params, features, etc.)
 │   │   ├── SourcePanel.tsx   # Original .plan.ts source viewer
-│   │   ├── Toolbar.tsx       # Floating toolbar (stats + fit button)
+│   │   ├── Toolbar.tsx       # Floating toolbar (stats + fit + edit buttons)
 │   │   └── ui/
 │   │       └── Button.tsx    # Reusable button component
 │   ├── layout/
@@ -163,7 +190,8 @@ tools/visualizer/
 │       └── preferences.ts    # Centralized localStorage module
 ├── e2e/
 │   ├── editor.spec.ts        # Editor e2e tests
-│   └── dockview.spec.ts      # Panel layout e2e tests
+│   ├── dockview.spec.ts      # Panel layout e2e tests
+│   └── edit-plan.spec.ts     # Edit existing plan + navbar tests
 ├── playwright.config.ts      # Playwright configuration
 ├── vite.config.ts            # Vite config + middlewares
 └── index.html
@@ -219,6 +247,31 @@ tools/visualizer/
 - Floating toolbar at bottom center of canvas
 - Shows node/edge count
 - Fit button to auto-fit graph to view
+- Edit button (view mode only) to edit current plan's source
+
+### Edit Existing Plan
+- **From home page**: Click "Edit" button on any plan card
+- **From plan view**: Click "Edit" button in canvas toolbar
+- Loads the plan's `.plan.ts` source into the editor
+- Edit button only appears when source is available
+- Edit button hidden in edit mode (already editing)
+
+### Registry Viewer
+- Access via "Registries" nav tab or "Browse Registries" card
+- Tabbed interface: Keys, Params, Features, Capabilities, Tasks
+- Color-coded tabs (blue=keys, orange=params, green=features, etc.)
+- Search/filter across name and documentation
+- Status badges: active (green), deprecated (yellow), blocked (red)
+- Click row to open draggable detail panel
+- Multiple detail panels can be open simultaneously
+- Cross-references from Details panel (`Key[3001]`) link to registry
+
+### Navbar
+- Three tabs: Editor, Plans, Registries
+- Active tab highlighted
+- Editor: Opens live plan editor
+- Plans: Shows plan selector (home page)
+- Registries: Opens registry viewer
 
 ### Live Plan Editor (Step 01)
 - Click "Create New Plan" to open editor panel

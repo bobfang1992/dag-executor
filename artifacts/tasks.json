@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "tasks": [
+    {
+      "op": "concat",
+      "output_pattern": "ConcatDense",
+      "params": [
+        {
+          "name": "rhs",
+          "type": "node_ref",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "op": "filter",
+      "output_pattern": "StableFilter",
+      "params": [
+        {
+          "name": "pred_id",
+          "type": "pred_id",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "op": "sort",
+      "output_pattern": "PermutationOfInput",
+      "params": [
+        {
+          "name": "by",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "order",
+          "type": "string",
+          "required": false,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "op": "take",
+      "output_pattern": "PrefixOfInput",
+      "params": [
+        {
+          "name": "count",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "op": "viewer.fetch_cached_recommendation",
+      "output_pattern": "SourceFanoutDense",
+      "params": [
+        {
+          "name": "fanout",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "op": "viewer.follow",
+      "output_pattern": "SourceFanoutDense",
+      "params": [
+        {
+          "name": "fanout",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "op": "vm",
+      "output_pattern": "UnaryPreserveView",
+      "params": [
+        {
+          "name": "expr_id",
+          "type": "expr_id",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "out_key",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ],
+      "writes_effect": {
+        "kind": "FromParam",
+        "param": "out_key"
+      }
+    }
+  ]
+}

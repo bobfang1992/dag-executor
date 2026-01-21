@@ -248,6 +248,18 @@ export default function EditorPanel() {
   const handleFormatRef = useRef<() => void>(() => {});
 
   const loadPlan = useStore((s) => s.loadPlan);
+  const editSourceCode = useStore((s) => s.editSourceCode);
+  const setEditSourceCode = useStore((s) => s.setEditSourceCode);
+
+  // Load source code from store if set (when editing existing plan)
+  useEffect(() => {
+    if (editSourceCode) {
+      setCode(editSourceCode);
+      setCurrentPlanId(null); // Not a saved plan, it's from the viewed plan
+      // Clear editSourceCode so it doesn't keep overwriting
+      setEditSourceCode(null);
+    }
+  }, [editSourceCode, setEditSourceCode]);
 
   // Save to localStorage on code change (debounced)
   useEffect(() => {

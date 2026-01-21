@@ -701,7 +701,7 @@ See [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) for detai
 - Tasks: viewer.follow, vm, filter, take, concat, sort
 - Capabilities system (RFC 0001), writes_effect (RFC 0005)
 - AST extraction for natural expressions and predicates
-- Visualizer with live plan editing
+- Visualizer with live plan editing, registry browser, and edit existing plan support
 - Endpoint Registry with per-env config, EndpointRef param type
 
 **🔲 Remaining:**

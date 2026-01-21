@@ -1,10 +1,25 @@
 import { create } from 'zustand';
-import type { PlanJson, PlanIndex, PlanIndexEntry, VisGraph } from '../types';
+import type {
+  PlanJson,
+  PlanIndex,
+  PlanIndexEntry,
+  VisGraph,
+  RegistryData,
+  RegistryTab,
+  EndpointEnv,
+  KeyEntry,
+  ParamEntry,
+  FeatureEntry,
+  CapabilityEntry,
+  TaskEntry,
+  EndpointEntry,
+} from '../types';
 import { parsePlan } from '../parser/plan-parser';
 import { layoutGraph } from '../layout/dagre-layout';
 
 // Base path for artifacts (served via Vite publicDir pointing to artifacts/)
 const ARTIFACTS_BASE = '/plans';
+const REGISTRIES_BASE = '';
 
 // Track if we're handling a popstate to avoid pushing duplicate history
 let isHandlingPopState = false;
@@ -34,6 +49,9 @@ interface Store {
   showSource: boolean;
   sourceCollapsed: boolean;
 
+  // Editor: source code to edit (set when "Edit" is clicked on a plan)
+  editSourceCode: string | null;
+
   // Panel collapse state
   detailsCollapsed: boolean;
 
@@ -46,6 +64,15 @@ interface Store {
   expandedFragments: Set<string>;
   autoCollapseThreshold: number;
 
+  // Registry state
+  registries: RegistryData | null;
+  registriesLoading: boolean;
+  registriesError: string | null;
+  selectedRegistryTab: RegistryTab;
+  registrySearchQuery: string;
+  selectedRegistryEntry: string | number | null;
+  selectedEndpointEnv: EndpointEnv;
+
   // Actions
   loadIndex: () => Promise<void>;
   loadPlanByName: (name: string) => Promise<void>;
@@ -54,6 +81,7 @@ interface Store {
   toggleSource: () => void;
   toggleSourceCollapsed: () => void;
   toggleDetailsCollapsed: () => void;
+  setEditSourceCode: (code: string | null) => void;
   loadSource: (planName: string) => Promise<void>;
   setView: (view: Partial<ViewState>) => void;
   resetView: () => void;
@@ -61,6 +89,14 @@ interface Store {
   selectNode: (nodeId: string | null) => void;
   hoverNode: (nodeId: string | null) => void;
   toggleFragment: (fragmentId: string) => void;
+
+  // Registry actions
+  loadRegistries: () => Promise<void>;
+  setRegistryTab: (tab: RegistryTab) => void;
+  setRegistrySearchQuery: (query: string) => void;
+  setSelectedRegistryEntry: (id: string | number | null) => void;
+  navigateToRegistryEntry: (tab: RegistryTab, id: string | number) => void;
+  setSelectedEndpointEnv: (env: EndpointEnv) => void;
 }
 
 const initialView: ViewState = { x: 0, y: 0, scale: 1 };
@@ -79,12 +115,22 @@ export const useStore = create<Store>((set, get) => ({
   sourceLoading: false,
   showSource: false,
   sourceCollapsed: false,
+  editSourceCode: null,
   detailsCollapsed: false,
   view: initialView,
   selectedNodeId: null,
   hoveredNodeId: null,
   expandedFragments: new Set(),
   autoCollapseThreshold: 200,
+
+  // Registry initial state
+  registries: null,
+  registriesLoading: false,
+  registriesError: null,
+  selectedRegistryTab: 'keys',
+  registrySearchQuery: '',
+  selectedRegistryEntry: null,
+  selectedEndpointEnv: 'dev',
 
   // Actions
   loadIndex: async () => {
@@ -174,6 +220,10 @@ export const useStore = create<Store>((set, get) => ({
 
   toggleDetailsCollapsed: () => {
     set((state) => ({ detailsCollapsed: !state.detailsCollapsed }));
+  },
+
+  setEditSourceCode: (code) => {
+    set({ editSourceCode: code });
   },
 
   loadSource: async (planName: string) => {
@@ -267,6 +317,111 @@ export const useStore = create<Store>((set, get) => ({
 
     set({ expandedFragments: newExpanded });
   },
+
+  // Registry actions
+  loadRegistries: async () => {
+    set({ registriesLoading: true, registriesError: null });
+    try {
+      const [keysRes, paramsRes, featuresRes, capsRes, tasksRes, endpointsDevRes, endpointsTestRes, endpointsProdRes] = await Promise.all([
+        fetch(`${REGISTRIES_BASE}/keys.json`),
+        fetch(`${REGISTRIES_BASE}/params.json`),
+        fetch(`${REGISTRIES_BASE}/features.json`),
+        fetch(`${REGISTRIES_BASE}/capabilities.json`),
+        fetch(`${REGISTRIES_BASE}/tasks.json`),
+        fetch(`${REGISTRIES_BASE}/endpoints.dev.json`),
+        fetch(`${REGISTRIES_BASE}/endpoints.test.json`),
+        fetch(`${REGISTRIES_BASE}/endpoints.prod.json`),
+      ]);
+
+      if (!keysRes.ok) throw new Error(`Failed to fetch keys: ${keysRes.status}`);
+      if (!paramsRes.ok) throw new Error(`Failed to fetch params: ${paramsRes.status}`);
+      if (!featuresRes.ok) throw new Error(`Failed to fetch features: ${featuresRes.status}`);
+      if (!capsRes.ok) throw new Error(`Failed to fetch capabilities: ${capsRes.status}`);
+      if (!tasksRes.ok) throw new Error(`Failed to fetch tasks: ${tasksRes.status}`);
+      if (!endpointsDevRes.ok) throw new Error(`Failed to fetch endpoints.dev: ${endpointsDevRes.status}`);
+      if (!endpointsTestRes.ok) throw new Error(`Failed to fetch endpoints.test: ${endpointsTestRes.status}`);
+      if (!endpointsProdRes.ok) throw new Error(`Failed to fetch endpoints.prod: ${endpointsProdRes.status}`);
+
+      const keysData = (await keysRes.json()) as { entries: KeyEntry[] };
+      const paramsData = (await paramsRes.json()) as { entries: ParamEntry[] };
+      const featuresData = (await featuresRes.json()) as { entries: FeatureEntry[] };
+      const capsData = (await capsRes.json()) as { entries: CapabilityEntry[] };
+      const tasksData = (await tasksRes.json()) as { tasks: TaskEntry[] };
+      const endpointsDevData = (await endpointsDevRes.json()) as { endpoints: EndpointEntry[] };
+      const endpointsTestData = (await endpointsTestRes.json()) as { endpoints: EndpointEntry[] };
+      const endpointsProdData = (await endpointsProdRes.json()) as { endpoints: EndpointEntry[] };
+
+      set({
+        registries: {
+          keys: keysData.entries,
+          params: paramsData.entries,
+          features: featuresData.entries,
+          capabilities: capsData.entries,
+          tasks: tasksData.tasks,
+          endpoints: {
+            dev: endpointsDevData.endpoints,
+            test: endpointsTestData.endpoints,
+            prod: endpointsProdData.endpoints,
+          },
+        },
+        registriesLoading: false,
+      });
+    } catch (e) {
+      set({
+        registriesError: e instanceof Error ? e.message : String(e),
+        registriesLoading: false,
+      });
+    }
+  },
+
+  setRegistryTab: (tab) => {
+    set({ selectedRegistryTab: tab, selectedRegistryEntry: null });
+    // Update URL
+    if (!isHandlingPopState) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'registries');
+      url.searchParams.set('tab', tab);
+      url.searchParams.delete('selected');
+      history.pushState({ view: 'registries', tab }, '', url.toString());
+    }
+  },
+
+  setRegistrySearchQuery: (query) => {
+    set({ registrySearchQuery: query });
+  },
+
+  setSelectedRegistryEntry: (id) => {
+    set({ selectedRegistryEntry: id });
+    // Update URL
+    if (!isHandlingPopState && id !== null) {
+      const { selectedRegistryTab } = get();
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'registries');
+      url.searchParams.set('tab', selectedRegistryTab);
+      url.searchParams.set('selected', String(id));
+      history.pushState({ view: 'registries', tab: selectedRegistryTab, selected: id }, '', url.toString());
+    }
+  },
+
+  navigateToRegistryEntry: (tab, id) => {
+    set({
+      selectedRegistryTab: tab,
+      selectedRegistryEntry: id,
+      registrySearchQuery: '',
+    });
+    // Update URL
+    if (!isHandlingPopState) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'registries');
+      url.searchParams.set('tab', tab);
+      url.searchParams.set('selected', String(id));
+      history.pushState({ view: 'registries', tab, selected: id }, '', url.toString());
+    }
+  },
+
+  setSelectedEndpointEnv: (env) => {
+    set({ selectedEndpointEnv: env, selectedRegistryEntry: null });
+  },
 }));
 
 function countVisibleNodes(graph: VisGraph, _expanded: Set<string>): number {
@@ -282,10 +437,28 @@ function initHistory() {
     isHandlingPopState = true;
     try {
       const state = useStore.getState();
+      const params = new URLSearchParams(window.location.search);
+
+      // Check for registry view
+      const view = event.state?.view || params.get('view');
+      if (view === 'registries') {
+        const tab = (event.state?.tab || params.get('tab') || 'keys') as RegistryTab;
+        const selected = event.state?.selected || params.get('selected');
+        state.clearPlan();
+        if (!state.registries) {
+          await state.loadRegistries();
+        }
+        useStore.setState({
+          selectedRegistryTab: tab,
+          selectedRegistryEntry: selected ? (isNaN(Number(selected)) ? selected : Number(selected)) : null,
+        });
+        return;
+      }
+
       // Check event.state first, then fall back to URL params
       // (initial page load from ?plan=foo has no state object)
       const planFromState = event.state?.plan;
-      const planFromUrl = new URLSearchParams(window.location.search).get('plan');
+      const planFromUrl = params.get('plan');
       const planName = planFromState || planFromUrl;
 
       if (planName) {
@@ -300,10 +473,24 @@ function initHistory() {
     }
   });
 
-  // Check initial URL for plan param
+  // Check initial URL for plan param or registry view
   const params = new URLSearchParams(window.location.search);
+  const view = params.get('view');
   const planName = params.get('plan');
-  if (planName) {
+
+  if (view === 'registries') {
+    const tab = (params.get('tab') || 'keys') as RegistryTab;
+    const selected = params.get('selected');
+    const state = useStore.getState();
+    isHandlingPopState = true;
+    state.loadRegistries().then(() => {
+      useStore.setState({
+        selectedRegistryTab: tab,
+        selectedRegistryEntry: selected ? (isNaN(Number(selected)) ? selected : Number(selected)) : null,
+      });
+      isHandlingPopState = false;
+    });
+  } else if (planName) {
     // Load index first, then load the plan
     const state = useStore.getState();
     state.loadIndex().then(async () => {

@@ -39,6 +39,18 @@ export const dracula = {
   selected: '#e8e8e8',
   buttonBg: '#f4f4f4',
   buttonHover: '#e0e0e0',
+
+  // Status badges
+  statusActive: '#00c986',
+  statusActiveText: '#ffffff',
+  statusImplemented: '#00c986',
+  statusImplementedText: '#ffffff',
+  statusDeprecated: '#ffb700',
+  statusDeprecatedText: '#000000',
+  statusDraft: '#0092ff',
+  statusDraftText: '#ffffff',
+  statusBlocked: '#ff0037',
+  statusBlockedText: '#ffffff',
 };
 
 // PixiJS uses hex numbers

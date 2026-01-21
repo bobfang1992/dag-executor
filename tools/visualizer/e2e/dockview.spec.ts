@@ -132,12 +132,12 @@ test.describe('Dockview Panel Layout', () => {
     await expect(page.locator('.dv-tab:has-text("Details")')).toBeVisible();
   });
 
-  test('Back to Plans button returns to home page', async ({ page }) => {
+  test('Plans nav button returns to home page', async ({ page }) => {
     await page.click('text=Create New Plan');
     await expect(page.locator('.dv-dockview')).toBeVisible();
 
-    // Click Back to Plans
-    await page.click('text=← Back to Plans');
+    // Click Plans in navbar
+    await page.click('nav button:has-text("Plans")');
 
     // Should be back at home page
     await expect(page.locator('text=Create New Plan')).toBeVisible();
@@ -246,10 +246,11 @@ test.describe('Dockview Panel Interactions', () => {
       }
     }
 
-    // Reopen all via Add menu
+    // Reopen all via Add menu (use menu item selector to avoid matching navbar)
     for (const panelName of ['Editor', 'Canvas', 'Details']) {
       await page.click('button:has-text("Add")');
-      await page.click(`text=${panelName}`);
+      // Click the menu item specifically (last button with that text, since menu items come after nav)
+      await page.locator(`button:has-text("${panelName}")`).last().click();
       await expect(page.locator(`.dv-tab:has-text("${panelName}")`)).toBeVisible();
     }
   });

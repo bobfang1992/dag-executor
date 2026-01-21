@@ -5,6 +5,8 @@ import { dracula } from '../theme';
 
 interface PlanSelectorProps {
   onCreateNew?: () => void;
+  onBrowseRegistries?: () => void;
+  onEditPlan?: (planName: string) => void;
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -34,7 +36,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '24px',
     marginBottom: '32px',
     width: '100%',
-    maxWidth: '600px',
+    maxWidth: '900px',
   },
   optionCard: {
     flex: 1,
@@ -101,6 +103,21 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '11px',
     color: dracula.comment,
   },
+  planActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  editButton: {
+    padding: '4px 8px',
+    background: 'transparent',
+    border: `1px solid ${dracula.border}`,
+    borderRadius: '4px',
+    color: dracula.comment,
+    fontSize: '11px',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  },
   divider: {
     display: 'flex',
     alignItems: 'center',
@@ -155,7 +172,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 };
 
-export default function PlanSelector({ onCreateNew }: PlanSelectorProps) {
+export default function PlanSelector({ onCreateNew, onBrowseRegistries, onEditPlan }: PlanSelectorProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -249,7 +266,7 @@ export default function PlanSelector({ onCreateNew }: PlanSelectorProps) {
       <div style={styles.title}>Plan Visualizer</div>
       <div style={styles.subtitle}>Explore and create ranking plans</div>
 
-      {/* Two main options */}
+      {/* Three main options */}
       <div style={styles.optionsRow}>
         <div
           style={styles.optionCard}
@@ -279,6 +296,25 @@ export default function PlanSelector({ onCreateNew }: PlanSelectorProps) {
             Select a plan from below<br />or drop a JSON file
           </span>
         </div>
+
+        <div
+          style={styles.optionCard}
+          onClick={onBrowseRegistries}
+          onMouseOver={(e) => {
+            e.currentTarget.style.borderColor = dracula.cyan;
+            e.currentTarget.style.background = dracula.selected;
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.borderColor = dracula.border;
+            e.currentTarget.style.background = dracula.currentLine;
+          }}
+        >
+          <span style={styles.optionIcon}>📋</span>
+          <span style={styles.optionTitle}>Browse Registries</span>
+          <span style={styles.optionDesc}>
+            Explore Keys, Params, Features,<br />Capabilities, and Tasks
+          </span>
+        </div>
       </div>
 
       {/* Existing plans section */}
@@ -289,11 +325,9 @@ export default function PlanSelector({ onCreateNew }: PlanSelectorProps) {
       ) : planIndex && planIndex.length > 0 ? (
         <div style={styles.planList}>
           {planIndex.map((plan) => (
-            <button
+            <div
               key={plan.name}
               style={styles.planButton}
-              onClick={() => loadPlanByName(plan.name)}
-              disabled={planLoading}
               onMouseOver={(e) => {
                 e.currentTarget.style.borderColor = dracula.purple;
                 e.currentTarget.style.background = dracula.selected;
@@ -303,9 +337,34 @@ export default function PlanSelector({ onCreateNew }: PlanSelectorProps) {
                 e.currentTarget.style.background = dracula.currentLine;
               }}
             >
-              <span style={styles.planName}>{plan.name}</span>
-              <span style={styles.planMeta}>{plan.built_by?.backend || 'unknown'}</span>
-            </button>
+              <span
+                style={{ ...styles.planName, flex: 1, cursor: 'pointer' }}
+                onClick={() => !planLoading && loadPlanByName(plan.name)}
+              >
+                {plan.name}
+              </span>
+              <div style={styles.planActions}>
+                <button
+                  style={styles.editButton}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditPlan?.(plan.name);
+                  }}
+                  disabled={planLoading}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.borderColor = dracula.green;
+                    e.currentTarget.style.color = dracula.green;
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.borderColor = dracula.border;
+                    e.currentTarget.style.color = dracula.comment;
+                  }}
+                >
+                  Edit
+                </button>
+                <span style={styles.planMeta}>{plan.built_by?.backend || 'unknown'}</span>
+              </div>
+            </div>
           ))}
         </div>
       ) : null}
