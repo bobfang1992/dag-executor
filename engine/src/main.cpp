@@ -211,7 +211,7 @@ int main(int argc, char *argv[]) {
       }
 
       // Validate plan to populate writes_eval fields (RFC0005)
-      rankd::validate_plan(plan);
+      rankd::validate_plan(plan, endpoint_registry);
 
       // Add nodes with writes_eval
       json nodes_arr = json::array();
@@ -325,7 +325,7 @@ int main(int argc, char *argv[]) {
       rankd::clearRegexCache();
 
       rankd::Plan plan = rankd::parse_plan(plan_path);
-      rankd::validate_plan(plan);
+      rankd::validate_plan(plan, endpoint_registry);
 
       // Set expr_table and pred_table in context
       ctx.expr_table = &plan.expr_table;
