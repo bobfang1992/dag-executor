@@ -215,7 +215,7 @@ const DEFAULT_PLAN = `import { definePlan, EP } from '@ranking-dsl/runtime';
 export default definePlan({
   name: 'my_plan',
   build: (ctx) => {
-    const source = ctx.follow({ endpoint: EP.redis.default, fanout: 100 });
+    const source = ctx.viewer({ endpoint: EP.redis.default }).follow({ endpoint: EP.redis.default, fanout: 100 });
     const scored = source.vm({ outKey: Key.final_score, expr: Key.id * 0.1 });
     return scored.take({ count: 10 });
   },

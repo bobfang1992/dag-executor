@@ -24,8 +24,8 @@ declare global {
   const P: typeof PType;
 
   /**
-   * Endpoint registry - endpoint references for source tasks.
-   * Usage: ctx.follow({ endpoint: EP.redis.default, fanout: 10 })
+   * Endpoint registry - endpoint references for tasks.
+   * Usage: ctx.viewer({ endpoint: EP.redis.default }).follow({ endpoint: EP.redis.default, fanout: 10 })
    * Injected by dslc compiler.
    */
   const EP: typeof EPType;

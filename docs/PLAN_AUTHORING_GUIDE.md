@@ -46,8 +46,8 @@ import { definePlan, EP } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "my_plan", // Must match filename (my_plan.plan.ts)
   build: (ctx) => {
-    // 1. Get candidates from a source
-    const candidates = ctx.follow({ endpoint: EP.redis.default, fanout: 100 });
+    // 1. Get viewer and fan out to followees
+    const candidates = ctx.viewer({ endpoint: EP.redis.default }).follow({ endpoint: EP.redis.default, fanout: 100 });
 
     // 2. Transform (optional): compute scores, filter, etc.
     const scored = candidates.vm({
@@ -171,8 +171,9 @@ const scored = candidates.vm({
 ### Concatenate Sources
 
 ```typescript
-const source1 = ctx.follow({ endpoint: EP.redis.default, fanout: 50 });
-const source2 = ctx.recommendation({ endpoint: EP.redis.default, fanout: 50 });
+const viewer = ctx.viewer({ endpoint: EP.redis.default });
+const source1 = viewer.follow({ endpoint: EP.redis.default, fanout: 50 });
+const source2 = viewer.recommendation({ endpoint: EP.redis.default, fanout: 50 });
 
 const combined = source1.concat({ rhs: source2 });
 ```

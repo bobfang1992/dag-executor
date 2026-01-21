@@ -78,12 +78,19 @@ export default definePlan({
 });
 ```
 
-### Source Tasks
+### Source Task
 
 ```typescript
+// viewer returns the requesting user's data (single row)
 ctx.viewer({ endpoint: EP.redis.default, trace: "viewer" })
-ctx.follow({ endpoint: EP.redis.default, fanout: 100, trace: "follow" })
-ctx.recommendation({ endpoint: EP.redis.default, fanout: 50, trace: "recs" })
+```
+
+### Fan-out Tasks
+
+```typescript
+// follow/recommendation expand to multiple rows per input user
+.follow({ endpoint: EP.redis.default, fanout: 100, trace: "follow" })
+.recommendation({ endpoint: EP.redis.default, fanout: 50, trace: "recs" })
 ```
 
 ### Transform Tasks

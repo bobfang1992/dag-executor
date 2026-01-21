@@ -57,8 +57,8 @@ const DEFAULT_PLAN = `import { definePlan, EP } from '@ranking-dsl/runtime';
 export default definePlan({
   name: 'my_plan',
   build: (ctx) => {
-    // Source: fetch followees from Redis
-    const source = ctx.follow({ endpoint: EP.redis.default, fanout: 100 });
+    // Source: viewer returns the request user's data, follow fans out to followees
+    const source = ctx.viewer({ endpoint: EP.redis.default }).follow({ endpoint: EP.redis.default, fanout: 100 });
 
     // Score: compute final_score using natural expression syntax
     // The compiler extracts Key.x * P.y expressions at compile-time
