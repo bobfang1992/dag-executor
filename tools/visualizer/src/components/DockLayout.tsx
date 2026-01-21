@@ -84,8 +84,10 @@ const panelTitles: Record<string, string> = {
 };
 
 // Save panel positions to preferences
+// Merges with existing positions to preserve closed panel positions for restore
 function savePanelPositions(api: DockviewApi, mode: 'view' | 'edit'): void {
-  const positions: Record<string, prefs.PanelPosition> = {};
+  const existingPositions = prefs.getPanelPositions(mode);
+  const positions: Record<string, prefs.PanelPosition> = { ...existingPositions };
   for (const panel of api.panels) {
     const group = panel.group;
     if (group) {
