@@ -41,7 +41,7 @@ Security: QuickJS sandbox disables eval, Function constructor, and all Node glob
 
 ### Repository Layout
 ```
-registry/           # TOML definitions (keys.toml, params.toml, features.toml, tasks.toml)
+registry/           # TOML definitions (keys, params, features, tasks, endpoints.{dev,test,prod})
 dsl/packages/
   runtime/          # TS DSL runtime APIs for plan authors
   compiler/         # dslc CLI (QuickJS-based sandbox)
@@ -607,6 +607,89 @@ See [docs/CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) for payload examp
 
 ---
 
+## Endpoint Registry (Step 14.2)
+
+Governed registry for external service endpoints (Redis, HTTP, etc.) with per-environment configuration.
+
+### Key Concepts
+
+- **Endpoint ID**: String format `ep_NNNN` (e.g., `ep_0001`)
+- **Two-digest system**:
+  - `endpoint_registry_digest`: Hash of endpoint definitions (id, name, kind) - env-invariant, governance
+  - `endpoints_config_digest`: Hash of env-specific config (host, port, policy) - operational
+- **Per-env TOML files**: `registry/endpoints.{dev,test,prod}.toml`
+- **Cross-env validation**: Same endpoint_ids with same name/kind across all environments
+- **Fail-closed**: Only `static` resolver supported; unknown kinds/resolvers rejected
+
+### Endpoint TOML Structure
+
+```toml
+# registry/endpoints.dev.toml
+version = 1
+
+[[endpoint]]
+endpoint_id = "ep_0001"
+name = "redis_default"
+kind = "redis"
+
+  [endpoint.resolver]
+  type = "static"
+  host = "127.0.0.1"
+  port = 6379
+
+  [endpoint.policy]
+  max_inflight = 64
+```
+
+### EndpointRef Param Type
+
+Tasks can declare endpoint parameters using `TaskParamType::EndpointRef`:
+
+```cpp
+ParamField{
+  .name = "cache_endpoint",
+  .type = TaskParamType::EndpointRef,
+  .required = true,
+  .endpoint_kind = EndpointKind::Redis  // Optional: constrain to specific kind
+}
+```
+
+In TypeScript:
+```typescript
+import { EP } from "@ranking-dsl/generated";
+
+// EP is grouped by kind with branded EndpointId type
+ctx.someTask({ endpoint: EP.redis.redis_default });
+```
+
+### Engine Flags
+
+```bash
+# Run with specific environment (default: dev)
+echo '{"user_id": 1}' | engine/bin/rankd --env prod --plan_name my_plan
+
+# Custom artifacts directory (default: artifacts)
+engine/bin/rankd --artifacts_dir /path/to/artifacts --env test
+
+# Print registry shows endpoint digests
+engine/bin/rankd --print-registry
+# Output includes: endpoint_registry_digest, endpoints_config_digest, num_endpoints
+```
+
+### Key Files
+
+| Component | Location |
+|-----------|----------|
+| Dev endpoints | `registry/endpoints.dev.toml` |
+| Test endpoints | `registry/endpoints.test.toml` |
+| Prod endpoints | `registry/endpoints.prod.toml` |
+| Generated TS | `dsl/packages/generated/endpoints.ts` |
+| Generated JSON (per-env) | `artifacts/endpoints.{dev,test,prod}.json` |
+| C++ registry | `engine/include/endpoint_registry.h` |
+| C++ tests | `engine/tests/test_endpoint_registry.cpp` |
+
+---
+
 ## Implementation Progress
 
 See [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) for detailed step-by-step implementation history.
@@ -614,11 +697,12 @@ See [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) for detai
 ### Quick Status
 
 **✅ Completed:**
-- Steps 00-14.1: Core engine, registries, codegen, DSL runtime, QuickJS compiler
+- Steps 00-14.2: Core engine, registries, codegen, DSL runtime, QuickJS compiler
 - Tasks: viewer.follow, vm, filter, take, concat, sort
 - Capabilities system (RFC 0001), writes_effect (RFC 0005)
 - AST extraction for natural expressions and predicates
 - Visualizer with live plan editing
+- Endpoint Registry with per-env config, EndpointRef param type
 
 **🔲 Remaining:**
 - Fragment authoring, budget enforcement, HTTP server

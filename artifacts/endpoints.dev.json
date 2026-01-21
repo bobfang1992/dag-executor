@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "env": "dev",
+  "registry_digest": "551d9ea15487d6a5d38e8ee3e623b1ae858d87f977f680b605c8baf38c6a6024",
+  "config_digest": "90c6f5c1352ba1e9d9e161c987494c0f70c1d508df5fe66ffcefa6365ebec9c6",
+  "endpoints": [
+    {
+      "endpoint_id": "ep_0001",
+      "name": "redis_default",
+      "kind": "redis",
+      "resolver": {
+        "type": "static",
+        "host": "127.0.0.1",
+        "port": 6379
+      },
+      "policy": {
+        "max_inflight": 64,
+        "connect_timeout_ms": 50,
+        "request_timeout_ms": 20
+      }
+    },
+    {
+      "endpoint_id": "ep_0002",
+      "name": "http_api",
+      "kind": "http",
+      "resolver": {
+        "type": "static",
+        "host": "127.0.0.1",
+        "port": 8080
+      },
+      "policy": {
+        "max_inflight": 128,
+        "connect_timeout_ms": 100,
+        "request_timeout_ms": 500
+      }
+    }
+  ]
+}

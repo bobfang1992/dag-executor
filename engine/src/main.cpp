@@ -9,6 +9,7 @@
 
 #include "capability_registry.h"
 #include "capability_registry_gen.h"
+#include "endpoint_registry.h"
 #include "executor.h"
 #include "feature_registry.h"
 #include "key_registry.h"
@@ -49,6 +50,8 @@ int main(int argc, char *argv[]) {
   std::string plan_path;
   std::string plan_dir = "artifacts/plans";
   std::string plan_name;
+  std::string artifacts_dir = "artifacts";
+  std::string env = "dev";
   bool print_registry = false;
   bool print_task_manifest = false;
   bool list_plans = false;
@@ -71,8 +74,28 @@ int main(int argc, char *argv[]) {
                "Print plan info (including capabilities_digest) and exit");
   app.add_flag("--dump-run-trace", dump_run_trace,
                "Include runtime trace (schema_deltas) in response");
+  app.add_option("--artifacts_dir", artifacts_dir,
+                 "Artifacts directory (default: artifacts)");
+  app.add_option("--env", env, "Environment: dev, test, or prod (default: dev)")
+      ->check(CLI::IsMember({"dev", "test", "prod"}));
 
   CLI11_PARSE(app, argc, argv);
+
+  // Load endpoint registry
+  std::string endpoints_path = artifacts_dir + "/endpoints." + env + ".json";
+  auto endpoints_result = rankd::EndpointRegistry::LoadFromJson(endpoints_path);
+  if (std::holds_alternative<std::string>(endpoints_result)) {
+    // Only fail if we actually need endpoints (not for print-registry without endpoints)
+    // For now, we'll allow print-registry to work without endpoints loaded
+    if (!print_registry && !print_task_manifest && !list_plans) {
+      std::cerr << "Warning: Failed to load endpoint registry: "
+                << std::get<std::string>(endpoints_result) << std::endl;
+    }
+  }
+  rankd::EndpointRegistry* endpoint_registry = nullptr;
+  if (std::holds_alternative<rankd::EndpointRegistry>(endpoints_result)) {
+    endpoint_registry = &std::get<rankd::EndpointRegistry>(endpoints_result);
+  }
 
   // Handle --print-registry
   if (print_registry) {
@@ -90,6 +113,20 @@ int main(int argc, char *argv[]) {
     output["num_features"] = rankd::kFeatureCount;
     output["num_capabilities"] = rankd::kCapabilityCount;
     output["num_tasks"] = task_registry.num_tasks();
+
+    // Add endpoint registry info if loaded
+    if (endpoint_registry) {
+      output["endpoint_registry_digest"] = endpoint_registry->registry_digest();
+      output["endpoints_config_digest"] = endpoint_registry->config_digest();
+      output["endpoints_env"] = endpoint_registry->env();
+      output["num_endpoints"] = endpoint_registry->size();
+    } else {
+      output["endpoint_registry_digest"] = nullptr;
+      output["endpoints_config_digest"] = nullptr;
+      output["endpoints_env"] = env;
+      output["num_endpoints"] = 0;
+    }
+
     std::cout << output.dump() << std::endl;
     return 0;
   }
@@ -268,6 +305,7 @@ int main(int argc, char *argv[]) {
   rankd::ExecCtx ctx;
   ctx.params = &param_table;
   ctx.request = &request_context;
+  ctx.endpoints = endpoint_registry;
 
   // Generate candidates
   json candidates = json::array();

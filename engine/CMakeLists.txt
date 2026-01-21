@@ -77,6 +77,7 @@ add_executable(rankd_tests
   tests/test_pred_eval.cpp
   tests/test_sort.cpp
   tests/test_request.cpp
+  tests/test_endpoint_registry.cpp
   src/task_registry.cpp
   src/output_contract.cpp
   src/writes_effect.cpp

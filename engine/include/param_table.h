@@ -243,6 +243,9 @@ class RowSet;
 // Forward declaration for RequestContext
 struct RequestContext;
 
+// Forward declaration for EndpointRegistry
+class EndpointRegistry;
+
 // Execution context passed to task run functions
 struct ExecCtx {
   const ParamTable *params = nullptr;
@@ -253,6 +256,8 @@ struct ExecCtx {
   const std::unordered_map<std::string, RowSet> *resolved_node_refs = nullptr;
   // Request context (user_id, request_id, etc.)
   const RequestContext *request = nullptr;
+  // Endpoint registry for IO tasks
+  const EndpointRegistry *endpoints = nullptr;
 };
 
 } // namespace rankd

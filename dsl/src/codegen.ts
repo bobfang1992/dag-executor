@@ -19,6 +19,7 @@ import {
   parseValidation,
   parseCapabilities,
   parseTasks,
+  parseEndpoints,
   // Utils
   computeDigest,
   formatCpp,
@@ -32,6 +33,7 @@ import {
   generateTaskImplTs,
   generateIndexTs,
   generatePlanGlobalsDts,
+  generateEndpointsTs,
   // C++ generators
   generateKeysH,
   generateParamsH,
@@ -57,6 +59,7 @@ function main() {
   const validation = parseValidation(path.join(repoRoot, "registry/validation.toml"));
   const capabilities = parseCapabilities(path.join(repoRoot, "registry/capabilities.toml"));
   const tasks = parseTasks(path.join(repoRoot, "registry/tasks.toml"));
+  const endpoints = parseEndpoints(path.join(repoRoot, "registry"));
 
   // Build canonical JSON
   const keysCanonical = { schema_version: 1, entries: keys };
@@ -71,6 +74,34 @@ function main() {
   const validationDigest = computeDigest(validationCanonical);
   const capabilitiesDigest = computeDigest(capabilitiesCanonical);
 
+  // Endpoint digests
+  // Registry digest (env-invariant): only endpoint_id, name, kind
+  const endpointRegistryCanonical = {
+    schema_version: 1,
+    entries: endpoints.dev.map(e => ({
+      endpoint_id: e.endpoint_id,
+      name: e.name,
+      kind: e.kind,
+    })),
+  };
+  const endpointRegistryDigest = computeDigest(endpointRegistryCanonical);
+
+  // Config digests (env-specific): full endpoint data
+  const buildEndpointJson = (envEndpoints: typeof endpoints.dev, env: string) => {
+    const configDigest = computeDigest({ schema_version: 1, endpoints: envEndpoints });
+    return {
+      schema_version: 1,
+      env,
+      registry_digest: endpointRegistryDigest,
+      config_digest: configDigest,
+      endpoints: envEndpoints,
+    };
+  };
+
+  const devEndpointsJson = buildEndpointJson(endpoints.dev, "dev");
+  const testEndpointsJson = buildEndpointJson(endpoints.test, "test");
+  const prodEndpointsJson = buildEndpointJson(endpoints.prod, "prod");
+
   // Generate all outputs
   const outputs: Array<{ path: string; content: string }> = [
     // Artifacts JSON
@@ -78,17 +109,23 @@ function main() {
     { path: "artifacts/params.json", content: JSON.stringify(paramsCanonical, null, 2) + "\n" },
     { path: "artifacts/features.json", content: JSON.stringify(featuresCanonical, null, 2) + "\n" },
     { path: "artifacts/capabilities.json", content: JSON.stringify(capabilitiesCanonical, null, 2) + "\n" },
+    // Endpoint JSONs (per-env)
+    { path: "artifacts/endpoints.dev.json", content: JSON.stringify(devEndpointsJson, null, 2) + "\n" },
+    { path: "artifacts/endpoints.test.json", content: JSON.stringify(testEndpointsJson, null, 2) + "\n" },
+    { path: "artifacts/endpoints.prod.json", content: JSON.stringify(prodEndpointsJson, null, 2) + "\n" },
     // Artifacts digests
     { path: "artifacts/keys.digest", content: keysDigest + "\n" },
     { path: "artifacts/params.digest", content: paramsDigest + "\n" },
     { path: "artifacts/features.digest", content: featuresDigest + "\n" },
     { path: "artifacts/capabilities.digest", content: capabilitiesDigest + "\n" },
+    { path: "artifacts/endpoints.digest", content: endpointRegistryDigest + "\n" },
     // TypeScript
     { path: "dsl/packages/generated/keys.ts", content: generateKeysTs(keys, keysDigest) },
     { path: "dsl/packages/generated/params.ts", content: generateParamsTs(params, paramsDigest) },
     { path: "dsl/packages/generated/features.ts", content: generateFeaturesTs(features, featuresDigest) },
     { path: "dsl/packages/generated/validation.ts", content: generateValidationTs(validation, validationDigest) },
     { path: "dsl/packages/generated/capabilities.ts", content: generateCapabilitiesTs(capabilities, capabilitiesDigest) },
+    { path: "dsl/packages/generated/endpoints.ts", content: generateEndpointsTs(endpoints.dev, endpointRegistryDigest) },
     { path: "dsl/packages/generated/tasks.ts", content: generateTasksTs(tasks) },
     { path: "dsl/packages/generated/task-impl.ts", content: generateTaskImplTs(tasks) },
     { path: "dsl/packages/generated/monaco-types.ts", content: generateMonacoTypes(keys, params, tasks) },

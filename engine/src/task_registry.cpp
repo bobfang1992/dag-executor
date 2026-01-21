@@ -1,4 +1,5 @@
 #include "task_registry.h"
+#include "endpoint_registry.h"
 #include "sha256.h"
 #include "writes_effect.h"
 #include <algorithm>
@@ -125,6 +126,9 @@ TaskRegistry::validate_params(const std::string &op,
     case TaskParamType::NodeRef:
       result.node_ref_params[field.name] = std::get<std::string>(def);
       break;
+    case TaskParamType::EndpointRef:
+      result.string_params[field.name] = std::get<std::string>(def);
+      break;
     }
   };
 
@@ -229,6 +233,17 @@ TaskRegistry::validate_params(const std::string &op,
       result.node_ref_params[field.name] = value.get<std::string>();
       break;
     }
+    case TaskParamType::EndpointRef: {
+      // EndpointRef is stored as string (endpoint_id); validation against
+      // EndpointRegistry happens in validate_plan
+      if (!value.is_string()) {
+        throw std::runtime_error("Invalid params for op '" + op +
+                                 "': field '" + field.name +
+                                 "' must be string (endpoint_id)");
+      }
+      result.string_params[field.name] = value.get<std::string>();
+      break;
+    }
     }
   }
 
@@ -309,6 +324,12 @@ std::string TaskRegistry::compute_manifest_digest() const {
         break;
       case TaskParamType::NodeRef:
         pj["type"] = "node_ref";
+        break;
+      case TaskParamType::EndpointRef:
+        pj["type"] = "endpoint_ref";
+        if (p.endpoint_kind) {
+          pj["endpoint_kind"] = endpoint_kind_to_string(*p.endpoint_kind);
+        }
         break;
       }
       params_json.push_back(pj);
@@ -412,6 +433,12 @@ std::string TaskRegistry::to_toml() const {
         break;
       case TaskParamType::NodeRef:
         out << "  type = \"node_ref\"\n";
+        break;
+      case TaskParamType::EndpointRef:
+        out << "  type = \"endpoint_ref\"\n";
+        if (p.endpoint_kind) {
+          out << "  endpoint_kind = \"" << endpoint_kind_to_string(*p.endpoint_kind) << "\"\n";
+        }
         break;
       }
 

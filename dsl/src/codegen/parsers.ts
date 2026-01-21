@@ -13,6 +13,9 @@ import type {
   TaskParamEntry,
   JsonSchema,
   Status,
+  EndpointEntry,
+  EndpointPolicy,
+  StaticResolver,
 } from "./types.js";
 import {
   isKeyType,
@@ -21,6 +24,8 @@ import {
   isStatus,
   isCapabilityStatus,
   isTaskParamType,
+  isEndpointKind,
+  isResolverType,
   assertString,
   assertNumber,
   assertBoolean,
@@ -409,4 +414,174 @@ export function parseCapabilities(tomlPath: string): CapabilityEntry[] {
   // Sort by id for deterministic output
   entries.sort((a, b) => a.id.localeCompare(b.id));
   return entries;
+}
+
+// =====================================================
+// Endpoint Parsing
+// =====================================================
+
+function parseEndpointFile(tomlPath: string, env: string): EndpointEntry[] {
+  const content = readFileSync(tomlPath, "utf-8");
+  const parsed: unknown = parseToml(content);
+
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error(`Invalid TOML structure in ${tomlPath}`);
+  }
+
+  const obj = parsed as Record<string, unknown>;
+
+  const version = obj["version"];
+  if (version !== 1) {
+    throw new Error(`Unsupported endpoints.${env}.toml version: ${version}`);
+  }
+
+  const rawEndpoints = obj["endpoint"];
+  if (!Array.isArray(rawEndpoints)) {
+    throw new Error(`Expected [[endpoint]] array in endpoints.${env}.toml`);
+  }
+
+  const entries: EndpointEntry[] = [];
+  const seenIds = new Set<string>();
+  const seenNames = new Set<string>();
+
+  for (const raw of rawEndpoints) {
+    if (typeof raw !== "object" || raw === null) {
+      throw new Error(`Invalid endpoint entry in ${env}`);
+    }
+    const r = raw as Record<string, unknown>;
+
+    const endpoint_id = assertString(r["endpoint_id"], "endpoint_id");
+    const name = assertString(r["name"], "name");
+    const kindVal = r["kind"];
+
+    // Validate endpoint_id format
+    if (!endpoint_id.startsWith("ep_")) {
+      throw new Error(`endpoint_id must start with "ep_": ${endpoint_id}`);
+    }
+    if (endpoint_id.length > 64) {
+      throw new Error(`endpoint_id too long (max 64): ${endpoint_id}`);
+    }
+
+    if (!isEndpointKind(kindVal)) {
+      throw new Error(`Invalid endpoint kind: ${kindVal} (allowed: redis, http)`);
+    }
+
+    // Parse resolver
+    const rawResolver = r["resolver"];
+    if (typeof rawResolver !== "object" || rawResolver === null) {
+      throw new Error(`endpoint ${endpoint_id}: missing resolver`);
+    }
+    const resolverObj = rawResolver as Record<string, unknown>;
+    const resolverType = resolverObj["type"];
+    if (!isResolverType(resolverType)) {
+      throw new Error(`endpoint ${endpoint_id}: invalid resolver type: ${resolverType}`);
+    }
+    if (resolverType !== "static") {
+      throw new Error(`endpoint ${endpoint_id}: only "static" resolver supported in Step 14.2, got: ${resolverType}`);
+    }
+
+    const host = assertString(resolverObj["host"], "resolver.host");
+    const port = assertNumber(resolverObj["port"], "resolver.port");
+    if (port < 1 || port > 65535) {
+      throw new Error(`endpoint ${endpoint_id}: invalid port ${port} (must be 1-65535)`);
+    }
+
+    const resolver: StaticResolver = { type: "static", host, port };
+
+    // Parse policy (optional fields)
+    const policy: EndpointPolicy = {};
+    const rawPolicy = r["policy"];
+    if (rawPolicy !== undefined) {
+      if (typeof rawPolicy !== "object" || rawPolicy === null) {
+        throw new Error(`endpoint ${endpoint_id}: policy must be an object`);
+      }
+      const policyObj = rawPolicy as Record<string, unknown>;
+      if (policyObj["max_inflight"] !== undefined) {
+        policy.max_inflight = assertNumber(policyObj["max_inflight"], "policy.max_inflight");
+      }
+      if (policyObj["connect_timeout_ms"] !== undefined) {
+        policy.connect_timeout_ms = assertNumber(policyObj["connect_timeout_ms"], "policy.connect_timeout_ms");
+      }
+      if (policyObj["request_timeout_ms"] !== undefined) {
+        policy.request_timeout_ms = assertNumber(policyObj["request_timeout_ms"], "policy.request_timeout_ms");
+      }
+    }
+
+    // Uniqueness checks
+    if (seenIds.has(endpoint_id)) {
+      throw new Error(`Duplicate endpoint_id in ${env}: ${endpoint_id}`);
+    }
+    if (seenNames.has(name)) {
+      throw new Error(`Duplicate endpoint name in ${env}: ${name}`);
+    }
+    seenIds.add(endpoint_id);
+    seenNames.add(name);
+
+    entries.push({ endpoint_id, name, kind: kindVal, resolver, policy });
+  }
+
+  // Sort by endpoint_id for deterministic output
+  entries.sort((a, b) => a.endpoint_id.localeCompare(b.endpoint_id));
+  return entries;
+}
+
+export interface EndpointRegistries {
+  dev: EndpointEntry[];
+  test: EndpointEntry[];
+  prod: EndpointEntry[];
+}
+
+export function parseEndpoints(registryDir: string): EndpointRegistries {
+  const devPath = `${registryDir}/endpoints.dev.toml`;
+  const testPath = `${registryDir}/endpoints.test.toml`;
+  const prodPath = `${registryDir}/endpoints.prod.toml`;
+
+  const dev = parseEndpointFile(devPath, "dev");
+  const test = parseEndpointFile(testPath, "test");
+  const prod = parseEndpointFile(prodPath, "prod");
+
+  // Validate cross-env consistency: same endpoint_ids with same name/kind
+  const devMap = new Map(dev.map(e => [e.endpoint_id, e]));
+  const testMap = new Map(test.map(e => [e.endpoint_id, e]));
+  const prodMap = new Map(prod.map(e => [e.endpoint_id, e]));
+
+  // Check test has same IDs as dev
+  for (const [id, devEntry] of devMap) {
+    const testEntry = testMap.get(id);
+    if (!testEntry) {
+      throw new Error(`endpoint ${id} exists in dev but not in test`);
+    }
+    if (testEntry.name !== devEntry.name) {
+      throw new Error(`endpoint ${id}: name mismatch (dev="${devEntry.name}", test="${testEntry.name}")`);
+    }
+    if (testEntry.kind !== devEntry.kind) {
+      throw new Error(`endpoint ${id}: kind mismatch (dev="${devEntry.kind}", test="${testEntry.kind}")`);
+    }
+  }
+  for (const id of testMap.keys()) {
+    if (!devMap.has(id)) {
+      throw new Error(`endpoint ${id} exists in test but not in dev`);
+    }
+  }
+
+  // Check prod has same IDs as dev
+  for (const [id, devEntry] of devMap) {
+    const prodEntry = prodMap.get(id);
+    if (!prodEntry) {
+      throw new Error(`endpoint ${id} exists in dev but not in prod`);
+    }
+    if (prodEntry.name !== devEntry.name) {
+      throw new Error(`endpoint ${id}: name mismatch (dev="${devEntry.name}", prod="${prodEntry.name}")`);
+    }
+    if (prodEntry.kind !== devEntry.kind) {
+      throw new Error(`endpoint ${id}: kind mismatch (dev="${devEntry.kind}", prod="${prodEntry.kind}")`);
+    }
+  }
+  for (const id of prodMap.keys()) {
+    if (!devMap.has(id)) {
+      throw new Error(`endpoint ${id} exists in prod but not in dev`);
+    }
+  }
+
+  return { dev, test, prod };
 }
