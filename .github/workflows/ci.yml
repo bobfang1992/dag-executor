@@ -33,7 +33,7 @@ jobs:
         run: corepack enable && corepack prepare pnpm@latest --activate
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake clang-format
+        run: sudo apt-get update && sudo apt-get install -y cmake clang-format redis-tools
 
       - name: Seed Redis test data
         run: ./scripts/seed_redis.sh
