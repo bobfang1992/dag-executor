@@ -705,14 +705,17 @@ See [docs/IMPLEMENTATION_PROGRESS.md](docs/IMPLEMENTATION_PROGRESS.md) for detai
 
 **✅ Completed:**
 - Steps 00-14.4: Core engine, registries, codegen, DSL runtime, QuickJS compiler
-- Tasks: viewer, follow, media, recommendation (Redis-backed), vm, filter, take, concat, sort
+- Tasks: viewer, follow, media, recommendation (Redis-backed), vm, filter, take, concat, sort, sleep
 - Capabilities system (RFC 0001), writes_effect (RFC 0005)
 - AST extraction for natural expressions and predicates
 - Visualizer with live plan editing, registry browser, and edit existing plan support
 - Endpoint Registry with per-env config, EndpointRef param type
 - Local Redis harness (Docker Compose + seed script)
+- Step 14.5a: Inflight limiting, benchmark mode (`--bench`, `--bench_concurrency`)
+- Step 14.5b: Two-pool DAG parallel scheduler (CPU pool + IO pool), `--within_request_parallelism`
 
 **🔲 Remaining:**
+- Step 14.5c: Async coroutine scheduler with libuv (planned)
 - Fragment authoring, budget enforcement, HTTP server
 - Tasks: fetch_features, call_models, dedupe, join, extract_features
 - Audit logging, SourceRef generation
