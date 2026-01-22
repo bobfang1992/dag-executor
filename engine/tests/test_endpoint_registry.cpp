@@ -31,10 +31,14 @@ static void add_endpoint_digests(nlohmann::json& j) {
       rankd::EndpointSpec spec;
       spec.endpoint_id = ep.at("endpoint_id").get<std::string>();
       spec.name = ep.at("name").get<std::string>();
-      spec.kind = *rankd::string_to_endpoint_kind(ep.at("kind").get<std::string>());
+      auto kind_opt = rankd::string_to_endpoint_kind(ep.at("kind").get<std::string>());
+      if (!kind_opt) throw std::runtime_error("unknown endpoint kind");
+      spec.kind = *kind_opt;
 
       const auto& resolver = ep.at("resolver");
-      spec.resolver_type = *rankd::string_to_resolver_type(resolver.at("type").get<std::string>());
+      auto resolver_type_opt = rankd::string_to_resolver_type(resolver.at("type").get<std::string>());
+      if (!resolver_type_opt) throw std::runtime_error("unknown resolver type");
+      spec.resolver_type = *resolver_type_opt;
       spec.static_resolver.host = resolver.at("host").get<std::string>();
       spec.static_resolver.port = resolver.at("port").get<int>();
 
