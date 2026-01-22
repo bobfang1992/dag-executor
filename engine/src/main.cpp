@@ -1,8 +1,11 @@
 #include <CLI/CLI.hpp>
+#include <algorithm>
+#include <chrono>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <numeric>
 #include <random>
 #include <sstream>
 #include <string>
@@ -58,6 +61,7 @@ int main(int argc, char *argv[]) {
   bool list_plans = false;
   bool print_plan_info = false;
   bool dump_run_trace = false;
+  int bench_iterations = 0;
 
   app.add_option("--plan", plan_path, "Path to plan JSON file");
   app.add_option("--plan_dir", plan_dir,
@@ -79,6 +83,9 @@ int main(int argc, char *argv[]) {
                  "Artifacts directory (default: artifacts)");
   app.add_option("--env", env, "Environment: dev, test, or prod (default: dev)")
       ->check(CLI::IsMember({"dev", "test", "prod"}));
+  app.add_option("--bench", bench_iterations,
+                 "Run benchmark with N iterations (requires --plan or --plan_name)")
+      ->check(CLI::PositiveNumber);
 
   CLI11_PARSE(app, argc, argv);
 
@@ -249,6 +256,101 @@ int main(int argc, char *argv[]) {
       return 1;
     }
     plan_path = plan_dir + "/" + plan_name + ".plan.json";
+  }
+
+  // Handle --bench mode
+  if (bench_iterations > 0) {
+    if (plan_path.empty()) {
+      std::cerr << "Error: --bench requires --plan or --plan_name" << std::endl;
+      return 1;
+    }
+
+    try {
+      // Load plan once
+      rankd::Plan plan = rankd::parse_plan(plan_path);
+      rankd::validate_plan(plan, endpoint_registry);
+
+      // Create synthetic request context
+      rankd::RequestContext bench_request;
+      bench_request.request_id = "bench";
+      bench_request.user_id = 1;
+
+      // Create param table (empty for benchmark)
+      rankd::ParamTable bench_params;
+
+      std::vector<double> latencies_us;
+      latencies_us.reserve(bench_iterations);
+
+      std::cerr << "Running " << bench_iterations << " iterations of "
+                << plan.plan_name << "..." << std::endl;
+
+      auto total_start = std::chrono::steady_clock::now();
+
+      for (int i = 0; i < bench_iterations; ++i) {
+        // Clear regex cache to simulate fresh requests
+        rankd::clearRegexCache();
+
+        // Create fresh IoClients per iteration (simulates per-request)
+        rankd::IoClients bench_clients;
+
+        rankd::ExecCtx bench_ctx;
+        bench_ctx.params = &bench_params;
+        bench_ctx.request = &bench_request;
+        bench_ctx.endpoints = endpoint_registry;
+        bench_ctx.clients = &bench_clients;
+        bench_ctx.expr_table = &plan.expr_table;
+        bench_ctx.pred_table = &plan.pred_table;
+
+        auto start = std::chrono::steady_clock::now();
+        auto exec_result = rankd::execute_plan(plan, bench_ctx);
+        auto end = std::chrono::steady_clock::now();
+
+        double latency_us =
+            std::chrono::duration<double, std::micro>(end - start).count();
+        latencies_us.push_back(latency_us);
+
+        // Suppress unused variable warning
+        (void)exec_result;
+      }
+
+      auto total_end = std::chrono::steady_clock::now();
+      double total_ms =
+          std::chrono::duration<double, std::milli>(total_end - total_start)
+              .count();
+
+      // Compute statistics
+      std::sort(latencies_us.begin(), latencies_us.end());
+      double sum = std::accumulate(latencies_us.begin(), latencies_us.end(), 0.0);
+      double avg_us = sum / bench_iterations;
+
+      size_t p50_idx = static_cast<size_t>(bench_iterations * 0.50);
+      size_t p99_idx = static_cast<size_t>(bench_iterations * 0.99);
+      if (p99_idx >= static_cast<size_t>(bench_iterations)) {
+        p99_idx = bench_iterations - 1;
+      }
+
+      double p50_us = latencies_us[p50_idx];
+      double p99_us = latencies_us[p99_idx];
+      double min_us = latencies_us.front();
+      double max_us = latencies_us.back();
+
+      // Output results as JSON
+      json output;
+      output["plan"] = plan.plan_name;
+      output["iterations"] = bench_iterations;
+      output["total_ms"] = total_ms;
+      output["avg_us"] = avg_us;
+      output["p50_us"] = p50_us;
+      output["p99_us"] = p99_us;
+      output["min_us"] = min_us;
+      output["max_us"] = max_us;
+
+      std::cout << output.dump(2) << std::endl;
+      return 0;
+    } catch (const std::exception &e) {
+      std::cerr << "Error: " << e.what() << std::endl;
+      return 1;
+    }
   }
 
   // Read all stdin

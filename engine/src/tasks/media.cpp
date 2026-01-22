@@ -57,9 +57,8 @@ class MediaTask {
           "media: 'fanout' exceeds per-row limit (10000)");
     }
 
-    // Get Redis client from per-request cache
+    // Get endpoint ID for Redis calls
     const std::string& endpoint_id = params.get_string("endpoint");
-    RedisClient& redis = GetRedisClient(ctx, endpoint_id);
 
     // Collect all media IDs
     std::vector<int64_t> media_ids;
@@ -72,9 +71,12 @@ class MediaTask {
 
       int64_t row_id = input.batch().getId(idx);
 
-      // Fetch media list for this row's ID
+      // Fetch media list for this row's ID (with inflight limiting)
       std::string key = "media:" + std::to_string(row_id);
-      auto result = redis.lrange(key, 0, fanout - 1);
+      auto result = WithInflightLimit(ctx, endpoint_id,
+          [&key, fanout](RedisClient& redis) {
+            return redis.lrange(key, 0, fanout - 1);
+          });
 
       if (!result) {
         // Fail on Redis errors (consistent with follow/recommendation)

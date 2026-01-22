@@ -62,9 +62,8 @@ class RecommendationTask {
           "recommendation: 'fanout' exceeds maximum limit (10000000)");
     }
 
-    // Get Redis client from per-request cache
+    // Get endpoint ID for Redis calls
     const std::string& endpoint_id = params.get_string("endpoint");
-    RedisClient& redis = GetRedisClient(ctx, endpoint_id);
 
     // Materialize input indices
     auto input_indices = input.materializeIndexViewForOutput(input.batch().size());
@@ -75,9 +74,12 @@ class RecommendationTask {
     for (uint32_t idx : input_indices) {
       int64_t user_id = input.batch().getId(idx);
 
-      // Fetch recommendation list for this user
+      // Fetch recommendation list for this user (with inflight limiting)
       std::string key = "recommendation:" + std::to_string(user_id);
-      auto result = redis.lrange(key, 0, fanout - 1);
+      auto result = WithInflightLimit(ctx, endpoint_id,
+          [&key, fanout](RedisClient& redis) {
+            return redis.lrange(key, 0, fanout - 1);
+          });
 
       if (!result) {
         throw std::runtime_error("recommendation: " + result.error());
@@ -109,9 +111,10 @@ class RecommendationTask {
       int64_t rec_id = all_recs[i];
       batch->setId(i, rec_id);
 
-      // Fetch user data for this recommendation
+      // Fetch user data for this recommendation (with inflight limiting)
       std::string user_key = "user:" + std::to_string(rec_id);
-      auto user_result = redis.hgetall(user_key);
+      auto user_result = WithInflightLimit(ctx, endpoint_id,
+          [&user_key](RedisClient& redis) { return redis.hgetall(user_key); });
       if (!user_result) {
         // Fail on Redis errors (consistent with LRANGE above)
         throw std::runtime_error("recommendation: " + user_result.error());
