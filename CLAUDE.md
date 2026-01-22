@@ -126,7 +126,7 @@ Plans may only import from:
 **Global Tokens (no import needed):**
 - `Key` - Column key references (e.g., `Key.final_score`)
 - `P` - Parameter references (e.g., `P.media_age_penalty_weight`)
-- `EP` - Endpoint references (e.g., `EP.redis.default`)
+- `EP` - Endpoint references (e.g., `EP.redis.redis_default`)
 - `coalesce` - Null fallback function (e.g., `coalesce(P.x, 0.2)`)
 - `regex` - Regex predicate function (e.g., `regex(Key.title, "^test")`)
 
@@ -694,60 +694,6 @@ engine/bin/rankd --print-registry
 | Generated JSON (per-env) | `artifacts/endpoints.{dev,test,prod}.json` |
 | C++ registry | `engine/include/endpoint_registry.h` |
 | C++ tests | `engine/tests/test_endpoint_registry.cpp` |
-
----
-
-## Local Redis Harness (Step 14.3)
-
-Local development harness for Redis with deterministic seed data.
-
-### Quick Start
-
-```bash
-# Run Redis + seed + teardown (one command)
-bash scripts/ci_redis_local.sh
-```
-
-### Redis Key Schema
-
-| Key Pattern | Type | Description |
-|-------------|------|-------------|
-| `user:{uid}` | HASH | User object with `id`, `country` fields |
-| `follow:{uid}` | LIST | List of followed user IDs |
-| `media:{uid}` | LIST | List of media IDs |
-
-**Note:** All values are stored as strings (Redis convention). User IDs and media IDs are numeric strings.
-
-### Deterministic Dataset Constants
-
-```
-NUM_USERS      = 20
-FOLLOW_FANOUT  = 5
-MEDIA_PER_USER = 10
-```
-
-**Formulas:**
-- `country = ["US","CA","GB"][(uid - 1) % 3]`
-- `followees(uid) = ((uid + i - 1) % 20) + 1` for i=1..5
-- `media_ids(uid) = uid * 1000 + j` for j=1..10
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `REDIS_HOST` | 127.0.0.1 | Redis host |
-| `REDIS_PORT` | 6379 | Redis port |
-| `REDIS_DB` | 0 | Redis database number |
-
-### Key Files
-
-| Component | Location |
-|-----------|----------|
-| Docker Compose | `docker/redis.compose.yml` |
-| Start script | `scripts/redis_up.sh` |
-| Stop script | `scripts/redis_down.sh` |
-| Seed script | `dsl/tools/redis_seed.ts` |
-| Local runner | `scripts/ci_redis_local.sh` |
 
 ---
 

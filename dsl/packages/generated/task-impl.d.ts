@@ -1,6 +1,6 @@
 import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput, CandidateSetLike } from "./tasks.js";
 import type { KeyToken } from "./keys.js";
-import type { EndpointId } from "./endpoints.js";
+import type { RedisEndpointId } from "./endpoints.js";
 /** Interface for expression placeholder detection */
 export declare function isExprPlaceholder(value: unknown): value is ExprPlaceholder;
 /** Interface for predicate placeholder detection */
@@ -25,21 +25,21 @@ export declare function filterImpl(ctx: TaskContext, inputNodeId: string, opts: 
 }): string;
 /** Implementation for follow */
 export declare function followImpl(ctx: TaskContext, inputNodeId: string, opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;
 /** Implementation for media */
 export declare function mediaImpl(ctx: TaskContext, inputNodeId: string, opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;
 /** Implementation for recommendation */
 export declare function recommendationImpl(ctx: TaskContext, inputNodeId: string, opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
@@ -59,7 +59,7 @@ export declare function takeImpl(ctx: TaskContext, inputNodeId: string, opts: {
 }): string;
 /** Implementation for viewer */
 export declare function viewerImpl(ctx: TaskContext, inputNodeId: string, opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;

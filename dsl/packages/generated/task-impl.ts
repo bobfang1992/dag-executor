@@ -7,7 +7,7 @@
 
 import type { ExprNode, ExprPlaceholder, ExprInput, PredNode, PredPlaceholder, PredInput, CandidateSetLike } from "./tasks.js";
 import type { KeyToken } from "./keys.js";
-import type { EndpointId } from "./endpoints.js";
+import type { RedisEndpointId } from "./endpoints.js";
 
 // =====================================================
 // Types for plan context interface
@@ -208,7 +208,7 @@ export function followImpl(
   ctx: TaskContext,
   inputNodeId: string,
   opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
@@ -241,7 +241,7 @@ export function mediaImpl(
   ctx: TaskContext,
   inputNodeId: string,
   opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
@@ -274,7 +274,7 @@ export function recommendationImpl(
   ctx: TaskContext,
   inputNodeId: string,
   opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
@@ -367,7 +367,7 @@ export function viewerImpl(
   ctx: TaskContext,
   inputNodeId: string,
   opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     trace?: string | null;
     extensions?: Record<string, unknown>;
   }

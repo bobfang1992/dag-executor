@@ -13,6 +13,7 @@ import type {
   TaskParamEntry,
   JsonSchema,
   Status,
+  EndpointKind,
   EndpointEntry,
   EndpointPolicy,
   StaticResolver,
@@ -28,6 +29,7 @@ import {
   isResolverType,
   assertString,
   assertNumber,
+  assertInteger,
   assertBoolean,
 } from "./types.js";
 
@@ -327,7 +329,23 @@ export function parseTasks(tomlPath: string): TaskRegistry {
         const required = assertBoolean(p["required"], "required");
         const nullable = assertBoolean(p["nullable"], "nullable");
 
-        params.push({ name, type: typeVal, required, nullable });
+        let endpoint_kind: EndpointKind | undefined = undefined;
+        if (typeVal === "endpoint_ref") {
+          if (p["endpoint_kind"] !== undefined) {
+            if (!isEndpointKind(p["endpoint_kind"])) {
+              throw new Error(
+                `task ${op}: endpoint_kind must be one of ${["redis", "http"].join(", ")}`
+              );
+            }
+            endpoint_kind = p["endpoint_kind"];
+          }
+        } else if (p["endpoint_kind"] !== undefined) {
+          throw new Error(
+            `task ${op}: endpoint_kind is only valid for endpoint_ref params`
+          );
+        }
+
+        params.push({ name, type: typeVal, required, nullable, endpoint_kind });
       }
     }
 
@@ -481,7 +499,7 @@ function parseEndpointFile(tomlPath: string, env: string): EndpointEntry[] {
     }
 
     const host = assertString(resolverObj["host"], "resolver.host");
-    const port = assertNumber(resolverObj["port"], "resolver.port");
+    const port = assertInteger(resolverObj["port"], "resolver.port");
     if (port < 1 || port > 65535) {
       throw new Error(`endpoint ${endpoint_id}: invalid port ${port} (must be 1-65535)`);
     }
@@ -497,13 +515,13 @@ function parseEndpointFile(tomlPath: string, env: string): EndpointEntry[] {
       }
       const policyObj = rawPolicy as Record<string, unknown>;
       if (policyObj["max_inflight"] !== undefined) {
-        policy.max_inflight = assertNumber(policyObj["max_inflight"], "policy.max_inflight");
+        policy.max_inflight = assertInteger(policyObj["max_inflight"], "policy.max_inflight");
       }
       if (policyObj["connect_timeout_ms"] !== undefined) {
-        policy.connect_timeout_ms = assertNumber(policyObj["connect_timeout_ms"], "policy.connect_timeout_ms");
+        policy.connect_timeout_ms = assertInteger(policyObj["connect_timeout_ms"], "policy.connect_timeout_ms");
       }
       if (policyObj["request_timeout_ms"] !== undefined) {
-        policy.request_timeout_ms = assertNumber(policyObj["request_timeout_ms"], "policy.request_timeout_ms");
+        policy.request_timeout_ms = assertInteger(policyObj["request_timeout_ms"], "policy.request_timeout_ms");
       }
     }
 

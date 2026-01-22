@@ -21,8 +21,8 @@ export default definePlan({
   name: "reels_plan_a",
   build: (ctx) => {
     return ctx
-      .viewer({ endpoint: EP.redis.default })
-      .follow({ endpoint: EP.redis.default, fanout: 10, trace: "src" })
+      .viewer({ endpoint: EP.redis.redis_default })
+      .follow({ endpoint: EP.redis.redis_default, fanout: 10, trace: "src" })
       .vm({
         outKey: Key.final_score,
         expr: Key.id * coalesce(P.media_age_penalty_weight, 0.2),

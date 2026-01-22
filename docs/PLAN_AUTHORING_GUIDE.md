@@ -47,7 +47,7 @@ export default definePlan({
   name: "my_plan", // Must match filename (my_plan.plan.ts)
   build: (ctx) => {
     // 1. Get viewer and fan out to followees
-    const candidates = ctx.viewer({ endpoint: EP.redis.default }).follow({ endpoint: EP.redis.default, fanout: 100 });
+    const candidates = ctx.viewer({ endpoint: EP.redis.redis_default }).follow({ endpoint: EP.redis.redis_default, fanout: 100 });
 
     // 2. Transform (optional): compute scores, filter, etc.
     const scored = candidates.vm({
@@ -171,9 +171,9 @@ const scored = candidates.vm({
 ### Concatenate Sources
 
 ```typescript
-const viewer = ctx.viewer({ endpoint: EP.redis.default });
-const source1 = viewer.follow({ endpoint: EP.redis.default, fanout: 50 });
-const source2 = viewer.recommendation({ endpoint: EP.redis.default, fanout: 50 });
+const viewer = ctx.viewer({ endpoint: EP.redis.redis_default });
+const source1 = viewer.follow({ endpoint: EP.redis.redis_default, fanout: 50 });
+const source2 = viewer.recommendation({ endpoint: EP.redis.redis_default, fanout: 50 });
 
 const combined = source1.concat({ rhs: source2 });
 ```

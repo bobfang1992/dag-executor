@@ -8,7 +8,7 @@
  * This file only contains the PlanCtx, CandidateSet wrappers, and definePlan.
  */
 
-import type { KeyToken, ExprNode, PredNode, ExprInput, EndpointId } from "@ranking-dsl/generated";
+import type { KeyToken, ExprNode, PredNode, ExprInput, RedisEndpointId } from "@ranking-dsl/generated";
 import {
   mediaImpl,
   vmImpl,
@@ -47,7 +47,7 @@ export class PlanCtx {
    * viewer: get viewer's user data (returns single row with country).
    */
   viewer(opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     trace?: string | null;
     extensions?: Record<string, unknown>;
   }): CandidateSet {
@@ -207,7 +207,7 @@ export class CandidateSet {
    * media: expand each row to its media items.
    */
   media(opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
@@ -221,7 +221,7 @@ export class CandidateSet {
    * For each input user ID, fetches up to 'fanout' followees.
    */
   follow(opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
@@ -235,7 +235,7 @@ export class CandidateSet {
    * For each input user ID, fetches up to 'fanout' recommendations.
    */
   recommendation(opts: {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;

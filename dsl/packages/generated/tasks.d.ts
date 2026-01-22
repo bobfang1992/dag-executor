@@ -1,5 +1,5 @@
 import type { KeyToken } from "./keys.js";
-import type { EndpointId } from "./endpoints.js";
+import type { RedisEndpointId } from "./endpoints.js";
 /** ExprNode - matches engine's ExprIR format (builder-style) */
 export type ExprNode = {
     op: "const_number";
@@ -103,19 +103,19 @@ export interface FilterOpts {
     extensions?: Record<string, unknown>;
 }
 export interface FollowOpts {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
 export interface MediaOpts {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
 export interface RecommendationOpts {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     fanout: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
@@ -132,7 +132,7 @@ export interface TakeOpts {
     extensions?: Record<string, unknown>;
 }
 export interface ViewerOpts {
-    endpoint: EndpointId;
+    endpoint: RedisEndpointId;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
