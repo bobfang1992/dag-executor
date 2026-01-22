@@ -38,6 +38,8 @@ class FollowTask {
         .writes = {KeyId::country},  // ID + country (hydrated)
         .default_budget = {.timeout_ms = 100},
         .output_pattern = OutputPattern::VariableDense,
+        .writes_effect = std::nullopt,
+        .is_io = true,  // Redis LRANGE + HGETALL per followee
     };
   }
 

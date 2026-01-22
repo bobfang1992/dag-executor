@@ -60,6 +60,7 @@ struct TaskSpec {
   DefaultBudget default_budget;
   OutputPattern output_pattern; // Required output shape contract
   std::optional<WritesEffectExpr> writes_effect; // RFC0005: param-dependent writes
+  bool is_io = false; // True for tasks that do blocking IO (Redis, HTTP, etc.)
 };
 
 // Compute the effective writes contract expression from a TaskSpec.

@@ -4,6 +4,7 @@
 #include "output_contract.h"
 #include "schema_delta.h"
 #include "task_registry.h"
+#include "thread_pool.h"  // For GetIOThreadPool
 
 #include <algorithm>
 #include <atomic>
@@ -241,10 +242,23 @@ ExecutionResult execute_plan_parallel(
       state.ready_queue.pop();
       state.inflight.fetch_add(1, std::memory_order_acq_rel);
 
+      // Check if this is an IO task to dispatch to the appropriate pool
+      const auto& node = state.plan.nodes[node_idx];
+      const auto& spec = state.registry.get_spec(node.op);
+      bool is_io = spec.is_io;
+
       lock.unlock();
-      cpu_pool.submit([&state, node_idx] {
-        run_node_job(state, node_idx);
-      });
+      if (is_io) {
+        // Dispatch IO tasks to IO pool (blocking Redis calls)
+        GetIOThreadPool().submit([&state, node_idx] {
+          run_node_job(state, node_idx);
+        });
+      } else {
+        // Dispatch compute tasks to CPU pool
+        cpu_pool.submit([&state, node_idx] {
+          run_node_job(state, node_idx);
+        });
+      }
       lock.lock();
     }
 
