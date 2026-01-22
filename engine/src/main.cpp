@@ -342,25 +342,45 @@ int main(int argc, char *argv[]) {
       } else {
         // Concurrent mode: run multiple requests in parallel
         std::atomic<int> next_iter{0};
+        std::optional<std::string> first_error;
         std::vector<std::thread> workers;
         workers.reserve(bench_concurrency);
 
         for (int w = 0; w < bench_concurrency; ++w) {
           workers.emplace_back([&]() {
             while (true) {
+              // Check for error from other threads (fail-fast)
+              {
+                std::lock_guard<std::mutex> lock(latencies_mutex);
+                if (first_error) return;
+              }
+
               int iter = next_iter.fetch_add(1, std::memory_order_relaxed);
               if (iter >= bench_iterations) break;
 
-              double latency = run_single_iteration(iter);
+              try {
+                double latency = run_single_iteration(iter);
 
-              std::lock_guard<std::mutex> lock(latencies_mutex);
-              latencies_us.push_back(latency);
+                std::lock_guard<std::mutex> lock(latencies_mutex);
+                latencies_us.push_back(latency);
+              } catch (const std::exception& e) {
+                std::lock_guard<std::mutex> lock(latencies_mutex);
+                if (!first_error) {
+                  first_error = e.what();
+                }
+                return;
+              }
             }
           });
         }
 
         for (auto &w : workers) {
           w.join();
+        }
+
+        // Rethrow first error after all workers complete
+        if (first_error) {
+          throw std::runtime_error(*first_error);
         }
       }
 
