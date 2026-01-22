@@ -148,20 +148,17 @@ This document tracks the implementation status of all features in the dag-execut
 - `--bench_concurrency` flag for concurrent request load testing
 - Inflight limiting respects `policy.max_inflight` from endpoint config
 
----
-
-## 🚧 In Progress
-
-### Step 14.5b: Within-request DAG Parallel Scheduler (PR #54)
+### Step 14.5b: Within-request DAG Parallel Scheduler
 - `engine/include/cpu_pool.h` - CPU thread pool for compute tasks (default 8 threads)
 - `engine/src/dag_scheduler.cpp` - Parallel DAG scheduler with Kahn's algorithm
 - Two-pool architecture: IO tasks → IO pool, compute tasks → CPU pool
 - `is_io` field in TaskSpec to mark blocking IO tasks
-- Thread-safe RedisClient and IoClients (mutex protection)
+- Thread-safe RedisClient, IoClients, ExecStats (mutex/atomic protection)
 - `--cpu_threads`, `--within_request_parallelism` CLI flags
 - `sleep` task for latency injection and scheduler testing
 - Deterministic schema_deltas (sorted by topo order)
 - Fail-fast error propagation
+- See [docs/THREADING_MODEL.md](THREADING_MODEL.md) for architecture details
 
 ---
 
