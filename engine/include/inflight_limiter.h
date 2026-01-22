@@ -32,9 +32,13 @@ public:
   // RAII guard that releases the semaphore on destruction
   class Guard {
   public:
-    Guard(std::counting_semaphore<>* sem) : sem_(sem) {}
+    Guard(std::counting_semaphore<>* sem, std::atomic<int>* counter)
+        : sem_(sem), counter_(counter) {}
     ~Guard() {
       if (sem_) {
+        if (counter_) {
+          counter_->fetch_sub(1, std::memory_order_relaxed);
+        }
         sem_->release();
       }
     }
@@ -42,18 +46,30 @@ public:
     // Non-copyable, movable
     Guard(const Guard&) = delete;
     Guard& operator=(const Guard&) = delete;
-    Guard(Guard&& other) noexcept : sem_(other.sem_) { other.sem_ = nullptr; }
+    Guard(Guard&& other) noexcept
+        : sem_(other.sem_), counter_(other.counter_) {
+      other.sem_ = nullptr;
+      other.counter_ = nullptr;
+    }
     Guard& operator=(Guard&& other) noexcept {
       if (this != &other) {
-        if (sem_) sem_->release();
+        if (sem_) {
+          if (counter_) {
+            counter_->fetch_sub(1, std::memory_order_relaxed);
+          }
+          sem_->release();
+        }
         sem_ = other.sem_;
+        counter_ = other.counter_;
         other.sem_ = nullptr;
+        other.counter_ = nullptr;
       }
       return *this;
     }
 
   private:
     std::counting_semaphore<>* sem_;
+    std::atomic<int>* counter_;
   };
 
   // Acquire a slot for the given endpoint.

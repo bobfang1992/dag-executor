@@ -118,3 +118,29 @@ TEST_CASE("InflightLimiter reset clears all limiters", "[inflight]") {
   auto guard2 = InflightLimiter::acquire("reset_ep_2", 1);
   REQUIRE(true);
 }
+
+TEST_CASE("InflightLimiter get_inflight_count tracks correctly", "[inflight]") {
+  InflightLimiter::reset_all();
+
+  const std::string ep = "count_test_ep";
+
+  // Initially 0
+  REQUIRE(InflightLimiter::get_inflight_count(ep) == 0);
+
+  {
+    auto guard1 = InflightLimiter::acquire(ep, 10);
+    REQUIRE(InflightLimiter::get_inflight_count(ep) == 1);
+
+    {
+      auto guard2 = InflightLimiter::acquire(ep, 10);
+      REQUIRE(InflightLimiter::get_inflight_count(ep) == 2);
+
+      auto guard3 = InflightLimiter::acquire(ep, 10);
+      REQUIRE(InflightLimiter::get_inflight_count(ep) == 3);
+    }
+    // guard2 and guard3 released
+    REQUIRE(InflightLimiter::get_inflight_count(ep) == 1);
+  }
+  // guard1 released
+  REQUIRE(InflightLimiter::get_inflight_count(ep) == 0);
+}

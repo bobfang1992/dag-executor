@@ -13,6 +13,7 @@ InflightLimiter::Guard InflightLimiter::acquire(const std::string& endpoint_id,
   }
 
   std::counting_semaphore<>* sem = nullptr;
+  std::atomic<int>* counter = nullptr;
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -28,12 +29,16 @@ InflightLimiter::Guard InflightLimiter::acquire(const std::string& endpoint_id,
       it = inserted_it;
     }
     sem = it->second->semaphore.get();
+    counter = &it->second->current_inflight;
   }
 
   // Acquire semaphore (may block if at limit)
   sem->acquire();
 
-  return Guard(sem);
+  // Increment inflight counter after successful acquire
+  counter->fetch_add(1, std::memory_order_relaxed);
+
+  return Guard(sem, counter);
 }
 
 int InflightLimiter::get_inflight_count(const std::string& endpoint_id) {
