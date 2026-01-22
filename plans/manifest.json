@@ -2,6 +2,7 @@
   "schema_version": 1,
   "plans": [
     "plans/concat_plan.plan.ts",
+    "plans/parallel_sleep_plan.plan.ts",
     "plans/reels_plan_a.plan.ts",
     "plans/regex_plan.plan.ts"
   ]

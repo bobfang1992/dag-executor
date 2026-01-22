@@ -32,6 +32,8 @@ class ViewerTask {
         .writes = {KeyId::country},  // Writes country column
         .default_budget = {.timeout_ms = 100},
         .output_pattern = OutputPattern::VariableDense,
+        .writes_effect = std::nullopt,
+        .is_io = true,  // Redis HGETALL
     };
   }
 

@@ -104,6 +104,12 @@ export interface RecommendationOpts {
   extensions?: Record<string, unknown>;
 }
 
+export interface SleepOpts {
+  durationMs: number;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
 export interface SortOpts {
   by: KeyToken;
   order?: string;
@@ -134,8 +140,8 @@ export interface VmOpts {
 // Metadata
 // =====================================================
 
-export const TASK_MANIFEST_DIGEST = "65570d9c16fd650b8c758d0b019f5db802c99e910f99bc58c8ed640e969d48b8";
-export const TASK_COUNT = 9;
+export const TASK_MANIFEST_DIGEST = "2b7ecee984cfb73c6f3d27aca4dd1c72e255a714524de8edf307dd4707ffc26a";
+export const TASK_COUNT = 10;
 
 // =====================================================
 // Task extraction metadata (for AST extractor)

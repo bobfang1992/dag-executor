@@ -44,6 +44,12 @@ export declare function recommendationImpl(ctx: TaskContext, inputNodeId: string
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;
+/** Implementation for sleep */
+export declare function sleepImpl(ctx: TaskContext, inputNodeId: string, opts: {
+    durationMs: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}): string;
 /** Implementation for sort */
 export declare function sortImpl(ctx: TaskContext, inputNodeId: string, opts: {
     by: KeyToken;
@@ -72,6 +78,6 @@ export declare function vmImpl(ctx: TaskContext, inputNodeId: string, opts: {
 }): string;
 export declare const GENERATED_TASKS: {
     readonly source: readonly [];
-    readonly transform: readonly ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "viewer", "vm"];
+    readonly transform: readonly ["concat", "filter", "follow", "media", "recommendation", "sleep", "sort", "take", "viewer", "vm"];
 };
 //# sourceMappingURL=task-impl.d.ts.map

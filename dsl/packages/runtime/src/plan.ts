@@ -18,6 +18,7 @@ import {
   sortImpl,
   followImpl,
   recommendationImpl,
+  sleepImpl,
 } from "@ranking-dsl/generated";
 import { assertNotUndefined, assertStringOrNull, assertEndpointId, checkNoUndefined } from "./guards.js";
 
@@ -253,6 +254,18 @@ export class CandidateSet {
     extensions?: Record<string, unknown>;
   }): CandidateSet {
     const newNodeId = takeImpl(this.ctx, this.nodeId, opts);
+    return new CandidateSet(this.ctx, newNodeId);
+  }
+
+  /**
+   * sleep: delay execution for testing parallelism.
+   */
+  sleep(opts: {
+    durationMs: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    const newNodeId = sleepImpl(this.ctx, this.nodeId, opts);
     return new CandidateSet(this.ctx, newNodeId);
   }
 

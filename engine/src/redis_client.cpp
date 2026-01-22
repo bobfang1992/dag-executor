@@ -83,6 +83,8 @@ std::expected<void, std::string> RedisClient::ensure_connected() {
 
 std::expected<std::vector<std::string>, std::string> RedisClient::lrange(
     const std::string& key, int64_t start, int64_t stop) {
+  std::lock_guard<std::mutex> lock(mutex_);
+
   auto conn_result = ensure_connected();
   if (!conn_result) {
     return std::unexpected(conn_result.error());
@@ -133,6 +135,8 @@ std::expected<std::vector<std::string>, std::string> RedisClient::lrange(
 
 std::expected<std::unordered_map<std::string, std::string>, std::string>
 RedisClient::hgetall(const std::string& key) {
+  std::lock_guard<std::mutex> lock(mutex_);
+
   auto conn_result = ensure_connected();
   if (!conn_result) {
     return std::unexpected(conn_result.error());

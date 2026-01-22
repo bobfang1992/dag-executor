@@ -36,6 +36,8 @@ class MediaTask {
         .writes = {},  // Only ID column
         .default_budget = {.timeout_ms = 100},
         .output_pattern = OutputPattern::VariableDense,
+        .writes_effect = std::nullopt,
+        .is_io = true,  // Redis LRANGE per input row
     };
   }
 

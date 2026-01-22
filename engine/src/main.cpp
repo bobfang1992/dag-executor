@@ -1,16 +1,21 @@
 #include <CLI/CLI.hpp>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
 #include <nlohmann/json.hpp>
 #include <numeric>
 #include <random>
 #include <sstream>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include "capability_registry.h"
+#include "cpu_pool.h"
 #include "capability_registry_gen.h"
 #include "endpoint_registry.h"
 #include "executor.h"
@@ -62,6 +67,9 @@ int main(int argc, char *argv[]) {
   bool print_plan_info = false;
   bool dump_run_trace = false;
   int bench_iterations = 0;
+  int bench_concurrency = 1;
+  int cpu_threads = 8;
+  bool within_request_parallelism = false;
 
   app.add_option("--plan", plan_path, "Path to plan JSON file");
   app.add_option("--plan_dir", plan_dir,
@@ -86,8 +94,19 @@ int main(int argc, char *argv[]) {
   app.add_option("--bench", bench_iterations,
                  "Run benchmark with N iterations (requires --plan or --plan_name)")
       ->check(CLI::PositiveNumber);
+  app.add_option("--bench_concurrency", bench_concurrency,
+                 "Number of concurrent requests in bench mode (default: 1)")
+      ->check(CLI::PositiveNumber);
+  app.add_option("--cpu_threads", cpu_threads,
+                 "Number of CPU pool threads (default: 8)")
+      ->check(CLI::PositiveNumber);
+  app.add_flag("--within_request_parallelism", within_request_parallelism,
+               "Enable within-request DAG parallelism (default: ON in bench, OFF otherwise)");
 
   CLI11_PARSE(app, argc, argv);
+
+  // Initialize CPU thread pool (for within-request parallelism)
+  rankd::InitCPUThreadPool(static_cast<size_t>(cpu_threads));
 
   // Load endpoint registry
   std::string endpoints_path = artifacts_dir + "/endpoints." + env + ".json";
@@ -270,28 +289,32 @@ int main(int argc, char *argv[]) {
       rankd::Plan plan = rankd::parse_plan(plan_path);
       rankd::validate_plan(plan, endpoint_registry);
 
-      // Create synthetic request context
-      rankd::RequestContext bench_request;
-      bench_request.request_id = "bench";
-      bench_request.user_id = 1;
-
       // Create param table (empty for benchmark)
       rankd::ParamTable bench_params;
 
+      // Enable within-request parallelism by default in bench mode
+      bool parallel = true;  // Bench mode always enables parallelism
+
       std::vector<double> latencies_us;
       latencies_us.reserve(bench_iterations);
+      std::mutex latencies_mutex;
 
       std::cerr << "Running " << bench_iterations << " iterations of "
-                << plan.plan_name << "..." << std::endl;
+                << plan.plan_name << " (concurrency=" << bench_concurrency
+                << ", parallel=" << (parallel ? "true" : "false") << ")..."
+                << std::endl;
 
       auto total_start = std::chrono::steady_clock::now();
 
-      for (int i = 0; i < bench_iterations; ++i) {
-        // Clear regex cache to simulate fresh requests
-        rankd::clearRegexCache();
-
+      // Run iterations with specified concurrency
+      auto run_single_iteration = [&](int iter_id) -> double {
         // Create fresh IoClients per iteration (simulates per-request)
         rankd::IoClients bench_clients;
+
+        // Create synthetic request context per iteration
+        rankd::RequestContext bench_request;
+        bench_request.request_id = "bench-" + std::to_string(iter_id);
+        bench_request.user_id = 1;
 
         rankd::ExecCtx bench_ctx;
         bench_ctx.params = &bench_params;
@@ -300,17 +323,65 @@ int main(int argc, char *argv[]) {
         bench_ctx.clients = &bench_clients;
         bench_ctx.expr_table = &plan.expr_table;
         bench_ctx.pred_table = &plan.pred_table;
+        bench_ctx.parallel = parallel;
 
         auto start = std::chrono::steady_clock::now();
         auto exec_result = rankd::execute_plan(plan, bench_ctx);
         auto end = std::chrono::steady_clock::now();
 
-        double latency_us =
-            std::chrono::duration<double, std::micro>(end - start).count();
-        latencies_us.push_back(latency_us);
+        (void)exec_result;  // Suppress unused
 
-        // Suppress unused variable warning
-        (void)exec_result;
+        return std::chrono::duration<double, std::micro>(end - start).count();
+      };
+
+      if (bench_concurrency == 1) {
+        // Sequential mode: run iterations one by one
+        for (int i = 0; i < bench_iterations; ++i) {
+          latencies_us.push_back(run_single_iteration(i));
+        }
+      } else {
+        // Concurrent mode: run multiple requests in parallel
+        std::atomic<int> next_iter{0};
+        std::optional<std::string> first_error;
+        std::vector<std::thread> workers;
+        workers.reserve(bench_concurrency);
+
+        for (int w = 0; w < bench_concurrency; ++w) {
+          workers.emplace_back([&]() {
+            while (true) {
+              // Check for error from other threads (fail-fast)
+              {
+                std::lock_guard<std::mutex> lock(latencies_mutex);
+                if (first_error) return;
+              }
+
+              int iter = next_iter.fetch_add(1, std::memory_order_relaxed);
+              if (iter >= bench_iterations) break;
+
+              try {
+                double latency = run_single_iteration(iter);
+
+                std::lock_guard<std::mutex> lock(latencies_mutex);
+                latencies_us.push_back(latency);
+              } catch (const std::exception& e) {
+                std::lock_guard<std::mutex> lock(latencies_mutex);
+                if (!first_error) {
+                  first_error = e.what();
+                }
+                return;
+              }
+            }
+          });
+        }
+
+        for (auto &w : workers) {
+          w.join();
+        }
+
+        // Rethrow first error after all workers complete
+        if (first_error) {
+          throw std::runtime_error(*first_error);
+        }
       }
 
       auto total_end = std::chrono::steady_clock::now();
@@ -333,12 +404,17 @@ int main(int argc, char *argv[]) {
       double p99_us = latencies_us[p99_idx];
       double min_us = latencies_us.front();
       double max_us = latencies_us.back();
+      double throughput_rps = bench_iterations / (total_ms / 1000.0);
 
       // Output results as JSON
       json output;
       output["plan"] = plan.plan_name;
       output["iterations"] = bench_iterations;
+      output["concurrency"] = bench_concurrency;
+      output["within_request_parallelism"] = parallel;
+      output["cpu_threads"] = cpu_threads;
       output["total_ms"] = total_ms;
+      output["throughput_rps"] = throughput_rps;
       output["avg_us"] = avg_us;
       output["p50_us"] = p50_us;
       output["p99_us"] = p99_us;
@@ -414,6 +490,7 @@ int main(int argc, char *argv[]) {
   ctx.request = &request_context;
   ctx.endpoints = endpoint_registry;
   ctx.clients = &io_clients;
+  ctx.parallel = within_request_parallelism;
 
   // Generate candidates
   json candidates = json::array();

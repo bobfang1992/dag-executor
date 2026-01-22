@@ -2,6 +2,7 @@
 
 #include "endpoint_registry.h"
 #include <expected>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -13,6 +14,7 @@ namespace rankd {
 
 // Redis client wrapper using hiredis
 // Uses std::expected for error handling (C++23)
+// Thread-safe: all operations are guarded by internal mutex
 class RedisClient {
  public:
   // Create a client for the given endpoint spec
@@ -54,6 +56,7 @@ class RedisClient {
   int request_timeout_ms_ = 20;
   redisContext* ctx_ = nullptr;
   std::string last_error_;
+  mutable std::mutex mutex_;  // Serialize all hiredis calls (not thread-safe)
 };
 
 }  // namespace rankd

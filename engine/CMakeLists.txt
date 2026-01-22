@@ -63,12 +63,15 @@ set(TASK_SOURCES
   src/tasks/vm.cpp
   src/tasks/filter.cpp
   src/tasks/concat.cpp
+  src/tasks/sleep.cpp
 )
 
 add_executable(rankd
   src/main.cpp
   src/plan.cpp
   src/executor.cpp
+  src/dag_scheduler.cpp
+  src/cpu_pool.cpp
   src/task_registry.cpp
   src/output_contract.cpp
   src/capability_registry.cpp
@@ -119,6 +122,8 @@ add_executable(concat_tests
   tests/test_concat.cpp
   src/plan.cpp
   src/executor.cpp
+  src/dag_scheduler.cpp
+  src/cpu_pool.cpp
   src/task_registry.cpp
   src/output_contract.cpp
   src/capability_registry.cpp
@@ -142,6 +147,8 @@ add_executable(regex_tests
   tests/test_regex.cpp
   src/plan.cpp
   src/executor.cpp
+  src/dag_scheduler.cpp
+  src/cpu_pool.cpp
   src/task_registry.cpp
   src/output_contract.cpp
   src/capability_registry.cpp
@@ -178,6 +185,8 @@ add_executable(plan_info_tests
   tests/test_plan_info_writes_eval.cpp
   src/plan.cpp
   src/executor.cpp
+  src/dag_scheduler.cpp
+  src/cpu_pool.cpp
   src/task_registry.cpp
   src/output_contract.cpp
   src/capability_registry.cpp
@@ -201,6 +210,8 @@ add_executable(schema_delta_tests
   tests/test_runtime_schema_delta.cpp
   src/plan.cpp
   src/executor.cpp
+  src/dag_scheduler.cpp
+  src/cpu_pool.cpp
   src/task_registry.cpp
   src/output_contract.cpp
   src/capability_registry.cpp
@@ -216,5 +227,30 @@ target_include_directories(schema_delta_tests PRIVATE ${CMAKE_SOURCE_DIR}/includ
 target_link_libraries(schema_delta_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis)
 
 set_target_properties(schema_delta_tests PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)
+
+# DAG scheduler tests executable (Catch2)
+add_executable(dag_scheduler_tests
+  tests/test_dag_scheduler.cpp
+  src/plan.cpp
+  src/executor.cpp
+  src/dag_scheduler.cpp
+  src/cpu_pool.cpp
+  src/task_registry.cpp
+  src/output_contract.cpp
+  src/capability_registry.cpp
+  src/writes_effect.cpp
+  src/redis_client.cpp
+  src/io_clients.cpp
+  src/thread_pool.cpp
+  src/inflight_limiter.cpp
+  ${TASK_SOURCES}
+)
+
+target_include_directories(dag_scheduler_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(dag_scheduler_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis)
+
+set_target_properties(dag_scheduler_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )

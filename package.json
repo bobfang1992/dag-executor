@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  },
   "scripts": {
     "build": "pnpm run gen && pnpm run build:dsl && pnpm run plan:build:all",
     "gen": "pnpm -C dsl run gen",

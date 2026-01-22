@@ -1,7 +1,7 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "9de9189b28378005",
+    "bundle_digest": "7e7b4bad04dfd3f3",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
@@ -20,11 +20,10 @@
         "n0"
       ],
       "node_id": "n1",
-      "op": "follow",
+      "op": "sleep",
       "params": {
-        "endpoint": "ep_0001",
-        "fanout": 4,
-        "trace": "L"
+        "duration_ms": 20,
+        "trace": null
       }
     },
     {
@@ -32,11 +31,10 @@
         "n0"
       ],
       "node_id": "n2",
-      "op": "recommendation",
+      "op": "sleep",
       "params": {
-        "endpoint": "ep_0001",
-        "fanout": 4,
-        "trace": "R"
+        "duration_ms": 20,
+        "trace": null
       }
     },
     {
@@ -47,24 +45,13 @@
       "op": "concat",
       "params": {
         "rhs": "n2",
-        "trace": "C"
-      }
-    },
-    {
-      "inputs": [
-        "n3"
-      ],
-      "node_id": "n4",
-      "op": "take",
-      "params": {
-        "count": 8,
-        "trace": "T"
+        "trace": null
       }
     }
   ],
   "outputs": [
-    "n4"
+    "n3"
   ],
-  "plan_name": "concat_plan",
+  "plan_name": "parallel_sleep_plan",
   "schema_version": 1
 }

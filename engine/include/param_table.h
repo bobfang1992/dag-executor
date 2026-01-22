@@ -1,6 +1,7 @@
 #pragma once
 
 #include "param_registry.h"
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -233,8 +234,9 @@ struct PredNode;
 using PredNodePtr = std::shared_ptr<PredNode>;
 
 // Execution statistics for performance tracking and testing
+// Counters are atomic for thread-safety in parallel DAG execution
 struct ExecStats {
-  uint64_t regex_re2_calls = 0; // Number of RE2 regex evaluations (per dict entry)
+  std::atomic<uint64_t> regex_re2_calls{0}; // Number of RE2 regex evaluations (per dict entry)
 };
 
 // Forward declaration for RowSet
@@ -263,6 +265,8 @@ struct ExecCtx {
   const EndpointRegistry *endpoints = nullptr;
   // Per-request IO client cache (Redis, etc.) - mutable for lazy initialization
   IoClients *clients = nullptr;
+  // Enable within-request DAG parallelism (Level 2)
+  bool parallel = false;
 };
 
 } // namespace rankd

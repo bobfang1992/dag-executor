@@ -113,6 +113,24 @@
       ]
     },
     {
+      "op": "sleep",
+      "output_pattern": "UnaryPreserveView",
+      "params": [
+        {
+          "name": "duration_ms",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
       "op": "sort",
       "output_pattern": "PermutationOfInput",
       "params": [

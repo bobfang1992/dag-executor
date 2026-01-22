@@ -202,6 +202,23 @@ export function recommendationImpl(ctx, inputNodeId, opts) {
     };
     return ctx.addNode("recommendation", [inputNodeId], params, extensions);
 }
+/** Implementation for sleep */
+export function sleepImpl(ctx, inputNodeId, opts) {
+    assertNotUndefined(opts, "sleep(opts)");
+    assertNotUndefined(opts.durationMs, "sleep({ durationMs })");
+    assertInteger(opts.durationMs, "sleep({ durationMs })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "sleep(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "sleep({ trace })");
+    }
+    const params = {
+        duration_ms: opts.durationMs,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("sleep", [inputNodeId], params, extensions);
+}
 /** Implementation for sort */
 export function sortImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "sort(opts)");
@@ -289,5 +306,5 @@ export function vmImpl(ctx, inputNodeId, opts) {
 // =====================================================
 export const GENERATED_TASKS = {
     source: [],
-    transform: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "viewer", "vm"],
+    transform: ["concat", "filter", "follow", "media", "recommendation", "sleep", "sort", "take", "viewer", "vm"],
 };
