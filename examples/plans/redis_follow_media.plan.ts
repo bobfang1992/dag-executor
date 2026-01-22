@@ -14,15 +14,15 @@ export default definePlan({
   name: "redis_follow_media",
   build: (ctx) => {
     // Get viewer and their followees
-    const followees = ctx.viewer({ endpoint: EP.redis.default }).follow({
-      endpoint: EP.redis.default,
+    const followees = ctx.viewer({ endpoint: EP.redis.redis_default }).follow({
+      endpoint: EP.redis.redis_default,
       fanout: 10,
       trace: "follow_source",
     });
 
     // For each followee, get their media
     const media = followees.media({
-      endpoint: EP.redis.default,
+      endpoint: EP.redis.redis_default,
       fanout: 5,
       trace: "media_expand",
     });

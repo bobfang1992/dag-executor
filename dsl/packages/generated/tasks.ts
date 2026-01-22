@@ -3,7 +3,7 @@
 // Regenerate with: pnpm -C dsl run gen
 
 import type { KeyToken } from "./keys.js";
-import type { EndpointId } from "./endpoints.js";
+import type { RedisEndpointId } from "./endpoints.js";
 
 // =====================================================
 // Expression types (narrow discriminated unions)
@@ -84,21 +84,21 @@ export interface FilterOpts {
 }
 
 export interface FollowOpts {
-  endpoint: EndpointId;
+  endpoint: RedisEndpointId;
   fanout: number;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
 export interface MediaOpts {
-  endpoint: EndpointId;
+  endpoint: RedisEndpointId;
   fanout: number;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
 export interface RecommendationOpts {
-  endpoint: EndpointId;
+  endpoint: RedisEndpointId;
   fanout: number;
   trace?: string | null;
   extensions?: Record<string, unknown>;
@@ -118,7 +118,7 @@ export interface TakeOpts {
 }
 
 export interface ViewerOpts {
-  endpoint: EndpointId;
+  endpoint: RedisEndpointId;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }

@@ -126,7 +126,7 @@ Plans may only import from:
 **Global Tokens (no import needed):**
 - `Key` - Column key references (e.g., `Key.final_score`)
 - `P` - Parameter references (e.g., `P.media_age_penalty_weight`)
-- `EP` - Endpoint references (e.g., `EP.redis.default`)
+- `EP` - Endpoint references (e.g., `EP.redis.redis_default`)
 - `coalesce` - Null fallback function (e.g., `coalesce(P.x, 0.2)`)
 - `regex` - Regex predicate function (e.g., `regex(Key.title, "^test")`)
 

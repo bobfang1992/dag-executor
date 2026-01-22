@@ -45,7 +45,8 @@
           "name": "endpoint",
           "type": "endpoint_ref",
           "required": true,
-          "nullable": false
+          "nullable": false,
+          "endpoint_kind": "redis"
         },
         {
           "name": "fanout",
@@ -69,7 +70,8 @@
           "name": "endpoint",
           "type": "endpoint_ref",
           "required": true,
-          "nullable": false
+          "nullable": false,
+          "endpoint_kind": "redis"
         },
         {
           "name": "fanout",
@@ -93,7 +95,8 @@
           "name": "endpoint",
           "type": "endpoint_ref",
           "required": true,
-          "nullable": false
+          "nullable": false,
+          "endpoint_kind": "redis"
         },
         {
           "name": "fanout",
@@ -159,7 +162,8 @@
           "name": "endpoint",
           "type": "endpoint_ref",
           "required": true,
-          "nullable": false
+          "nullable": false,
+          "endpoint_kind": "redis"
         },
         {
           "name": "trace",

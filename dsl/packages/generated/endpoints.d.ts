@@ -8,7 +8,7 @@ export type EndpointId = string & {
 type EndpointLiteral<T extends string> = EndpointId & T;
 /**
  * Endpoint registry. Use EP.<kind>.<name> to get an EndpointId.
- * Example: EP.redis.default
+ * Example: EP.redis.redis_default
  */
 export declare const EP: {
     readonly http: {

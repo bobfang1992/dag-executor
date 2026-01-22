@@ -13,8 +13,8 @@ import { definePlan } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "filter_ast_pred_regex",
   build: (ctx) => {
-    return ctx.viewer({ endpoint: EP.redis.default })
-      .follow({ endpoint: EP.redis.default, fanout: 10, trace: "src" })
+    return ctx.viewer({ endpoint: EP.redis.redis_default })
+      .follow({ endpoint: EP.redis.redis_default, fanout: 10, trace: "src" })
       .filter({
         pred: regex(Key.title, "^test.*pattern"),
         trace: "filter_regex",

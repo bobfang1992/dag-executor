@@ -16,8 +16,8 @@ import { definePlan } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "sort_demo",
   build: (ctx) => {
-    const source = ctx.viewer({ endpoint: EP.redis.default })
-      .follow({ endpoint: EP.redis.default, fanout: 7, trace: "src" });
+    const source = ctx.viewer({ endpoint: EP.redis.redis_default })
+      .follow({ endpoint: EP.redis.redis_default, fanout: 7, trace: "src" });
     const scored = source.vm({
       outKey: Key.final_score,
       expr: Key.id * 0.1,

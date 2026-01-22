@@ -8,8 +8,8 @@ import { definePlan } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "wrong_name", // Intentionally wrong - should match "name_mismatch"
   build: (ctx) => {
-    const candidates = ctx.viewer({ endpoint: EP.redis.default })
-      .follow({ endpoint: EP.redis.default, fanout: 10 });
+    const candidates = ctx.viewer({ endpoint: EP.redis.redis_default })
+      .follow({ endpoint: EP.redis.redis_default, fanout: 10 });
     return candidates.take({ count: 5, outputKeys: [Key.id] });
   },
 });

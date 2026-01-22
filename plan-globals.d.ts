@@ -25,7 +25,7 @@ declare global {
 
   /**
    * Endpoint registry - endpoint references for tasks.
-   * Usage: ctx.viewer({ endpoint: EP.redis.default }).follow({ endpoint: EP.redis.default, fanout: 10 })
+   * Usage: ctx.viewer({ endpoint: EP.redis.redis_default }).follow({ endpoint: EP.redis.redis_default, fanout: 10 })
    * Injected by dslc compiler.
    */
   const EP: typeof EPType;

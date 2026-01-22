@@ -58,7 +58,7 @@ export default definePlan({
   name: 'my_plan',
   build: (ctx) => {
     // Source: viewer returns the request user's data, follow fans out to followees
-    const source = ctx.viewer({ endpoint: EP.redis.default }).follow({ endpoint: EP.redis.default, fanout: 100 });
+    const source = ctx.viewer({ endpoint: EP.redis.redis_default }).follow({ endpoint: EP.redis.redis_default, fanout: 100 });
 
     // Score: compute final_score using natural expression syntax
     // The compiler extracts Key.x * P.y expressions at compile-time

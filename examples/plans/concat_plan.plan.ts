@@ -18,9 +18,9 @@ import { definePlan } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "concat_plan",
   build: (ctx) => {
-    const v = ctx.viewer({ endpoint: EP.redis.default });
-    const a = v.follow({ endpoint: EP.redis.default, fanout: 4, trace: "L" });
-    const b = v.recommendation({ endpoint: EP.redis.default, fanout: 4, trace: "R" });
+    const v = ctx.viewer({ endpoint: EP.redis.redis_default });
+    const a = v.follow({ endpoint: EP.redis.redis_default, fanout: 4, trace: "L" });
+    const b = v.recommendation({ endpoint: EP.redis.redis_default, fanout: 4, trace: "R" });
     return a.concat({ rhs: b, trace: "C" }).take({ count: 8, trace: "T" });
   },
 });

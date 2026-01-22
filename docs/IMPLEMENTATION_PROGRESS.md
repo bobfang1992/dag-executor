@@ -133,7 +133,7 @@ This document tracks the implementation status of all features in the dag-execut
 - `engine/src/tasks/recommendation.cpp` - Transform task: fetches cached recommendations
 - `engine/src/tasks/media.cpp` - Transform task: fans out to media items
 - Task model change: `viewer` is the only source task; `follow`/`recommendation`/`media` are transforms
-- EP global: endpoint references available as `EP.redis.default` (no import needed)
+- EP global: endpoint references available as `EP.redis.redis_default` (no import needed)
 - CI: Redis service container (Linux) / Homebrew (macOS), `scripts/seed_redis.sh` for test data
 
 ### Step 14.4 Hardening

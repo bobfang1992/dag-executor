@@ -18,8 +18,8 @@ export default definePlan({
   name: "regex_plan",
   build: (ctx) => {
     return ctx
-      .viewer({ endpoint: EP.redis.default })
-      .follow({ endpoint: EP.redis.default, fanout: 10, trace: "src" })
+      .viewer({ endpoint: EP.redis.redis_default })
+      .follow({ endpoint: EP.redis.redis_default, fanout: 10, trace: "src" })
       .filter({
         pred: Pred.regex(Key.country, "US"),
         trace: "regex_filter",

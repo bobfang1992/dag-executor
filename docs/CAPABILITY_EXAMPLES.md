@@ -426,8 +426,8 @@ export default definePlan({
     ctx.requireCapability("cap.audit", { level: "verbose" });
     ctx.requireCapability("cap.debug", { trace: true });
 
-    const source = ctx.viewer({ endpoint: EP.redis.default }).follow({
-      endpoint: EP.redis.default,
+    const source = ctx.viewer({ endpoint: EP.redis.redis_default }).follow({
+      endpoint: EP.redis.redis_default,
       fanout: 100,
       // Node-level extension
       extensions: {

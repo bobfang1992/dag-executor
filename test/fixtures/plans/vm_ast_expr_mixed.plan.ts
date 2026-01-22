@@ -14,8 +14,8 @@ import { definePlan, E } from "@ranking-dsl/runtime";
 export default definePlan({
   name: "vm_ast_expr_mixed",
   build: (ctx) => {
-    return ctx.viewer({ endpoint: EP.redis.default })
-      .follow({ endpoint: EP.redis.default, fanout: 10, trace: "src" })
+    return ctx.viewer({ endpoint: EP.redis.redis_default })
+      .follow({ endpoint: EP.redis.redis_default, fanout: 10, trace: "src" })
       // First vm: natural expression syntax (object form)
       .vm({
         outKey: Key.final_score,
