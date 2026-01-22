@@ -141,9 +141,48 @@ This document tracks the implementation status of all features in the dag-execut
 - Consistent Redis error handling: all tasks fail-fast on Redis errors (connection/command errors throw)
 - Missing data (empty Redis result) handled gracefully as null columns
 
+### Step 14.5a: Inflight Limiting and Benchmark Mode
+- `engine/include/inflight_limiter.h` - Per-endpoint semaphore for inflight request limiting
+- `engine/include/thread_pool.h` - ThreadPool class with IO pool singleton
+- `--bench <iterations>` flag for benchmark mode with timing statistics
+- `--bench_concurrency` flag for concurrent request load testing
+- Inflight limiting respects `policy.max_inflight` from endpoint config
+
+---
+
+## 🚧 In Progress
+
+### Step 14.5b: Within-request DAG Parallel Scheduler (PR #54)
+- `engine/include/cpu_pool.h` - CPU thread pool for compute tasks (default 8 threads)
+- `engine/src/dag_scheduler.cpp` - Parallel DAG scheduler with Kahn's algorithm
+- Two-pool architecture: IO tasks → IO pool, compute tasks → CPU pool
+- `is_io` field in TaskSpec to mark blocking IO tasks
+- Thread-safe RedisClient and IoClients (mutex protection)
+- `--cpu_threads`, `--within_request_parallelism` CLI flags
+- `sleep` task for latency injection and scheduler testing
+- Deterministic schema_deltas (sorted by topo order)
+- Fail-fast error propagation
+
 ---
 
 ## 🔲 Not Yet Implemented
+
+### Step 14.5c: Async Coroutine Scheduler with libuv
+- Replace thread-pool blocking model with event-loop + C++20 coroutines
+- **Goal**: Suspend/resume at IO boundaries, not just node boundaries
+- **Architecture**:
+  - libuv event loop handles all IO completion (single thread)
+  - C++20 coroutines (`co_await`, `co_return`) for natural async syntax
+  - Minimal `Task<T>` + `UvAwaitable<T>` wrapper (~200 LOC)
+  - hiredis async API + libuv adapter for non-blocking Redis
+- **Task signature change**: `RowSet run(...)` → `Task<RowSet> run(...)`
+- **Benefits**:
+  - Single thread handles many concurrent requests (no thread-per-request)
+  - No mutex needed for Redis client (single-threaded event loop)
+  - Natural backpressure (coroutines suspend, don't spawn threads)
+  - Fine-grained yielding: a node can yield mid-execution on IO
+- **Dependencies**: libuv (vcpkg), hiredis async
+- **Migration**: Incremental - convert tasks one by one
 
 ### Step 14.2 Follow-up: Endpoint Registry Hardening
 - [ ] Validate endpoint digests: recompute from parsed entries, compare against JSON values, reject mismatched --env
