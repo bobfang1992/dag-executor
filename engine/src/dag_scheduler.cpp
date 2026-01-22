@@ -2,6 +2,7 @@
 
 #include "cpu_pool.h"
 #include "output_contract.h"
+#include "pred_eval.h"  // For clearRegexCache
 #include "schema_delta.h"
 #include "task_registry.h"
 #include "thread_pool.h"  // For GetIOThreadPool
@@ -126,6 +127,10 @@ void init_scheduler_state(SchedulerState& state) {
 }
 
 void run_node_job(SchedulerState& state, size_t node_idx) {
+  // Clear thread-local regex cache to avoid stale pointer-based lookups
+  // (each request may reuse dict pointers for different dictionaries)
+  clearRegexCache();
+
   try {
     const auto& node = state.plan.nodes[node_idx];
 
