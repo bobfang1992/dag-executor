@@ -263,6 +263,8 @@ struct ExecCtx {
   const EndpointRegistry *endpoints = nullptr;
   // Per-request IO client cache (Redis, etc.) - mutable for lazy initialization
   IoClients *clients = nullptr;
+  // Enable within-request DAG parallelism (Level 2)
+  bool parallel = false;
 };
 
 } // namespace rankd

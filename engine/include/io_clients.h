@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -19,33 +20,36 @@ namespace rankd {
  * connected clients (Redis, etc.) for the lifetime of the request.
  * This avoids creating a new connection per task invocation.
  *
- * Thread safety: Not thread-safe. Each request should have its own instance.
+ * Thread safety: Thread-safe. Multiple nodes in a DAG may access
+ * concurrently under Level 2 parallelism. Internal mutex protects
+ * the client cache map.
  */
 struct IoClients {
-  // Cache of Redis clients by endpoint_id
-  // Clients are created on first use and reused for the request lifetime
-  std::unordered_map<std::string, std::unique_ptr<RedisClient>> redis_by_endpoint;
+  // Get or create a Redis client for the given endpoint.
+  // Thread-safe: uses internal mutex to protect cache access.
+  RedisClient& getRedis(const EndpointRegistry& endpoints, std::string_view endpoint_id);
 
   // Destructor cleans up all clients
   ~IoClients();
 
-  // Non-copyable (owns unique_ptrs)
+  // Non-copyable, non-movable (has mutex)
   IoClients() = default;
   IoClients(const IoClients&) = delete;
   IoClients& operator=(const IoClients&) = delete;
-  IoClients(IoClients&&) = default;
-  IoClients& operator=(IoClients&&) = default;
+  IoClients(IoClients&&) = delete;
+  IoClients& operator=(IoClients&&) = delete;
+
+ private:
+  // Cache of Redis clients by endpoint_id
+  // Clients are created on first use and reused for the request lifetime
+  std::unordered_map<std::string, std::unique_ptr<RedisClient>> redis_by_endpoint_;
+  mutable std::mutex mutex_;
 };
 
 /**
  * Get or create a Redis client for the given endpoint.
  *
- * On first use of an endpoint within a request:
- *   - Resolves host/port from EndpointRegistry
- *   - Creates and connects the client
- *   - Caches it in ctx.clients->redis_by_endpoint
- *
- * Subsequent calls with the same endpoint_id reuse the cached client.
+ * Convenience wrapper that calls ctx.clients->getRedis().
  *
  * Fail-closed behavior:
  *   - Throws if ctx.clients is null
@@ -58,7 +62,15 @@ struct IoClients {
  * @return Reference to the cached Redis client
  * @throws std::runtime_error on any failure
  */
-RedisClient& GetRedisClient(const ExecCtx& ctx, std::string_view endpoint_id);
+inline RedisClient& GetRedisClient(const ExecCtx& ctx, std::string_view endpoint_id) {
+  if (!ctx.clients) {
+    throw std::runtime_error("GetRedisClient: missing IoClients in ExecCtx");
+  }
+  if (!ctx.endpoints) {
+    throw std::runtime_error("GetRedisClient: missing EndpointRegistry in ExecCtx");
+  }
+  return ctx.clients->getRedis(*ctx.endpoints, endpoint_id);
+}
 
 /**
  * Execute a Redis operation with inflight limiting.

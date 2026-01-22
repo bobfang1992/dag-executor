@@ -1,7 +1,7 @@
 # AUTO-GENERATED from C++ TaskSpec - DO NOT EDIT
 # Regenerate with: engine/bin/rankd --print-task-manifest > registry/tasks.toml
 schema_version = 1
-manifest_digest = "65570d9c16fd650b8c758d0b019f5db802c99e910f99bc58c8ed640e969d48b8"
+manifest_digest = "2b7ecee984cfb73c6f3d27aca4dd1c72e255a714524de8edf307dd4707ffc26a"
 
 [[task]]
 op = "concat"
@@ -94,6 +94,22 @@ output_pattern = "VariableDense"
 
   [[task.param]]
   name = "fanout"
+  type = "int"
+  required = true
+  nullable = false
+
+  [[task.param]]
+  name = "trace"
+  type = "string"
+  required = false
+  nullable = true
+
+[[task]]
+op = "sleep"
+output_pattern = "UnaryPreserveView"
+
+  [[task.param]]
+  name = "duration_ms"
   type = "int"
   required = true
   nullable = false

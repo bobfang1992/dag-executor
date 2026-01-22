@@ -1,5 +1,6 @@
 #include "executor.h"
 #include "capability_registry.h"
+#include "dag_scheduler.h"
 #include "endpoint_registry.h"
 #include <queue>
 #include <stdexcept>
@@ -239,7 +240,8 @@ void validate_plan(Plan &plan, const EndpointRegistry *endpoints) {
   }
 }
 
-ExecutionResult execute_plan(const Plan &plan, const ExecCtx &base_ctx) {
+// Sequential execution (original implementation)
+static ExecutionResult execute_plan_sequential(const Plan &plan, const ExecCtx &base_ctx) {
   ExecutionResult result;
 
   const auto &registry = TaskRegistry::instance();
@@ -355,6 +357,14 @@ ExecutionResult execute_plan(const Plan &plan, const ExecCtx &base_ctx) {
   }
 
   return result;
+}
+
+// Dispatcher: choose parallel or sequential based on ctx.parallel
+ExecutionResult execute_plan(const Plan &plan, const ExecCtx &ctx) {
+  if (ctx.parallel) {
+    return execute_plan_parallel(plan, ctx);
+  }
+  return execute_plan_sequential(plan, ctx);
 }
 
 } // namespace rankd
