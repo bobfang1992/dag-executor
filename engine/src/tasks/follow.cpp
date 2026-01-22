@@ -62,9 +62,8 @@ class FollowTask {
           "follow: 'fanout' exceeds maximum limit (10000000)");
     }
 
-    // Get Redis client from per-request cache
+    // Get endpoint ID for Redis calls
     const std::string& endpoint_id = params.get_string("endpoint");
-    RedisClient& redis = GetRedisClient(ctx, endpoint_id);
 
     // Materialize input indices
     auto input_indices = input.materializeIndexViewForOutput(input.batch().size());
@@ -75,9 +74,12 @@ class FollowTask {
     for (uint32_t idx : input_indices) {
       int64_t user_id = input.batch().getId(idx);
 
-      // Fetch follow list for this user
+      // Fetch follow list for this user (with inflight limiting)
       std::string key = "follow:" + std::to_string(user_id);
-      auto result = redis.lrange(key, 0, fanout - 1);
+      auto result = WithInflightLimit(ctx, endpoint_id,
+          [&key, fanout](RedisClient& redis) {
+            return redis.lrange(key, 0, fanout - 1);
+          });
 
       if (!result) {
         throw std::runtime_error("follow: " + result.error());
@@ -109,9 +111,10 @@ class FollowTask {
       int64_t followee_id = all_followees[i];
       batch->setId(i, followee_id);
 
-      // Fetch user data for this followee
+      // Fetch user data for this followee (with inflight limiting)
       std::string user_key = "user:" + std::to_string(followee_id);
-      auto user_result = redis.hgetall(user_key);
+      auto user_result = WithInflightLimit(ctx, endpoint_id,
+          [&user_key](RedisClient& redis) { return redis.hgetall(user_key); });
       if (!user_result) {
         // Fail on Redis errors (consistent with LRANGE above)
         throw std::runtime_error("follow: " + user_result.error());

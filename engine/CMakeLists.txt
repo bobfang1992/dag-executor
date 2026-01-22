@@ -75,6 +75,8 @@ add_executable(rankd
   src/writes_effect.cpp
   src/redis_client.cpp
   src/io_clients.cpp
+  src/thread_pool.cpp
+  src/inflight_limiter.cpp
   ${TASK_SOURCES}
 )
 
@@ -94,11 +96,14 @@ add_executable(rankd_tests
   tests/test_sort.cpp
   tests/test_request.cpp
   tests/test_endpoint_registry.cpp
+  tests/test_inflight_limiter.cpp
   src/task_registry.cpp
   src/output_contract.cpp
   src/writes_effect.cpp
   src/redis_client.cpp
   src/io_clients.cpp
+  src/thread_pool.cpp
+  src/inflight_limiter.cpp
   ${TASK_SOURCES}
 )
 
@@ -120,6 +125,8 @@ add_executable(concat_tests
   src/writes_effect.cpp
   src/redis_client.cpp
   src/io_clients.cpp
+  src/thread_pool.cpp
+  src/inflight_limiter.cpp
   ${TASK_SOURCES}
 )
 
@@ -141,6 +148,8 @@ add_executable(regex_tests
   src/writes_effect.cpp
   src/redis_client.cpp
   src/io_clients.cpp
+  src/thread_pool.cpp
+  src/inflight_limiter.cpp
   ${TASK_SOURCES}
 )
 
@@ -175,6 +184,8 @@ add_executable(plan_info_tests
   src/writes_effect.cpp
   src/redis_client.cpp
   src/io_clients.cpp
+  src/thread_pool.cpp
+  src/inflight_limiter.cpp
   ${TASK_SOURCES}
 )
 
@@ -196,6 +207,8 @@ add_executable(schema_delta_tests
   src/writes_effect.cpp
   src/redis_client.cpp
   src/io_clients.cpp
+  src/thread_pool.cpp
+  src/inflight_limiter.cpp
   ${TASK_SOURCES}
 )
 

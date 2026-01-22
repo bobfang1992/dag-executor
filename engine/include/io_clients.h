@@ -5,13 +5,12 @@
 #include <string_view>
 #include <unordered_map>
 
+#include "endpoint_registry.h"
+#include "inflight_limiter.h"
+#include "param_table.h"  // For ExecCtx definition
 #include "redis_client.h"
 
 namespace rankd {
-
-// Forward declarations
-class EndpointRegistry;
-struct ExecCtx;
 
 /**
  * IoClients - per-request client cache for IO operations.
@@ -60,5 +59,46 @@ struct IoClients {
  * @throws std::runtime_error on any failure
  */
 RedisClient& GetRedisClient(const ExecCtx& ctx, std::string_view endpoint_id);
+
+/**
+ * Execute a Redis operation with inflight limiting.
+ *
+ * This helper:
+ *   1. Gets (or creates) the Redis client for the endpoint
+ *   2. Acquires an inflight slot (blocks if at limit)
+ *   3. Executes the operation
+ *   4. Releases the inflight slot on return
+ *
+ * Usage:
+ *   auto result = WithInflightLimit(ctx, endpoint_id,
+ *       [](RedisClient& redis) { return redis.hgetall("key"); });
+ *
+ * @param ctx Execution context
+ * @param endpoint_id The endpoint ID (e.g., "ep_0001")
+ * @param op Lambda that takes RedisClient& and returns the result
+ * @return Result of the operation
+ */
+template <typename Op>
+auto WithInflightLimit(const ExecCtx& ctx, std::string_view endpoint_id, Op&& op)
+    -> decltype(op(std::declval<RedisClient&>())) {
+  // Get the client (creates if needed)
+  RedisClient& client = GetRedisClient(ctx, endpoint_id);
+
+  // Get max_inflight from endpoint policy
+  int max_inflight = kDefaultMaxInflight;
+  if (ctx.endpoints) {
+    if (const auto* ep = ctx.endpoints->by_id(endpoint_id)) {
+      if (ep->policy.max_inflight) {
+        max_inflight = *ep->policy.max_inflight;
+      }
+    }
+  }
+
+  // Acquire inflight slot (blocks if at limit, releases on scope exit)
+  auto guard = InflightLimiter::acquire(std::string(endpoint_id), max_inflight);
+
+  // Execute the operation
+  return op(client);
+}
 
 }  // namespace rankd

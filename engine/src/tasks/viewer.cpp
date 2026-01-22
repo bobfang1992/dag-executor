@@ -48,13 +48,12 @@ class ViewerTask {
     }
     uint32_t user_id = ctx.request->user_id;
 
-    // Get Redis client from per-request cache
+    // Get endpoint and fetch user data with inflight limiting
     const std::string& endpoint_id = params.get_string("endpoint");
-    RedisClient& redis = GetRedisClient(ctx, endpoint_id);
-
-    // Fetch user data
     std::string key = "user:" + std::to_string(user_id);
-    auto result = redis.hgetall(key);
+
+    auto result = WithInflightLimit(ctx, endpoint_id,
+        [&key](RedisClient& redis) { return redis.hgetall(key); });
 
     if (!result) {
       throw std::runtime_error("viewer: " + result.error());
