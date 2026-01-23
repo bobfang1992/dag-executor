@@ -65,8 +65,13 @@ void EventLoop::Stop() {
   uv_async_send(&async_);
 
   // Only join if not on loop thread (avoids deadlock)
-  if (!on_loop_thread && loop_thread_.joinable()) {
-    loop_thread_.join();
+  if (loop_thread_.joinable()) {
+    if (on_loop_thread) {
+      // Detach to avoid std::terminate on destruction
+      loop_thread_.detach();
+    } else {
+      loop_thread_.join();
+    }
   }
 }
 

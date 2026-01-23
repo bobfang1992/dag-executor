@@ -40,7 +40,7 @@ public:
 
   bool await_ready() const noexcept { return ms_ == 0; }
 
-  void await_suspend(std::coroutine_handle<> h) {
+  bool await_suspend(std::coroutine_handle<> h) {
     // Allocate state on heap - it will self-destruct after close
     auto* state = new SleepState{};
     state->handle = h;
@@ -50,10 +50,17 @@ public:
     auto ms = ms_;
 
     // Initialize and start timer on the loop thread
-    loop_.Post([loop_ptr, state, ms]() {
+    bool posted = loop_.Post([loop_ptr, state, ms]() {
       uv_timer_init(loop_ptr->RawLoop(), &state->timer);
       uv_timer_start(&state->timer, SleepState::OnTimer, ms, 0);
     });
+
+    if (!posted) {
+      // Loop not running - clean up and don't suspend
+      delete state;
+      return false;
+    }
+    return true;
   }
 
   void await_resume() noexcept {}
