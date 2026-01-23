@@ -79,10 +79,9 @@ struct CommandState : std::enable_shared_from_this<CommandState> {
   bool completed = false;  // Guard against double-resume (reply vs timeout race)
   CommandStateRef* callback_ref = nullptr;  // Control block for hiredis callback
 
-  ~CommandState() {
-    // Clean up the callback ref - OnReply will see expired weak_ptr
-    delete callback_ref;
-  }
+  // Note: We do NOT delete callback_ref in destructor. Hiredis still holds this
+  // pointer and will call OnReply later (even on disconnect/error). OnReply
+  // handles cleanup after seeing the expired weak_ptr.
 
   static void OnReply(redisAsyncContext* c, void* reply_ptr, void* privdata) {
     auto* ref = static_cast<CommandStateRef*>(privdata);
