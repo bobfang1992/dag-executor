@@ -7,6 +7,26 @@
 
 namespace ranking {
 
+// Task<T> - lazy coroutine that returns a value of type T.
+//
+// IMPORTANT: Lifetime requirement
+// --------------------------------
+// A Task MUST be kept alive until the coroutine completes. Destroying a Task
+// while it is suspended (e.g., waiting on SleepMs or an async operation) will
+// destroy the coroutine frame, leaving any pending callbacks with a dangling
+// handle. When those callbacks fire and try to resume, it's use-after-free.
+//
+// Safe patterns:
+//   Task<int> task = myCoroutine();
+//   task.start();
+//   // ... wait for completion ...
+//   int result = task.result();  // Task still alive
+//
+// Unsafe patterns:
+//   myCoroutine().start();  // Task destroyed immediately! Pending callbacks = UAF
+//
+// Future work: Add cancellation support to safely destroy pending coroutines.
+
 // Forward declaration
 template <typename T>
 struct Task;

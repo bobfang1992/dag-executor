@@ -10,6 +10,10 @@ namespace ranking {
 
 // Internal state for a sleep operation.
 // Allocated on the heap and self-destructs after the timer closes.
+//
+// IMPORTANT: The owning Task must remain alive until the timer fires.
+// If the Task is destroyed while suspended, this handle becomes dangling
+// and OnTimer will cause use-after-free. See coro_task.h for details.
 struct SleepState {
   uv_timer_t timer;
   std::coroutine_handle<> handle;
@@ -22,7 +26,7 @@ struct SleepState {
     uv_timer_stop(t);
     uv_close(reinterpret_cast<uv_handle_t*>(t), OnClose);
 
-    // Resume the coroutine
+    // Resume the coroutine (Task must still be alive!)
     h.resume();
   }
 
