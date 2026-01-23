@@ -126,11 +126,21 @@ Based on the architecture above, our EventLoop needs:
 | Thread-safe Post() | Yes | Yes | Bidirectional communication |
 | Stop from any thread | Yes | Yes | Scheduler controls lifecycle |
 | Stop from loop thread | No | Yes | Drains accepted callbacks, detaches thread |
-| Destroy from callback | No | Yes | Leaks loop (safe), detaches thread |
+| Destroy from callback | No | **No** | Would cause UAF (uv_run still on stack) |
 
 ## Edge Case Handling
 
-Stop/Destroy from loop thread are supported but have caveats:
-- **Stop from loop thread**: Drains queue, detaches thread to avoid deadlock
-- **Destroy from callback**: Leaks uv_loop (can't close while inside uv_run), but no crash/UAF
-- Uses shared_ptr for exit state so detached thread doesn't access freed memory
+- **Stop from loop thread**: Supported. Drains queue, detaches thread to avoid deadlock.
+- **Destroy from callback**: **NOT supported**. Destructor asserts if called from loop thread.
+  Callbacks must not hold the last reference to EventLoop.
+
+## Enforcement
+
+Callbacks should not perform destructive operations on the EventLoop:
+- Do NOT call `Stop()` unless necessary (prefer stopping from outside)
+- Do NOT destroy the EventLoop (hold references elsewhere)
+
+The destructor includes a runtime assert to catch this during development:
+```cpp
+assert(!on_loop_thread && "EventLoop destroyed from its own callback");
+```

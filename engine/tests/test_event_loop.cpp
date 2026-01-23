@@ -458,26 +458,9 @@ TEST_CASE("Stop from within callback", "[event_loop][edge_case]") {
   REQUIRE(true);
 }
 
-TEST_CASE("Destruction on loop thread is safe", "[event_loop][edge_case]") {
-  auto loop = std::make_shared<EventLoop>();
-  std::weak_ptr<EventLoop> weak_loop = loop;
-  loop->Start();
-
-  std::promise<void> destroyed;
-  auto destroyed_future = destroyed.get_future();
-
-  loop->Post([loop, &destroyed]() mutable {
-    // Destroy EventLoop from its own thread; should not UAF or crash.
-    loop.reset();
-    destroyed.set_value();
-  });
-
-  // Drop the caller's reference so destruction happens in the loop callback.
-  loop.reset();
-
-  destroyed_future.wait();
-  REQUIRE(weak_loop.expired());
-}
+// NOTE: "Destruction on loop thread" is NOT supported.
+// Callbacks must not destroy the EventLoop - this would cause UAF because
+// uv_run() is still on the stack. Destructor asserts if called from loop thread.
 
 TEST_CASE("Multiple Stop calls are idempotent", "[event_loop][edge_case]") {
   EventLoop loop;
@@ -919,4 +902,140 @@ TEST_CASE("High contention multi-producer", "[event_loop][stress]") {
 
   REQUIRE(counter.load() == TOTAL);
   loop.Stop();
+}
+
+// ============================================================================
+// Performance Tests
+// ============================================================================
+
+TEST_CASE("Perf: high-volume multi-producer throughput", "[event_loop][perf]") {
+  EventLoop loop;
+  loop.Start();
+
+  constexpr int NUM_THREADS = 8;
+  constexpr int POSTS_PER_THREAD = 10000;
+  constexpr int TOTAL = NUM_THREADS * POSTS_PER_THREAD;
+
+  std::atomic<int> counter{0};
+  std::promise<void> done;
+  auto done_future = done.get_future();
+  std::atomic<bool> signaled{false};
+
+  std::vector<std::thread> threads;
+  std::atomic<bool> start_flag{false};
+
+  auto start = std::chrono::steady_clock::now();
+
+  // Producers wait until signaled, then post in parallel
+  for (int t = 0; t < NUM_THREADS; ++t) {
+    threads.emplace_back([&]() {
+      while (!start_flag.load()) {
+        std::this_thread::yield();
+      }
+      for (int i = 0; i < POSTS_PER_THREAD; ++i) {
+        loop.Post([&]() {
+          int prev = counter.fetch_add(1);
+          if (prev == TOTAL - 1) {
+            bool expected = false;
+            if (signaled.compare_exchange_strong(expected, true)) {
+              done.set_value();
+            }
+          }
+        });
+      }
+    });
+  }
+
+  start_flag.store(true);
+
+  auto status = done_future.wait_for(std::chrono::seconds(10));
+  auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now() - start)
+                        .count();
+  INFO("Throughput elapsed ms: " << elapsed_ms);
+
+  for (auto& t : threads) {
+    t.join();
+  }
+
+  REQUIRE(status == std::future_status::ready);
+  REQUIRE(counter.load() == TOTAL);
+  REQUIRE(elapsed_ms < 5000);  // Should complete well under 5s on typical hosts
+
+  loop.Stop();
+}
+
+TEST_CASE("Perf: short timers stay within latency budget", "[event_loop][perf][coroutine]") {
+  EventLoop loop;
+  loop.Start();
+
+  constexpr int NUM_TIMERS = 200;
+  constexpr int SLEEP_MS = 2;
+
+  CompletionTracker tracker(NUM_TIMERS);
+  auto all_done_future = tracker.all_done.get_future();
+
+  std::vector<Task<void>> tasks;
+  tasks.reserve(NUM_TIMERS);
+  for (int i = 0; i < NUM_TIMERS; ++i) {
+    tasks.push_back(makeStressSleeper(loop, tracker, SLEEP_MS));
+  }
+
+  auto start = std::chrono::steady_clock::now();
+  for (auto& task : tasks) {
+    loop.Post([&task]() { task.start(); });
+  }
+
+  auto status = all_done_future.wait_for(std::chrono::seconds(3));
+  auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now() - start)
+                        .count();
+  INFO("Timer batch elapsed ms: " << elapsed_ms);
+
+  REQUIRE(status == std::future_status::ready);
+  REQUIRE(tracker.completed.load() == NUM_TIMERS);
+  REQUIRE(elapsed_ms < 500);  // Generous budget; flags regressions without flaking
+
+  loop.Stop();
+}
+
+TEST_CASE("Perf: start/stop with workload bursts", "[event_loop][perf]") {
+  constexpr int ITERATIONS = 20;
+  constexpr int POSTS_PER_ITERATION = 200;
+
+  auto total_start = std::chrono::steady_clock::now();
+
+  for (int iter = 0; iter < ITERATIONS; ++iter) {
+    EventLoop loop;
+    loop.Start();
+
+    std::atomic<int> counter{0};
+    std::promise<void> done;
+    auto done_future = done.get_future();
+    std::atomic<bool> signaled{false};
+
+    for (int i = 0; i < POSTS_PER_ITERATION; ++i) {
+      loop.Post([&]() {
+        int prev = counter.fetch_add(1);
+        if (prev == POSTS_PER_ITERATION - 1) {
+          bool expected = false;
+          if (signaled.compare_exchange_strong(expected, true)) {
+            done.set_value();
+          }
+        }
+      });
+    }
+
+    auto status = done_future.wait_for(std::chrono::seconds(2));
+    REQUIRE(status == std::future_status::ready);
+    REQUIRE(counter.load() == POSTS_PER_ITERATION);
+
+    loop.Stop();
+  }
+
+  auto total_elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              std::chrono::steady_clock::now() - total_start)
+                              .count();
+  INFO("Start/stop burst total elapsed ms: " << total_elapsed_ms);
+  REQUIRE(total_elapsed_ms < 5000);
 }

@@ -1,5 +1,6 @@
 #include "event_loop.h"
 
+#include <cassert>
 #include <stdexcept>
 
 namespace ranking {
@@ -25,22 +26,17 @@ EventLoop::EventLoop() : exit_state_(std::make_shared<EventLoopExitState>()) {
 EventLoop::~EventLoop() {
   Stop();
 
-  // Wait for the loop thread to fully exit before closing the loop
-  // Skip if we're on the loop thread (destructor called from callback)
+  // Callbacks must NOT destroy the EventLoop. If we're on the loop thread,
+  // uv_run() is still on the stack and destroying loop_ would cause UAF.
+  // This is a programming error - assert to catch it during development.
   bool on_loop_thread = started_.load() &&
                         (std::this_thread::get_id() == loop_thread_id_);
-  if (started_.load() && !on_loop_thread) {
+  assert(!on_loop_thread && "EventLoop destroyed from its own callback - this is undefined behavior");
+
+  // Wait for the loop thread to fully exit before closing the loop
+  if (started_.load()) {
     std::unique_lock<std::mutex> lock(exit_state_->exit_mutex);
     exit_state_->exit_cv.wait(lock, [this]() { return exit_state_->exited; });
-  }
-
-  // WARNING: If destroyed from loop thread, we're still inside uv_run().
-  // We cannot safely call uv_loop_close() in this case because libuv
-  // requires the loop to have finished executing. Skip it to avoid UB.
-  // This will leak the loop resources, but that's safer than crashing.
-  // Users should not destroy EventLoop from within its own callbacks.
-  if (on_loop_thread) {
-    return;  // Leak the loop rather than crash
   }
 
   uv_loop_close(&loop_);
