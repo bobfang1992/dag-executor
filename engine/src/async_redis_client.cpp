@@ -62,9 +62,14 @@ ParsedReply parse_reply(redisReply* r) {
   return p;
 }
 
+// Control block passed to hiredis callback - weak reference allows safe access
+// even if CommandState was destroyed after timeout.
+struct CommandStateRef {
+  std::weak_ptr<struct CommandState> state;
+};
+
 // State for a pending Redis command, used to communicate between callback and coroutine.
-// Shared between the awaitable and the hiredis callback using shared_ptr to prevent
-// use-after-free when timeout fires before reply arrives.
+// Shared between the awaitable and the hiredis callback using shared_ptr.
 struct CommandState : std::enable_shared_from_this<CommandState> {
   std::coroutine_handle<> handle;
   ParsedReply reply;
@@ -72,24 +77,32 @@ struct CommandState : std::enable_shared_from_this<CommandState> {
   AsyncInflightLimiter::Guard permit;  // Released when state is destroyed
   uv_timer_t* timeout_timer = nullptr;  // Optional timeout timer
   bool completed = false;  // Guard against double-resume (reply vs timeout race)
+  CommandStateRef* callback_ref = nullptr;  // Control block for hiredis callback
 
-  // prevent_destroy holds a self-reference to prevent destruction until
-  // the hiredis callback has fired (even if coroutine resumes due to timeout).
-  // This is cleared when OnReply is called, allowing normal destruction.
-  std::shared_ptr<CommandState> prevent_destroy;
+  ~CommandState() {
+    // Clean up the callback ref - OnReply will see expired weak_ptr
+    delete callback_ref;
+  }
 
   static void OnReply(redisAsyncContext* c, void* reply_ptr, void* privdata) {
-    auto* state = static_cast<CommandState*>(privdata);
-    if (!state) return;
+    auto* ref = static_cast<CommandStateRef*>(privdata);
+    if (!ref) return;
 
-    // Take ownership of prevent_destroy to allow destruction after this callback
-    auto prevent = std::move(state->prevent_destroy);
+    // Try to lock the weak_ptr - if state was destroyed (timeout + awaitable done), bail
+    auto state = ref->state.lock();
+    if (!state) {
+      // State was destroyed after timeout - just clean up the ref
+      delete ref;
+      return;
+    }
+
+    // Clear callback_ref since we're handling cleanup here
+    state->callback_ref = nullptr;
 
     // Guard against double-resume if timeout already fired
     if (state->completed) {
-      // Timeout already resumed the coroutine. Just clean up and return.
-      // The 'prevent' shared_ptr going out of scope may destroy state if
-      // awaitable already finished.
+      // Timeout already resumed the coroutine. Clean up and return.
+      delete ref;
       return;
     }
     state->completed = true;
@@ -114,8 +127,8 @@ struct CommandState : std::enable_shared_from_this<CommandState> {
     // Resume the coroutine - the state will be read in await_resume
     // We're already on the loop thread since this is a hiredis callback
     auto h = state->handle;
+    delete ref;  // Clean up before resume (which may destroy state)
     h.resume();
-    // 'prevent' is destroyed here, but state may still be owned by awaitable
   }
 
   static void OnTimeout(uv_timer_t* timer) {
@@ -138,8 +151,8 @@ struct CommandState : std::enable_shared_from_this<CommandState> {
     state->permit = AsyncInflightLimiter::Guard();
 
     // Resume with timeout error
-    // Note: We keep prevent_destroy so state stays alive for OnReply (which will
-    // see completed=true and just clean up). This is safe because permit is released.
+    // Note: callback_ref still exists but OnReply will see completed=true or
+    // expired weak_ptr (if awaitable finishes and state is destroyed).
     auto h = state->handle;
     h.resume();
   }
@@ -265,12 +278,13 @@ class RedisCommandAwaitable {
       uv_timer_start(timer, CommandState::OnTimeout, static_cast<uint64_t>(timeout_ms_), 0);
     }
 
-    // Set up prevent_destroy before issuing command - this keeps state alive
-    // until OnReply is called, even if timeout fires first and awaitable is destroyed.
-    state_ptr->prevent_destroy = state_;
+    // Create callback ref with weak_ptr - allows OnReply to safely check if state
+    // was destroyed after timeout.
+    auto* ref = new CommandStateRef{state_};
+    state_ptr->callback_ref = ref;
 
     // Issue the async command
-    int status = redisAsyncFormattedCommand(ctx, CommandState::OnReply, state_ptr,
+    int status = redisAsyncFormattedCommand(ctx, CommandState::OnReply, ref,
                                             command_.c_str(), command_.size());
 
     if (status != REDIS_OK) {
@@ -281,8 +295,9 @@ class RedisCommandAwaitable {
                  [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
         state_ptr->timeout_timer = nullptr;
       }
-      // Clear prevent_destroy since no callback will fire - prevents permit leak
-      state_ptr->prevent_destroy.reset();
+      // Clean up callback ref since no callback will fire
+      delete ref;
+      state_ptr->callback_ref = nullptr;
       state_ptr->error = ctx->errstr ? ctx->errstr : "Failed to queue Redis command";
       state_ptr->handle.resume();
     }
