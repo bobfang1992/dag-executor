@@ -157,7 +157,10 @@ class RedisCommandAwaitable {
         auto guard = co_await self->limiter_.acquire();
         state->permit = std::move(guard);
         self->issue_command(state);
-        delete this;
+        // Post cleanup to next event loop iteration - coroutine will be at
+        // final_suspend by then and safe to destroy
+        auto* to_delete = this;
+        self->loop_.Post([to_delete]() { delete to_delete; });
       }
     };
 
@@ -225,6 +228,9 @@ AsyncRedisClient::AsyncRedisClient(EventLoop& loop, std::string endpoint_id, int
 
 AsyncRedisClient::~AsyncRedisClient() {
   if (ctx_) {
+    // Clear data pointer before disconnect to prevent callbacks from
+    // dereferencing freed client memory (use-after-free prevention)
+    ctx_->data = nullptr;
     redisAsyncDisconnect(ctx_);
     ctx_ = nullptr;
   }
