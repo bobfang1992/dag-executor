@@ -93,10 +93,13 @@ struct CommandState {
 // Awaitable for a single Redis command that suspends until reply arrives.
 class RedisCommandAwaitable {
  public:
-  RedisCommandAwaitable(EventLoop& loop, redisAsyncContext* ctx, AsyncInflightLimiter& limiter,
+  // Note: We store ctx_ptr (pointer to client's ctx_ member) instead of ctx value
+  // to handle disconnection while waiting for permits - the client clears ctx_
+  // on disconnect and we check it before issuing commands.
+  RedisCommandAwaitable(EventLoop& loop, redisAsyncContext** ctx_ptr, AsyncInflightLimiter& limiter,
                         std::string command)
       : loop_(loop),
-        ctx_(ctx),
+        ctx_ptr_(ctx_ptr),
         limiter_(limiter),
         command_(std::move(command)),
         state_(std::make_unique<CommandState>()) {}
@@ -170,20 +173,28 @@ class RedisCommandAwaitable {
   }
 
   void issue_command(CommandState* state_ptr) {
+    // Check if connection is still valid (may have disconnected while waiting)
+    redisAsyncContext* ctx = *ctx_ptr_;
+    if (!ctx) {
+      state_ptr->error = "Connection closed while waiting for permit";
+      state_ptr->handle.resume();
+      return;
+    }
+
     // Issue the async command
-    int status = redisAsyncFormattedCommand(ctx_, CommandState::OnReply, state_ptr,
+    int status = redisAsyncFormattedCommand(ctx, CommandState::OnReply, state_ptr,
                                             command_.c_str(), command_.size());
 
     if (status != REDIS_OK) {
       // Command failed to queue - resume with error
-      state_ptr->error = ctx_->errstr ? ctx_->errstr : "Failed to queue Redis command";
+      state_ptr->error = ctx->errstr ? ctx->errstr : "Failed to queue Redis command";
       state_ptr->handle.resume();
     }
     // On success, OnReply will be called later and will resume the coroutine
   }
 
   EventLoop& loop_;
-  redisAsyncContext* ctx_;
+  redisAsyncContext** ctx_ptr_;  // Pointer to client's ctx_ member
   AsyncInflightLimiter& limiter_;
   std::string command_;
   std::unique_ptr<CommandState> state_;
@@ -338,7 +349,7 @@ Task<AsyncRedisClient::Result<std::optional<std::string>>> AsyncRedisClient::HGe
   std::string cmd = build_command({"HGET", key, field});
 
   // Create awaitable and execute
-  auto reply_result = co_await RedisCommandAwaitable(loop_, ctx_, limiter_, std::move(cmd));
+  auto reply_result = co_await RedisCommandAwaitable(loop_, &ctx_, limiter_, std::move(cmd));
 
   if (!reply_result) {
     co_return std::unexpected(reply_result.error());
@@ -369,7 +380,7 @@ Task<AsyncRedisClient::Result<std::vector<std::string>>> AsyncRedisClient::LRang
   // Build LRANGE command
   std::string cmd = build_command({"LRANGE", key, std::to_string(start), std::to_string(stop)});
 
-  auto reply_result = co_await RedisCommandAwaitable(loop_, ctx_, limiter_, std::move(cmd));
+  auto reply_result = co_await RedisCommandAwaitable(loop_, &ctx_, limiter_, std::move(cmd));
 
   if (!reply_result) {
     co_return std::unexpected(reply_result.error());
@@ -395,7 +406,7 @@ Task<AsyncRedisClient::Result<std::vector<std::string>>> AsyncRedisClient::HGetA
   // Build HGETALL command
   std::string cmd = build_command({"HGETALL", key});
 
-  auto reply_result = co_await RedisCommandAwaitable(loop_, ctx_, limiter_, std::move(cmd));
+  auto reply_result = co_await RedisCommandAwaitable(loop_, &ctx_, limiter_, std::move(cmd));
 
   if (!reply_result) {
     co_return std::unexpected(reply_result.error());
