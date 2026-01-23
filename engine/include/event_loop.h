@@ -3,6 +3,7 @@
 #include <uv.h>
 
 #include <atomic>
+#include <condition_variable>
 #include <functional>
 #include <mutex>
 #include <queue>
@@ -54,6 +55,11 @@ private:
   std::atomic<bool> running_{false};
   std::atomic<bool> started_{false};
   std::atomic<bool> stopping_{false};
+
+  // Shutdown synchronization - allows destructor to wait for loop exit
+  std::mutex exit_mutex_;
+  std::condition_variable exit_cv_;
+  bool exited_{false};
 };
 
 }  // namespace ranking

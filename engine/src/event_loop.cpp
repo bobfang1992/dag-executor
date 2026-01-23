@@ -13,6 +13,13 @@ EventLoop::EventLoop() {
 
 EventLoop::~EventLoop() {
   Stop();
+
+  // Wait for the loop thread to fully exit before closing the loop
+  if (started_.load()) {
+    std::unique_lock<std::mutex> lock(exit_mutex_);
+    exit_cv_.wait(lock, [this]() { return exited_; });
+  }
+
   uv_loop_close(&loop_);
 }
 
@@ -35,6 +42,13 @@ void EventLoop::Start() {
   loop_thread_ = std::thread([this]() {
     // Run the loop until Stop() is called
     uv_run(&loop_, UV_RUN_DEFAULT);
+
+    // Signal that the loop has exited
+    {
+      std::lock_guard<std::mutex> lock(exit_mutex_);
+      exited_ = true;
+    }
+    exit_cv_.notify_all();
   });
   loop_thread_id_ = loop_thread_.get_id();
 }
