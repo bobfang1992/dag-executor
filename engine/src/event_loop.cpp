@@ -82,17 +82,27 @@ void EventLoop::Start() {
   // Capture exit_state_ by value (shared_ptr copy) so thread can safely access
   // it even after EventLoop is destroyed (e.g., Stop called from callback)
   auto exit_state = exit_state_;
-  loop_thread_ = std::thread([this, exit_state]() {
-    // Run the loop until Stop() is called
-    uv_run(&loop_, UV_RUN_DEFAULT);
+  try {
+    loop_thread_ = std::thread([this, exit_state]() {
+      // Run the loop until Stop() is called
+      uv_run(&loop_, UV_RUN_DEFAULT);
 
-    // Always signal exit after uv_run returns. This is safe even if EventLoop
-    // is destroyed because exit_state is a shared_ptr copy. Destructor waits
-    // on this signal before calling uv_loop_close.
-    std::lock_guard<std::mutex> lock(exit_state->exit_mutex);
-    exit_state->exited = true;
-    exit_state->exit_cv.notify_all();
-  });
+      // Always signal exit after uv_run returns. This is safe even if EventLoop
+      // is destroyed because exit_state is a shared_ptr copy. Destructor waits
+      // on this signal before calling uv_loop_close.
+      std::lock_guard<std::mutex> lock(exit_state->exit_mutex);
+      exit_state->exited = true;
+      exit_state->exit_cv.notify_all();
+    });
+  } catch (...) {
+    // Thread creation failed (resource exhaustion). Reset state so Stop()
+    // doesn't spin-wait forever and destructor doesn't hang.
+    running_.store(false);
+    started_.store(false);
+    uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
+    uv_run(&loop_, UV_RUN_NOWAIT);
+    throw;
+  }
   loop_thread_id_ = loop_thread_.get_id();
 
   // Re-check in case Stop() raced between the first check and running_.store(true).
