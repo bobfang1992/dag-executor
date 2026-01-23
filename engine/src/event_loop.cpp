@@ -173,6 +173,12 @@ void EventLoop::Stop() {
     }
     uv_async_send(&async_);
 
+    // Wait for thread to be constructed if Start() is mid-flight.
+    // There's a tiny window between running_=true and loop_thread_ assignment.
+    while (running_.load() && !loop_thread_.joinable()) {
+      std::this_thread::yield();
+    }
+
     if (loop_thread_.joinable()) {
       loop_thread_.join();
     }
