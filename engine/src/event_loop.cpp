@@ -35,6 +35,11 @@ EventLoop::EventLoop() : exit_state_(std::make_shared<EventLoopExitState>()) {
 }
 
 EventLoop::~EventLoop() {
+  // Destructor on loop thread = deadlock (would wait on exit_cv forever).
+  // This is a programming error - callbacks must not own the EventLoop.
+  assert(loop_thread_.get_id() != std::this_thread::get_id() &&
+         "EventLoop destroyed from its own callback - undefined behavior");
+
   Stop();
 
   // Wait for the loop thread to fully exit before closing the loop.
