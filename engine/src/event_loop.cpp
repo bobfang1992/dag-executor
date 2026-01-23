@@ -45,6 +45,11 @@ EventLoop::~EventLoop() {
     exit_state_->exit_cv.wait(lock, [this]() { return exit_state_->exited; });
   }
 
+  // Join thread if Stop() couldn't (e.g., Stop raced with Start before thread created)
+  if (loop_thread_.joinable()) {
+    loop_thread_.join();
+  }
+
   // Always close the loop - uv_loop_init is called in constructor
   uv_loop_close(&loop_);
 }
