@@ -3,14 +3,25 @@
 #include <cassert>
 #include <stdexcept>
 
+#include "uv_sleep.h"
+
 namespace ranking {
 
 namespace {
-// Callback to close all handles during shutdown
+// Callback to close all handles during shutdown.
+// For timer handles (SleepState), we use the proper close callback to free memory.
 void CloseWalkCallback(uv_handle_t* handle, void* arg) {
   auto* async_handle = static_cast<uv_async_t*>(arg);
   // Don't close the async handle here - we handle it separately
-  if (handle != reinterpret_cast<uv_handle_t*>(async_handle) && !uv_is_closing(handle)) {
+  if (handle == reinterpret_cast<uv_handle_t*>(async_handle) || uv_is_closing(handle)) {
+    return;
+  }
+
+  // Timer handles are SleepState - use proper close callback to free memory
+  if (handle->type == UV_TIMER) {
+    uv_timer_stop(reinterpret_cast<uv_timer_t*>(handle));
+    uv_close(handle, SleepState::OnClose);
+  } else {
     uv_close(handle, nullptr);
   }
 }
