@@ -119,9 +119,9 @@ void EventLoop::Stop() {
     // Close the async handle last
     uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
 
-    // Run briefly to process close callbacks
-    uv_run(&loop_, UV_RUN_NOWAIT);
-
+    // Tell libuv to exit after processing close callbacks.
+    // Don't call uv_run here - we're already inside uv_run and re-entry is UB.
+    // The outer uv_run will process close callbacks before exiting.
     uv_stop(&loop_);
 
     // Do NOT signal exited here - we're still inside uv_run() on the stack.
@@ -145,9 +145,8 @@ void EventLoop::Stop() {
         // Close the async handle last
         uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
 
-        // Run briefly to process close callbacks
-        uv_run(&loop_, UV_RUN_NOWAIT);
-
+        // Tell libuv to exit after processing close callbacks.
+        // Don't call uv_run here - we're inside uv_run and re-entry is UB.
         uv_stop(&loop_);
       });
     }
