@@ -24,6 +24,15 @@ struct EventLoopExitState {
 // Single-threaded libuv event loop wrapper.
 // Provides thread-safe posting of callbacks to be executed on the loop thread.
 //
+// Usage pattern:
+//   - Scheduler owns EventLoop lifecycle (Start/Stop called from one thread)
+//   - Worker threads call Post() to schedule async work (thread-safe)
+//   - Event loop thread executes callbacks and IO polling
+//
+// The state machine handles concurrent Start/Stop for robustness, but in
+// practice the scheduler controls lifecycle sequentially. Consider singleton
+// pattern if Start/Stop complexity becomes unnecessary.
+//
 // Lifecycle state machine:
 //   Idle → Starting → Running → Stopping → Stopped
 //                 ↘ Stopped (if Stop called during init)
