@@ -5,6 +5,7 @@
 // libuv adapter must be included AFTER async.h
 #include <adapters/libuv.h>
 
+#include <cassert>
 #include <cstdarg>
 #include <cstring>
 
@@ -163,7 +164,11 @@ class RedisCommandAwaitable {
         // Post cleanup to next event loop iteration - coroutine will be at
         // final_suspend by then and safe to destroy
         auto* to_delete = this;
-        self->loop_.Post([to_delete]() { delete to_delete; });
+        bool posted = self->loop_.Post([to_delete]() { delete to_delete; });
+        if (!posted) {
+          // Loop stopped - delete synchronously (we're past the await point, safe to delete)
+          delete to_delete;
+        }
       }
     };
 
@@ -202,6 +207,8 @@ class RedisCommandAwaitable {
 
 // Helper to build Redis protocol command
 std::string build_command(const std::vector<std::string_view>& args) {
+  assert(!args.empty() && "Redis command requires at least one argument (the command name)");
+
   std::string cmd;
   cmd.reserve(256);
 
@@ -239,9 +246,13 @@ AsyncRedisClient::AsyncRedisClient(EventLoop& loop, std::string endpoint_id, int
 
 AsyncRedisClient::~AsyncRedisClient() {
   if (ctx_) {
-    // Clear data pointer before disconnect to prevent callbacks from
-    // dereferencing freed client memory (use-after-free prevention)
+    // SAFETY: Clear data pointer before disconnect to prevent callbacks from
+    // dereferencing freed client memory (use-after-free prevention).
+    // The OnConnect/OnDisconnect callbacks check for null data and early-return.
     ctx_->data = nullptr;
+    // NOTE: redisAsyncDisconnect is async - it will trigger OnDisconnect callback
+    // (which will early-return due to null data) and then hiredis frees the context.
+    // We must NOT call redisAsyncFree here as that would double-free.
     redisAsyncDisconnect(ctx_);
     ctx_ = nullptr;
   }
@@ -315,6 +326,8 @@ std::expected<void, std::string> AsyncRedisClient::connect(const std::string& ho
 }
 
 void AsyncRedisClient::OnConnect(const redisAsyncContext* c, int status) {
+  // SAFETY: c->data is set to 'this' in connect() and cleared to nullptr in destructor
+  // before calling redisAsyncDisconnect. This null check prevents use-after-free.
   auto* client = static_cast<AsyncRedisClient*>(c->data);
   if (!client) return;
 
@@ -328,6 +341,7 @@ void AsyncRedisClient::OnConnect(const redisAsyncContext* c, int status) {
 }
 
 void AsyncRedisClient::OnDisconnect(const redisAsyncContext* c, int status) {
+  // SAFETY: See OnConnect comment about c->data pointer validity.
   auto* client = static_cast<AsyncRedisClient*>(c->data);
   if (!client) return;
 

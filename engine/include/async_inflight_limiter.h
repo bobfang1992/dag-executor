@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <coroutine>
 #include <cstddef>
 #include <queue>
@@ -102,6 +103,21 @@ class AsyncInflightLimiter {
    * @param max_permits Maximum number of concurrent operations (must be > 0)
    */
   explicit AsyncInflightLimiter(size_t max_permits) : max_permits_(max_permits), current_(0) {}
+
+  /**
+   * Destructor - asserts no pending waiters.
+   *
+   * If there are pending waiters at destruction time, it indicates a bug:
+   * the limiter is being destroyed while coroutines are still waiting for permits.
+   * This would leave those coroutines suspended forever.
+   *
+   * IMPORTANT: Callers must ensure all operations complete before destroying the limiter.
+   */
+  ~AsyncInflightLimiter() {
+    // Assert in debug builds to catch bugs early
+    // In release, this is undefined behavior - the coroutines would be leaked
+    assert(waiters_.empty() && "AsyncInflightLimiter destroyed with pending waiters");
+  }
 
   // Non-copyable, non-movable (has waiters queue)
   AsyncInflightLimiter(const AsyncInflightLimiter&) = delete;
