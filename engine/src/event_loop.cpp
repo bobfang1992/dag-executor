@@ -67,6 +67,15 @@ void EventLoop::Start() {
   }
   async_.data = this;
 
+  // Check if Stop() was called during initialization.
+  // If so, clean up and don't start the loop thread.
+  if (stopping_.load()) {
+    uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
+    uv_run(&loop_, UV_RUN_NOWAIT);  // Process the close
+    started_.store(false);
+    return;
+  }
+
   running_.store(true);
 
   // Capture exit_state_ by value (shared_ptr copy) so thread can safely access
@@ -96,11 +105,9 @@ void EventLoop::Stop() {
   // Check running_ (not started_) because started_ is set before uv_async_init
   // completes. If we only checked started_, we could call uv_async_send on
   // an uninitialized handle.
+  // Keep stopping_=true so Start() can detect the pending stop request.
   if (!running_.load()) {
-    // Reset stopping_ so future Stop() calls can succeed after Start() completes.
-    // This handles the race where Stop() is called while Start() is in progress.
-    stopping_.store(false);
-    return;  // Never started or async handle not ready
+    return;  // Never started or async handle not ready - Start() will check stopping_
   }
 
   // Check if we're on the loop thread
