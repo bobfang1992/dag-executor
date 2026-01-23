@@ -93,6 +93,16 @@ void EventLoop::Start() {
     exit_state->exit_cv.notify_all();
   });
   loop_thread_id_ = loop_thread_.get_id();
+
+  // Re-check stopping_ in case Stop() raced between the first check and
+  // running_.store(true). If Stop() snuck in, it returned early because
+  // running_ was still false, but left stopping_=true. Now that running_
+  // is true and the loop thread is launched, we can properly stop it.
+  if (stopping_.load()) {
+    // Reset stopping_ so Stop() can proceed (it checks via CAS)
+    stopping_.store(false);
+    Stop();
+  }
 }
 
 void EventLoop::Stop() {
