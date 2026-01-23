@@ -5,11 +5,22 @@
 #include <atomic>
 #include <condition_variable>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <thread>
 
 namespace ranking {
+
+// Shared state for loop thread synchronization.
+// Held by both EventLoop and the loop thread via shared_ptr, so the thread
+// can safely access it even after EventLoop is destroyed (e.g., from a callback).
+struct EventLoopExitState {
+  std::mutex exit_mutex;
+  std::condition_variable exit_cv;
+  bool exited{false};
+  std::atomic<bool> detached{false};
+};
 
 // Single-threaded libuv event loop wrapper.
 // Provides thread-safe posting of callbacks to be executed on the loop thread.
@@ -56,13 +67,8 @@ private:
   std::atomic<bool> started_{false};
   std::atomic<bool> stopping_{false};
 
-  // Shutdown synchronization - allows destructor to wait for loop exit
-  std::mutex exit_mutex_;
-  std::condition_variable exit_cv_;
-  bool exited_{false};
-
-  // Set when thread is detached - tells thread to skip cleanup after uv_run
-  std::atomic<bool> detached_{false};
+  // Shared exit state - survives EventLoop destruction for safe thread cleanup
+  std::shared_ptr<EventLoopExitState> exit_state_;
 };
 
 }  // namespace ranking

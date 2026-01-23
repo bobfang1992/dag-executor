@@ -15,7 +15,7 @@ void CloseWalkCallback(uv_handle_t* handle, void* arg) {
 }
 }  // namespace
 
-EventLoop::EventLoop() {
+EventLoop::EventLoop() : exit_state_(std::make_shared<EventLoopExitState>()) {
   int r = uv_loop_init(&loop_);
   if (r != 0) {
     throw std::runtime_error("uv_loop_init failed: " + std::string(uv_strerror(r)));
@@ -30,8 +30,8 @@ EventLoop::~EventLoop() {
   bool on_loop_thread = started_.load() &&
                         (std::this_thread::get_id() == loop_thread_id_);
   if (started_.load() && !on_loop_thread) {
-    std::unique_lock<std::mutex> lock(exit_mutex_);
-    exit_cv_.wait(lock, [this]() { return exited_; });
+    std::unique_lock<std::mutex> lock(exit_state_->exit_mutex);
+    exit_state_->exit_cv.wait(lock, [this]() { return exit_state_->exited; });
   }
 
   // WARNING: If destroyed from loop thread, we're still inside uv_run().
@@ -62,15 +62,18 @@ void EventLoop::Start() {
 
   running_.store(true);
 
-  loop_thread_ = std::thread([this]() {
+  // Capture exit_state_ by value (shared_ptr copy) so thread can safely access
+  // it even after EventLoop is destroyed (e.g., from a callback on loop thread)
+  auto exit_state = exit_state_;
+  loop_thread_ = std::thread([this, exit_state]() {
     // Run the loop until Stop() is called
     uv_run(&loop_, UV_RUN_DEFAULT);
 
     // Signal that the loop has exited (unless detached - object may be destroyed)
-    if (!detached_.load()) {
-      std::lock_guard<std::mutex> lock(exit_mutex_);
-      exited_ = true;
-      exit_cv_.notify_all();
+    if (!exit_state->detached.load()) {
+      std::lock_guard<std::mutex> lock(exit_state->exit_mutex);
+      exit_state->exited = true;
+      exit_state->exit_cv.notify_all();
     }
   });
   loop_thread_id_ = loop_thread_.get_id();
@@ -108,15 +111,15 @@ void EventLoop::Stop() {
 
     // Signal exit for any waiters (though destructor will skip wait on loop thread)
     {
-      std::lock_guard<std::mutex> lock(exit_mutex_);
-      exited_ = true;
+      std::lock_guard<std::mutex> lock(exit_state_->exit_mutex);
+      exit_state_->exited = true;
     }
-    exit_cv_.notify_all();
+    exit_state_->exit_cv.notify_all();
 
     // Detach to avoid std::terminate on destruction
-    // Set detached_ so thread skips cleanup after uv_run (object may be destroyed)
+    // Set detached so thread skips cleanup after uv_run (object may be destroyed)
     if (loop_thread_.joinable()) {
-      detached_.store(true);
+      exit_state_->detached.store(true);
       loop_thread_.detach();
     }
   } else {
