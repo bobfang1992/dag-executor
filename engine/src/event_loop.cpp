@@ -15,7 +15,10 @@ EventLoop::~EventLoop() {
   Stop();
 
   // Wait for the loop thread to fully exit before closing the loop
-  if (started_.load()) {
+  // Skip if we're on the loop thread (destructor called from callback)
+  bool on_loop_thread = started_.load() &&
+                        (std::this_thread::get_id() == loop_thread_id_);
+  if (started_.load() && !on_loop_thread) {
     std::unique_lock<std::mutex> lock(exit_mutex_);
     exit_cv_.wait(lock, [this]() { return exited_; });
   }
