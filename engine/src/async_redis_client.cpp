@@ -133,9 +133,13 @@ struct CommandState : std::enable_shared_from_this<CommandState> {
     uv_close(reinterpret_cast<uv_handle_t*>(timer),
              [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
 
+    // Release the permit immediately - don't wait for OnReply which may never come
+    // (e.g., stalled connection). This prevents permit leaks on timeout.
+    state->permit = AsyncInflightLimiter::Guard();
+
     // Resume with timeout error
-    // Note: We do NOT clear prevent_destroy here - the hiredis callback
-    // will still fire later and needs to find valid state to clear it.
+    // Note: We keep prevent_destroy so state stays alive for OnReply (which will
+    // see completed=true and just clean up). This is safe because permit is released.
     auto h = state->handle;
     h.resume();
   }
@@ -277,6 +281,8 @@ class RedisCommandAwaitable {
                  [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
         state_ptr->timeout_timer = nullptr;
       }
+      // Clear prevent_destroy since no callback will fire - prevents permit leak
+      state_ptr->prevent_destroy.reset();
       state_ptr->error = ctx->errstr ? ctx->errstr : "Failed to queue Redis command";
       state_ptr->handle.resume();
     }
