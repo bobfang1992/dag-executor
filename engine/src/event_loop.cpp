@@ -84,6 +84,10 @@ void EventLoop::Start() {
   auto exit_state = exit_state_;
   try {
     loop_thread_ = std::thread([this, exit_state]() {
+      // Set own thread ID first, before any callbacks can run.
+      // This prevents Stop() from mis-detecting whether it's on the loop thread.
+      loop_thread_id_ = std::this_thread::get_id();
+
       // Run the loop until Stop() is called
       uv_run(&loop_, UV_RUN_DEFAULT);
 
@@ -103,7 +107,6 @@ void EventLoop::Start() {
     uv_run(&loop_, UV_RUN_NOWAIT);
     throw;
   }
-  loop_thread_id_ = loop_thread_.get_id();
 
   // Re-check in case Stop() raced between the first check and running_.store(true).
   // If Stop() snuck in, it set stop_requested_during_init_ and returned early.
@@ -129,6 +132,12 @@ void EventLoop::Stop() {
     stop_requested_during_init_.store(true);
     stopping_.store(false);  // Reset so future Stop() can proceed
     return;
+  }
+
+  // Wait for loop_thread_id_ to be set. The thread sets it as its first operation,
+  // but there's a tiny window where Stop() could be called before that happens.
+  while (loop_thread_id_ == std::thread::id{}) {
+    std::this_thread::yield();
   }
 
   // Check if we're on the loop thread
