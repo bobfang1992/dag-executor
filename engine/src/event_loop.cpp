@@ -97,6 +97,9 @@ void EventLoop::Stop() {
   // completes. If we only checked started_, we could call uv_async_send on
   // an uninitialized handle.
   if (!running_.load()) {
+    // Reset stopping_ so future Stop() calls can succeed after Start() completes.
+    // This handles the race where Stop() is called while Start() is in progress.
+    stopping_.store(false);
     return;  // Never started or async handle not ready
   }
 
