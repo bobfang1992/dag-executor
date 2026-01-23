@@ -56,6 +56,9 @@ public:
     // Initialize and start timer on the loop thread
     bool posted = loop_.Post([loop_ptr, state, ms]() {
       uv_timer_init(loop_ptr->RawLoop(), &state->timer);
+      // Tag timer so CloseWalkCallback knows it's a SleepState
+      // (data == handle address since timer is first member of SleepState)
+      state->timer.data = state;
       uv_timer_start(&state->timer, SleepState::OnTimer, ms, 0);
     });
 

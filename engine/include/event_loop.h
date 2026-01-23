@@ -33,6 +33,10 @@ struct EventLoopExitState {
 // practice the scheduler controls lifecycle sequentially. Consider singleton
 // pattern if Start/Stop complexity becomes unnecessary.
 //
+// Future: Consider making Post() private and exposing typed operations
+// (ScheduleTimer, ScheduleRedis) to prevent misuse like callbacks holding
+// EventLoop ownership. Awaitables would use internal API.
+//
 // Lifecycle state machine:
 //   Idle → Starting → Running → Stopping → Stopped
 //                 ↘ Stopped (if Stop called during init)

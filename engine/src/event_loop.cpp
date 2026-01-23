@@ -17,10 +17,17 @@ void CloseWalkCallback(uv_handle_t* handle, void* arg) {
     return;
   }
 
-  // Timer handles are SleepState - use proper close callback to free memory
+  // Timer handles MAY be SleepState - check if tagged (data == handle address)
+  // Only delete tagged timers; others may be stack/member allocated
   if (handle->type == UV_TIMER) {
     uv_timer_stop(reinterpret_cast<uv_timer_t*>(handle));
-    uv_close(handle, SleepState::OnClose);
+    if (handle->data == handle) {
+      // Tagged SleepState timer - use proper close callback to free memory
+      uv_close(handle, SleepState::OnClose);
+    } else {
+      // External timer - just close, don't delete
+      uv_close(handle, nullptr);
+    }
   } else {
     uv_close(handle, nullptr);
   }
