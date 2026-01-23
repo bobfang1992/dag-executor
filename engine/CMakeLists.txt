@@ -40,6 +40,12 @@ FetchContent_Declare(
   GIT_TAG v1.2.0
 )
 
+FetchContent_Declare(
+  libuv
+  GIT_REPOSITORY https://github.com/libuv/libuv.git
+  GIT_TAG v1.48.0
+)
+
 # Disable Catch2's own tests
 set(CATCH_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
@@ -50,7 +56,10 @@ set(RE2_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(DISABLE_TESTS ON CACHE BOOL "" FORCE)
 set(ENABLE_SSL OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(json cli11 Catch2 re2 hiredis)
+# Disable libuv tests
+set(LIBUV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(json cli11 Catch2 re2 hiredis libuv)
 
 # Task source files (self-registering via static TaskRegistrar)
 set(TASK_SOURCES
@@ -252,5 +261,18 @@ target_include_directories(dag_scheduler_tests PRIVATE ${CMAKE_SOURCE_DIR}/inclu
 target_link_libraries(dag_scheduler_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis)
 
 set_target_properties(dag_scheduler_tests PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)
+
+# Event loop tests executable (Catch2) - coroutine/libuv primitives
+add_executable(event_loop_tests
+  tests/test_event_loop.cpp
+  src/event_loop.cpp
+)
+
+target_include_directories(event_loop_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(event_loop_tests PRIVATE Catch2::Catch2WithMain uv_a)
+
+set_target_properties(event_loop_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )

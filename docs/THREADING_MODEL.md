@@ -143,11 +143,20 @@ Benchmark mode always enables within-request parallelism.
 
 ## Future: Async Coroutines (14.5c)
 
-The two-pool model is an interim solution. Future work (Step 14.5c) will replace it with:
+The two-pool model is an interim solution. Step 14.5c will replace it with:
 
-- **libuv event loop** for async IO
+- **libuv event loop** for async IO (single thread)
 - **C++20 coroutines** for suspend/resume at IO boundaries
-- Single-threaded event loop + coroutine scheduler
 - Fine-grained yielding: tasks can yield mid-execution on IO
 
-This enables higher concurrency with fewer threads and eliminates the need for separate pools.
+This enables higher concurrency with fewer threads (1 thread can have 100+ Redis calls in flight vs 8 threads = max 8 calls with blocking IO).
+
+### Progress
+
+| Step | Status | Description |
+|------|--------|-------------|
+| 14.5c.1 | ✅ Done | EventLoop + Task<T> + SleepMs awaitable |
+| 14.5c.2 | 🔲 | Async Redis awaitable (hiredis async) |
+| 14.5c.3 | 🔲 | Coroutine DAG scheduler integration |
+
+See [event_loop_architecture.md](event_loop_architecture.md) for detailed architecture diagrams.
