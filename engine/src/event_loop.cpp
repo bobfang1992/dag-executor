@@ -34,6 +34,15 @@ EventLoop::~EventLoop() {
     exit_cv_.wait(lock, [this]() { return exited_; });
   }
 
+  // WARNING: If destroyed from loop thread, we're still inside uv_run().
+  // We cannot safely call uv_loop_close() in this case because libuv
+  // requires the loop to have finished executing. Skip it to avoid UB.
+  // This will leak the loop resources, but that's safer than crashing.
+  // Users should not destroy EventLoop from within its own callbacks.
+  if (on_loop_thread) {
+    return;  // Leak the loop rather than crash
+  }
+
   uv_loop_close(&loop_);
 }
 
@@ -138,8 +147,10 @@ void EventLoop::Stop() {
 }
 
 bool EventLoop::Post(std::function<void()> fn) {
-  // Reject posts before Start() or after Stop() begins
-  if (!started_.load() || stopping_.load()) {
+  // Reject posts before Start() completes or after Stop() begins.
+  // Use running_ (not started_) because started_ is set before uv_async_init
+  // completes, creating a race where Post could send to uninitialized handle.
+  if (!running_.load() || stopping_.load()) {
     return false;
   }
   {

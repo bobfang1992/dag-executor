@@ -82,7 +82,9 @@ struct Task {
   Task& operator=(const Task&) = delete;
 
   // Awaitable interface
-  bool await_ready() const noexcept { return false; }
+  // Return true if already done (e.g., after start() was called) to avoid
+  // resuming a completed coroutine, which is undefined behavior.
+  bool await_ready() const noexcept { return !handle_ || handle_.done(); }
 
   std::coroutine_handle<> await_suspend(std::coroutine_handle<> awaiting) noexcept {
     handle_.promise().continuation_ = awaiting;
@@ -155,7 +157,9 @@ struct Task<void> {
   Task& operator=(const Task&) = delete;
 
   // Awaitable interface
-  bool await_ready() const noexcept { return false; }
+  // Return true if already done (e.g., after start() was called) to avoid
+  // resuming a completed coroutine, which is undefined behavior.
+  bool await_ready() const noexcept { return !handle_ || handle_.done(); }
 
   std::coroutine_handle<> await_suspend(std::coroutine_handle<> awaiting) noexcept {
     handle_.promise().continuation_ = awaiting;
