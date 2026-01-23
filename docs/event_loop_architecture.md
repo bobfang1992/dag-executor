@@ -120,16 +120,17 @@ Both directions need thread-safe posting!
 
 Based on the architecture above, our EventLoop needs:
 
-| Feature | Required? | Reason |
-|---------|-----------|--------|
-| Dedicated loop thread | Yes | Can't block scheduler threads |
-| Thread-safe Post() | Yes | Bidirectional communication |
-| Stop from any thread | Yes | Scheduler controls lifecycle |
-| Stop from loop thread | No | Not needed in normal operation |
-| Destroy from callback | No | Not needed in normal operation |
+| Feature | Required? | Supported | Notes |
+|---------|-----------|-----------|-------|
+| Dedicated loop thread | Yes | Yes | Can't block scheduler threads |
+| Thread-safe Post() | Yes | Yes | Bidirectional communication |
+| Stop from any thread | Yes | Yes | Scheduler controls lifecycle |
+| Stop from loop thread | No | Yes | Drains accepted callbacks, detaches thread |
+| Destroy from callback | No | Yes | Leaks loop (safe), detaches thread |
 
-## Simplification Opportunity
+## Edge Case Handling
 
-The edge cases causing complexity (Stop/Destroy from callbacks) are not needed
-for the scheduler use case. We can document them as unsupported rather than
-implementing complex workarounds.
+Stop/Destroy from loop thread are supported but have caveats:
+- **Stop from loop thread**: Drains queue, detaches thread to avoid deadlock
+- **Destroy from callback**: Leaks uv_loop (can't close while inside uv_run), but no crash/UAF
+- Uses shared_ptr for exit state so detached thread doesn't access freed memory
