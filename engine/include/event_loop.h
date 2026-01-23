@@ -65,6 +65,9 @@ private:
   std::atomic<bool> running_{false};
   std::atomic<bool> started_{false};
   std::atomic<bool> stopping_{false};
+  // Set by Stop() when it returns early because running_=false.
+  // Checked by Start() to honor stop requests during initialization.
+  std::atomic<bool> stop_requested_during_init_{false};
 
   // Shared exit state - survives EventLoop destruction for safe thread cleanup
   std::shared_ptr<EventLoopExitState> exit_state_;
