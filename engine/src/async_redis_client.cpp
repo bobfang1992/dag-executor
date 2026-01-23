@@ -92,6 +92,11 @@ struct CommandState {
 };
 
 // Awaitable for a single Redis command that suspends until reply arrives.
+//
+// IMPORTANT: The Task returned by HGet/LRange/HGetAll MUST NOT be destroyed while
+// awaiting. Destroying a suspended coroutine while a Redis command is in flight
+// causes undefined behavior (the callback will have a dangling pointer).
+// In practice, this means: don't drop/reassign the Task until it completes.
 class RedisCommandAwaitable {
  public:
   // Note: We store ctx_ptr (pointer to client's ctx_ member) instead of ctx value

@@ -81,6 +81,9 @@ class AsyncRedisClient {
   /**
    * HGET key field - get a hash field value.
    *
+   * IMPORTANT: The returned Task MUST be awaited to completion. Do not destroy
+   * or reassign the Task while a Redis command is in flight (undefined behavior).
+   *
    * @return Value if exists, nullopt if field doesn't exist, or error
    */
   Task<Result<std::optional<std::string>>> HGet(std::string_view key, std::string_view field);
@@ -88,12 +91,16 @@ class AsyncRedisClient {
   /**
    * LRANGE key start stop - get list elements in range.
    *
+   * IMPORTANT: See HGet() for Task lifetime requirements.
+   *
    * @return Vector of elements, or error
    */
   Task<Result<std::vector<std::string>>> LRange(std::string_view key, int64_t start, int64_t stop);
 
   /**
    * HGETALL key - get all hash fields and values.
+   *
+   * IMPORTANT: See HGet() for Task lifetime requirements.
    *
    * @return Vector of alternating field/value strings, or error
    */
