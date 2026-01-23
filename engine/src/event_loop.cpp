@@ -46,12 +46,12 @@ void EventLoop::Start() {
     // Run the loop until Stop() is called
     uv_run(&loop_, UV_RUN_DEFAULT);
 
-    // Signal that the loop has exited
-    {
+    // Signal that the loop has exited (unless detached - object may be destroyed)
+    if (!detached_.load()) {
       std::lock_guard<std::mutex> lock(exit_mutex_);
       exited_ = true;
+      exit_cv_.notify_all();
     }
-    exit_cv_.notify_all();
   });
   loop_thread_id_ = loop_thread_.get_id();
 }
@@ -85,7 +85,9 @@ void EventLoop::Stop() {
     exit_cv_.notify_all();
 
     // Detach to avoid std::terminate on destruction
+    // Set detached_ so thread skips cleanup after uv_run (object may be destroyed)
     if (loop_thread_.joinable()) {
+      detached_.store(true);
       loop_thread_.detach();
     }
   } else {

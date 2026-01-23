@@ -60,6 +60,9 @@ private:
   std::mutex exit_mutex_;
   std::condition_variable exit_cv_;
   bool exited_{false};
+
+  // Set when thread is detached - tells thread to skip cleanup after uv_run
+  std::atomic<bool> detached_{false};
 };
 
 }  // namespace ranking
