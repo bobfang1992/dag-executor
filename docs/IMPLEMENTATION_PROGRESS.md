@@ -160,26 +160,60 @@ This document tracks the implementation status of all features in the dag-execut
 - Fail-fast error propagation
 - See [docs/THREADING_MODEL.md](THREADING_MODEL.md) for architecture details
 
+### Step 14.5c.1: libuv Event Loop + Sleep Awaitable (Coroutine MVP)
+- **Goal**: Prove coroutine suspend/resume on single libuv loop thread
+- **Architecture**:
+  ```
+  ┌─────────────────────────────────────────────────────────────┐
+  │                      DAG Scheduler                          │
+  │  ┌─────────────────────┐     ┌─────────────────────────────┐│
+  │  │   CPU Thread Pool   │     │       EventLoop (1 thread)  ││
+  │  │   (vm, filter, sort)│     │   libuv: poll IO            ││
+  │  └─────────────────────┘     │   100+ Redis in flight      ││
+  │            │ Post()          │   On complete: resume coro  ││
+  │            ▼                 └─────────────────────────────┘│
+  │  ┌─────────────────────┐                                    │
+  │  │ Suspended Coroutines│◄── hiredis async (future step)    │
+  │  └─────────────────────┘                                    │
+  └─────────────────────────────────────────────────────────────┘
+  ```
+- **Files**:
+  - `engine/include/event_loop.h` - EventLoop class with thread-safe `Post()`
+  - `engine/src/event_loop.cpp` - libuv loop lifecycle, queue drain, edge case handling
+  - `engine/include/coro_task.h` - `Task<T>` lazy coroutine with exception propagation
+  - `engine/include/uv_sleep.h` - `SleepMs` awaitable using `uv_timer_t`
+  - `docs/event_loop_architecture.md` - Architecture diagrams
+- **Thread safety** (Codex-hardened):
+  - `Post()` rejects after `Stop()` begins
+  - Stop/Destroy from loop thread supported (detaches, leaks loop safely)
+  - Shared exit state via `shared_ptr` for safe cleanup
+- **Validation**: Two `Sleep(50ms)` complete in ~52ms (proves parallel suspension)
+- **Tests**: 26 test cases, 38 assertions
+- See PR #58, Issue #59
+
 ---
 
 ## 🔲 Not Yet Implemented
 
-### Step 14.5c: Async Coroutine Scheduler with libuv
-- Replace thread-pool blocking model with event-loop + C++20 coroutines
-- **Goal**: Suspend/resume at IO boundaries, not just node boundaries
-- **Architecture**:
-  - libuv event loop handles all IO completion (single thread)
-  - C++20 coroutines (`co_await`, `co_return`) for natural async syntax
-  - Minimal `Task<T>` + `UvAwaitable<T>` wrapper (~200 LOC)
-  - hiredis async API + libuv adapter for non-blocking Redis
+### Step 14.5c.2: Async Redis Awaitable
+- `RedisAwaitable` using `redisAsyncContext` + hiredis-libuv adapter
+- Convert viewer/follow/media/recommendation tasks to coroutines
+- Remove blocking Redis calls from IO thread pool
+
+### Step 14.5c.3: Coroutine DAG Scheduler Integration
+- Replace thread-pool DAG scheduler with coroutine-based scheduler
+- CPU tasks stay on CPU pool, IO tasks become coroutines on EventLoop
 - **Task signature change**: `RowSet run(...)` → `Task<RowSet> run(...)`
 - **Benefits**:
-  - Single thread handles many concurrent requests (no thread-per-request)
-  - No mutex needed for Redis client (single-threaded event loop)
+  - 1 thread handles 100+ concurrent Redis calls (vs 8 threads = 8 calls)
   - Natural backpressure (coroutines suspend, don't spawn threads)
-  - Fine-grained yielding: a node can yield mid-execution on IO
-- **Dependencies**: libuv (vcpkg), hiredis async
-- **Migration**: Incremental - convert tasks one by one
+  - Fine-grained yielding: node can yield mid-execution on IO
+
+### Step 14.5c.future: EventLoop Benchmarking
+- [ ] Benchmark EventLoop throughput (posts/sec, timers/sec)
+- [ ] Compare coroutine overhead vs thread pool for IO-bound workloads
+- [ ] Profile memory usage (coroutine frames vs thread stacks)
+- [ ] Measure latency distribution under load
 
 ### Step 14.2 Follow-up: Endpoint Registry Hardening
 - [ ] Validate endpoint digests: recompute from parsed entries, compare against JSON values, reject mismatched --env
