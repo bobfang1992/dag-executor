@@ -258,3 +258,20 @@ TEST_CASE("Nested coroutine awaits", "[event_loop][coroutine]") {
 
   loop.Stop();
 }
+
+TEST_CASE("Post before Start returns false", "[event_loop]") {
+  EventLoop loop;
+  // Don't call Start()
+
+  bool posted = loop.Post([]() {});
+  REQUIRE_FALSE(posted);
+}
+
+TEST_CASE("Post after Stop returns false", "[event_loop]") {
+  EventLoop loop;
+  loop.Start();
+  loop.Stop();
+
+  bool posted = loop.Post([]() {});
+  REQUIRE_FALSE(posted);
+}

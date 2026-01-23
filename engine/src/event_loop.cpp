@@ -36,31 +36,52 @@ void EventLoop::Start() {
     // Run the loop until Stop() is called
     uv_run(&loop_, UV_RUN_DEFAULT);
   });
+  loop_thread_id_ = loop_thread_.get_id();
 }
 
 void EventLoop::Stop() {
-  if (!running_.exchange(false)) {
-    return;  // Already stopped or never started
+  // Use stopping_ to prevent re-entry and signal Post() to reject new callbacks
+  bool expected = false;
+  if (!stopping_.compare_exchange_strong(expected, true)) {
+    return;  // Already stopping
   }
 
-  // Post a callback that stops the loop
-  Post([this]() {
-    uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
-    uv_stop(&loop_);
-  });
+  if (!started_.load()) {
+    return;  // Never started
+  }
 
-  if (loop_thread_.joinable()) {
+  // Check if we're on the loop thread to avoid deadlock
+  bool on_loop_thread = (std::this_thread::get_id() == loop_thread_id_);
+
+  // Directly queue and signal (don't use Post() which checks stopping_)
+  {
+    std::lock_guard<std::mutex> lock(queue_mutex_);
+    queue_.push([this]() {
+      running_.store(false);
+      uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
+      uv_stop(&loop_);
+    });
+  }
+  uv_async_send(&async_);
+
+  // Only join if not on loop thread (avoids deadlock)
+  if (!on_loop_thread && loop_thread_.joinable()) {
     loop_thread_.join();
   }
 }
 
-void EventLoop::Post(std::function<void()> fn) {
+bool EventLoop::Post(std::function<void()> fn) {
+  // Reject posts before Start() or after Stop() begins
+  if (!started_.load() || stopping_.load()) {
+    return false;
+  }
   {
     std::lock_guard<std::mutex> lock(queue_mutex_);
     queue_.push(std::move(fn));
   }
   // Wake up the loop thread
   uv_async_send(&async_);
+  return true;
 }
 
 void EventLoop::OnAsync(uv_async_t* handle) {

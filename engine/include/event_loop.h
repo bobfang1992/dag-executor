@@ -31,7 +31,8 @@ public:
 
   // Post a callback to be executed on the loop thread.
   // Thread-safe; can be called from any thread.
-  void Post(std::function<void()> fn);
+  // Returns false if the loop is not running (not started or stopping).
+  bool Post(std::function<void()> fn);
 
   // Access the raw libuv loop handle.
   // Only valid after Start() and before Stop().
@@ -47,10 +48,12 @@ private:
   uv_loop_t loop_;
   uv_async_t async_;
   std::thread loop_thread_;
+  std::thread::id loop_thread_id_;
   std::mutex queue_mutex_;
   std::queue<std::function<void()>> queue_;
   std::atomic<bool> running_{false};
   std::atomic<bool> started_{false};
+  std::atomic<bool> stopping_{false};
 };
 
 }  // namespace ranking
