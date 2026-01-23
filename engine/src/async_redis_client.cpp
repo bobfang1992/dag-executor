@@ -160,6 +160,11 @@ class RedisCommandAwaitable {
       Task<void> run() {
         auto guard = co_await self->limiter_.acquire();
         state->permit = std::move(guard);
+        // SAFETY: Capture loop reference BEFORE issue_command. If issue_command
+        // fails, it resumes the awaiter synchronously, which may destroy the
+        // RedisCommandAwaitable (self) before we return. Accessing self->loop_
+        // after that would be use-after-free.
+        EventLoop& loop = self->loop_;
         self->issue_command(state);
         // Post cleanup to next event loop iteration - coroutine will be at
         // final_suspend by then and safe to destroy.
@@ -167,7 +172,7 @@ class RedisCommandAwaitable {
         // Deleting 'this' would destroy the Task member and call handle_.destroy()
         // on the running coroutine frame, which is undefined behavior.
         auto* to_delete = this;
-        bool posted = self->loop_.Post([to_delete]() { delete to_delete; });
+        bool posted = loop.Post([to_delete]() { delete to_delete; });
         if (!posted) {
           // Loop stopped - can't post. Leak intentionally to avoid UB.
           // This only happens during shutdown when the loop is already stopped,
