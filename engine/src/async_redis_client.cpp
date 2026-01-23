@@ -162,12 +162,17 @@ class RedisCommandAwaitable {
         state->permit = std::move(guard);
         self->issue_command(state);
         // Post cleanup to next event loop iteration - coroutine will be at
-        // final_suspend by then and safe to destroy
+        // final_suspend by then and safe to destroy.
+        // SAFETY: We MUST defer deletion because we're still inside the coroutine.
+        // Deleting 'this' would destroy the Task member and call handle_.destroy()
+        // on the running coroutine frame, which is undefined behavior.
         auto* to_delete = this;
         bool posted = self->loop_.Post([to_delete]() { delete to_delete; });
         if (!posted) {
-          // Loop stopped - delete synchronously (we're past the await point, safe to delete)
-          delete to_delete;
+          // Loop stopped - can't post. Leak intentionally to avoid UB.
+          // This only happens during shutdown when the loop is already stopped,
+          // so the leak is acceptable (process is exiting anyway).
+          (void)to_delete;  // Suppress unused warning
         }
       }
     };
