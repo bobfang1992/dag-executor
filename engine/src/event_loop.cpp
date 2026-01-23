@@ -98,6 +98,11 @@ void EventLoop::Stop() {
     // This avoids use-after-free if EventLoop is destroyed from a callback
     running_.store(false);
 
+    // Drain any callbacks that were accepted before stopping_ was set.
+    // Without this, callbacks posted while the loop is busy can be dropped
+    // if Stop() is invoked on the loop thread.
+    DrainQueue();
+
     // Close all pending handles (timers, etc.) to prevent leaks
     uv_walk(&loop_, CloseWalkCallback, &async_);
 

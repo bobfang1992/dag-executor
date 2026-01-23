@@ -4,6 +4,7 @@
 #include <chrono>
 #include <future>
 #include <thread>
+#include <vector>
 
 #include "coro_task.h"
 #include "event_loop.h"
@@ -457,6 +458,27 @@ TEST_CASE("Stop from within callback", "[event_loop][edge_case]") {
   REQUIRE(true);
 }
 
+TEST_CASE("Destruction on loop thread is safe", "[event_loop][edge_case]") {
+  auto loop = std::make_shared<EventLoop>();
+  std::weak_ptr<EventLoop> weak_loop = loop;
+  loop->Start();
+
+  std::promise<void> destroyed;
+  auto destroyed_future = destroyed.get_future();
+
+  loop->Post([loop, &destroyed]() mutable {
+    // Destroy EventLoop from its own thread; should not UAF or crash.
+    loop.reset();
+    destroyed.set_value();
+  });
+
+  // Drop the caller's reference so destruction happens in the loop callback.
+  loop.reset();
+
+  destroyed_future.wait();
+  REQUIRE(weak_loop.expired());
+}
+
 TEST_CASE("Multiple Stop calls are idempotent", "[event_loop][edge_case]") {
   EventLoop loop;
   loop.Start();
@@ -534,6 +556,61 @@ TEST_CASE("Post during Stop is rejected", "[event_loop][edge_case]") {
   // At least some posts during shutdown should have been rejected
   // (unless they all snuck in before stopping_ was set)
   INFO("Rejected during stop: " << rejected_count.load());
+}
+
+TEST_CASE("Stop on loop thread drains accepted callbacks", "[event_loop][edge_case]") {
+  EventLoop loop;
+  loop.Start();
+
+  constexpr int PRODUCER_THREADS = 4;
+  constexpr int POSTS_PER_THREAD = 200;
+
+  std::atomic<int> accepted{0};
+  std::atomic<int> executed{0};
+
+  std::promise<void> blocker_entered;
+  std::promise<void> release_blocker;
+
+  // Block the loop thread so queued callbacks accumulate, then stop from that thread.
+  loop.Post([&]() {
+    blocker_entered.set_value();
+    release_blocker.get_future().wait();
+    loop.Stop();
+  });
+
+  blocker_entered.get_future().wait();
+
+  // Producers post callbacks while the loop is blocked.
+  std::vector<std::thread> threads;
+  for (int t = 0; t < PRODUCER_THREADS; ++t) {
+    threads.emplace_back([&]() {
+      for (int i = 0; i < POSTS_PER_THREAD; ++i) {
+        bool ok = loop.Post([&]() { executed.fetch_add(1); });
+        if (ok) {
+          accepted.fetch_add(1);
+        }
+      }
+    });
+  }
+
+  for (auto& t : threads) {
+    t.join();
+  }
+
+  // Let the blocker proceed and trigger Stop() on the loop thread.
+  release_blocker.set_value();
+
+  // Wait for all accepted callbacks to run.
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (executed.load() == accepted.load()) {
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+
+  REQUIRE(executed.load() == accepted.load());
+  REQUIRE_FALSE(loop.Post([]() {}));
 }
 
 // ============================================================================
