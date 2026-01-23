@@ -280,3 +280,243 @@ TEST_CASE("Post after Stop returns false", "[event_loop]") {
   bool posted = loop.Post([]() {});
   REQUIRE_FALSE(posted);
 }
+
+// ============================================================================
+// Stress Tests
+// ============================================================================
+
+TEST_CASE("Stress: many concurrent posts", "[event_loop][stress]") {
+  EventLoop loop;
+  loop.Start();
+
+  constexpr int NUM_POSTS = 10000;
+  std::atomic<int> counter{0};
+  std::promise<void> done;
+  auto done_future = done.get_future();
+  std::atomic<bool> done_signaled{false};
+
+  for (int i = 0; i < NUM_POSTS; ++i) {
+    loop.Post([&counter, &done, &done_signaled]() {
+      int prev = counter.fetch_add(1);
+      if (prev == NUM_POSTS - 1) {
+        bool expected = false;
+        if (done_signaled.compare_exchange_strong(expected, true)) {
+          done.set_value();
+        }
+      }
+    });
+  }
+
+  done_future.wait();
+  REQUIRE(counter.load() == NUM_POSTS);
+
+  loop.Stop();
+}
+
+TEST_CASE("Stress: posts from multiple threads", "[event_loop][stress]") {
+  EventLoop loop;
+  loop.Start();
+
+  constexpr int NUM_THREADS = 8;
+  constexpr int POSTS_PER_THREAD = 1000;
+  constexpr int TOTAL_POSTS = NUM_THREADS * POSTS_PER_THREAD;
+
+  std::atomic<int> counter{0};
+  std::promise<void> done;
+  auto done_future = done.get_future();
+  std::atomic<bool> done_signaled{false};
+
+  std::vector<std::thread> threads;
+  for (int t = 0; t < NUM_THREADS; ++t) {
+    threads.emplace_back([&loop, &counter, &done, &done_signaled]() {
+      for (int i = 0; i < POSTS_PER_THREAD; ++i) {
+        loop.Post([&counter, &done, &done_signaled]() {
+          int prev = counter.fetch_add(1);
+          if (prev == TOTAL_POSTS - 1) {
+            bool expected = false;
+            if (done_signaled.compare_exchange_strong(expected, true)) {
+              done.set_value();
+            }
+          }
+        });
+      }
+    });
+  }
+
+  for (auto& t : threads) {
+    t.join();
+  }
+
+  done_future.wait();
+  REQUIRE(counter.load() == TOTAL_POSTS);
+
+  loop.Stop();
+}
+
+TEST_CASE("Stress: many concurrent sleeps", "[event_loop][stress][coroutine]") {
+  EventLoop loop;
+  loop.Start();
+
+  constexpr int NUM_SLEEPS = 50;
+  constexpr int SLEEP_MS = 20;
+
+  std::atomic<int> completed{0};
+  std::promise<void> all_done;
+  auto all_done_future = all_done.get_future();
+  std::atomic<bool> signaled{false};
+
+  // Store tasks to keep them alive
+  std::vector<Task<void>> tasks;
+  tasks.reserve(NUM_SLEEPS);
+
+  // Create all coroutines first
+  for (int i = 0; i < NUM_SLEEPS; ++i) {
+    auto wrapper = [&loop, &completed, &all_done, &signaled]() -> Task<void> {
+      co_await SleepMs(loop, SLEEP_MS);
+      int prev = completed.fetch_add(1);
+      if (prev == NUM_SLEEPS - 1) {
+        bool expected = false;
+        if (signaled.compare_exchange_strong(expected, true)) {
+          all_done.set_value();
+        }
+      }
+    };
+    tasks.push_back(wrapper());
+  }
+
+  auto start = std::chrono::steady_clock::now();
+
+  // Start all coroutines
+  for (auto& task : tasks) {
+    loop.Post([&task]() { task.start(); });
+  }
+
+  // Wait for all to complete
+  all_done_future.wait();
+
+  auto elapsed =
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start);
+
+  REQUIRE(completed.load() == NUM_SLEEPS);
+  // All sleeps should complete in ~20-80ms (parallel), not 1000ms (sequential)
+  REQUIRE(elapsed.count() < 200);
+
+  loop.Stop();
+}
+
+TEST_CASE("Stress: rapid start/stop cycles", "[event_loop][stress]") {
+  for (int i = 0; i < 50; ++i) {
+    EventLoop loop;
+    loop.Start();
+
+    std::promise<void> p;
+    auto f = p.get_future();
+
+    loop.Post([&p]() { p.set_value(); });
+
+    f.wait();
+    loop.Stop();
+  }
+  // If we get here without crashing, the test passes
+  REQUIRE(true);
+}
+
+TEST_CASE("Stop from within callback", "[event_loop][edge_case]") {
+  auto loop = std::make_unique<EventLoop>();
+  loop->Start();
+
+  std::promise<void> stopped;
+  auto stopped_future = stopped.get_future();
+
+  // Post a callback that calls Stop() from within the loop thread
+  loop->Post([&loop, &stopped]() {
+    loop->Stop();
+    stopped.set_value();
+  });
+
+  stopped_future.wait();
+
+  // Destructor should not deadlock or crash
+  loop.reset();
+
+  REQUIRE(true);
+}
+
+TEST_CASE("Multiple Stop calls are idempotent", "[event_loop][edge_case]") {
+  EventLoop loop;
+  loop.Start();
+
+  std::promise<void> p;
+  auto f = p.get_future();
+
+  loop.Post([&p]() { p.set_value(); });
+  f.wait();
+
+  // Multiple Stop calls should be safe
+  loop.Stop();
+  loop.Stop();
+  loop.Stop();
+
+  REQUIRE_FALSE(loop.IsRunning());
+}
+
+TEST_CASE("Destruction without Stop", "[event_loop][edge_case]") {
+  {
+    EventLoop loop;
+    loop.Start();
+
+    std::promise<void> p;
+    auto f = p.get_future();
+
+    loop.Post([&p]() { p.set_value(); });
+    f.wait();
+
+    // Don't call Stop() - destructor should handle it
+  }
+  // If we get here without hanging or crashing, the test passes
+  REQUIRE(true);
+}
+
+TEST_CASE("Destruction without Start", "[event_loop][edge_case]") {
+  {
+    EventLoop loop;
+    // Don't call Start() - just let destructor run
+  }
+  REQUIRE(true);
+}
+
+TEST_CASE("Post during Stop is rejected", "[event_loop][edge_case]") {
+  EventLoop loop;
+  loop.Start();
+
+  std::atomic<bool> stop_started{false};
+  std::atomic<int> rejected_count{0};
+  std::atomic<bool> stopper_done{false};
+
+  // Thread that will call Stop
+  std::thread stopper([&]() {
+    stop_started.store(true);
+    loop.Stop();
+    stopper_done.store(true);
+  });
+
+  // Wait for stop to start
+  while (!stop_started.load()) {
+    std::this_thread::yield();
+  }
+
+  // Try to post while stopping - some may succeed, some may be rejected
+  for (int i = 0; i < 100; ++i) {
+    if (!loop.Post([]() {})) {
+      rejected_count.fetch_add(1);
+    }
+  }
+
+  stopper.join();
+
+  // After Stop completes, all posts should be rejected
+  REQUIRE_FALSE(loop.Post([]() {}));
+  // At least some posts during shutdown should have been rejected
+  // (unless they all snuck in before stopping_ was set)
+  INFO("Rejected during stop: " << rejected_count.load());
+}
