@@ -353,6 +353,32 @@ TEST_CASE("Stress: posts from multiple threads", "[event_loop][stress]") {
   loop.Stop();
 }
 
+// Helper struct for tracking completion across multiple coroutines
+struct CompletionTracker {
+  std::atomic<int> completed{0};
+  std::promise<void> all_done;
+  std::atomic<bool> signaled{false};
+  int total_count;
+
+  explicit CompletionTracker(int count) : total_count(count) {}
+
+  void mark_complete() {
+    int prev = completed.fetch_add(1);
+    if (prev == total_count - 1) {
+      bool expected = false;
+      if (signaled.compare_exchange_strong(expected, true)) {
+        all_done.set_value();
+      }
+    }
+  }
+};
+
+// Helper coroutine for stress test - parameters are copied into frame
+static Task<void> makeStressSleeper(EventLoop& loop, CompletionTracker& tracker, int sleep_ms) {
+  co_await SleepMs(loop, sleep_ms);
+  tracker.mark_complete();
+}
+
 TEST_CASE("Stress: many concurrent sleeps", "[event_loop][stress][coroutine]") {
   EventLoop loop;
   loop.Start();
@@ -360,28 +386,17 @@ TEST_CASE("Stress: many concurrent sleeps", "[event_loop][stress][coroutine]") {
   constexpr int NUM_SLEEPS = 50;
   constexpr int SLEEP_MS = 20;
 
-  std::atomic<int> completed{0};
-  std::promise<void> all_done;
-  auto all_done_future = all_done.get_future();
-  std::atomic<bool> signaled{false};
+  CompletionTracker tracker(NUM_SLEEPS);
+  auto all_done_future = tracker.all_done.get_future();
 
   // Store tasks to keep them alive
   std::vector<Task<void>> tasks;
   tasks.reserve(NUM_SLEEPS);
 
-  // Create all coroutines first
+  // Create all coroutines first using helper function
+  // (helper function parameters are copied into coroutine frame, avoiding lifetime issues)
   for (int i = 0; i < NUM_SLEEPS; ++i) {
-    auto wrapper = [&loop, &completed, &all_done, &signaled]() -> Task<void> {
-      co_await SleepMs(loop, SLEEP_MS);
-      int prev = completed.fetch_add(1);
-      if (prev == NUM_SLEEPS - 1) {
-        bool expected = false;
-        if (signaled.compare_exchange_strong(expected, true)) {
-          all_done.set_value();
-        }
-      }
-    };
-    tasks.push_back(wrapper());
+    tasks.push_back(makeStressSleeper(loop, tracker, SLEEP_MS));
   }
 
   auto start = std::chrono::steady_clock::now();
@@ -397,7 +412,7 @@ TEST_CASE("Stress: many concurrent sleeps", "[event_loop][stress][coroutine]") {
   auto elapsed =
       std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start);
 
-  REQUIRE(completed.load() == NUM_SLEEPS);
+  REQUIRE(tracker.completed.load() == NUM_SLEEPS);
   // All sleeps should complete in ~20-80ms (parallel), not 1000ms (sequential)
   REQUIRE(elapsed.count() < 200);
 
@@ -519,4 +534,312 @@ TEST_CASE("Post during Stop is rejected", "[event_loop][edge_case]") {
   // At least some posts during shutdown should have been rejected
   // (unless they all snuck in before stopping_ was set)
   INFO("Rejected during stop: " << rejected_count.load());
+}
+
+// ============================================================================
+// Advanced Edge Case Tests
+// ============================================================================
+
+// This test documents that uncaught exceptions in callbacks will terminate.
+// Tagged as hidden ([.]) so it doesn't run by default - it's expected to crash.
+TEST_CASE("Exception in callback terminates", "[event_loop][.exception]") {
+  EventLoop loop;
+  loop.Start();
+
+  std::atomic<int> counter{0};
+  std::promise<void> done;
+  auto done_future = done.get_future();
+
+  // Post a callback that throws
+  loop.Post([&counter]() {
+    counter.fetch_add(1);
+    throw std::runtime_error("intentional exception");
+  });
+
+  // Post more callbacks after the throwing one
+  loop.Post([&counter]() { counter.fetch_add(1); });
+  loop.Post([&counter]() { counter.fetch_add(1); });
+  loop.Post([&counter, &done]() {
+    counter.fetch_add(1);
+    done.set_value();
+  });
+
+  // Note: The exception will likely terminate the program or be unhandled
+  // This test documents current behavior - exceptions in callbacks are UB
+  // For now, just verify the loop can be stopped
+  // In production, callbacks should catch their own exceptions
+
+  // Give some time for callbacks to run
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  loop.Stop();
+
+  // We got here without crashing
+  REQUIRE(true);
+}
+
+// Helper function for creating sleep coroutines.
+// IMPORTANT: Coroutine function parameters are copied into the coroutine frame,
+// so they remain valid even after the calling context goes out of scope.
+// This is NOT true for lambda captures - they reference the lambda's internal
+// storage which is destroyed when the lambda goes out of scope!
+static Task<void> makeSleeper(EventLoop& loop, std::atomic<int>& started,
+                              std::atomic<int>& completed, int sleep_ms) {
+  started.fetch_add(1);
+  co_await SleepMs(loop, sleep_ms);
+  completed.fetch_add(1);
+}
+
+// Simpler helper that just sleeps and increments a counter
+static Task<void> makeSimpleSleeper(EventLoop& loop, std::atomic<int>& counter, int sleep_ms) {
+  co_await SleepMs(loop, sleep_ms);
+  counter.fetch_add(1);
+}
+
+TEST_CASE("Stop during active sleep coroutines", "[event_loop][edge_case][coroutine]") {
+  EventLoop loop;
+  loop.Start();
+
+  std::atomic<int> started{0};
+  std::atomic<int> completed{0};
+
+  // Start several long-running sleep coroutines
+  // IMPORTANT: Use a helper function instead of lambda to avoid lifetime issues.
+  // Lambda captures reference the lambda's storage, not the original variables,
+  // so they become dangling when the lambda goes out of scope at iteration end.
+  std::vector<Task<void>> tasks;
+  for (int i = 0; i < 10; ++i) {
+    tasks.push_back(makeSleeper(loop, started, completed, 5000));
+  }
+
+  // Start all coroutines
+  for (auto& task : tasks) {
+    loop.Post([&task]() { task.start(); });
+  }
+
+  // Wait for all to start
+  while (started.load() < 10) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+
+  // Stop the loop while sleeps are pending
+  loop.Stop();
+
+  // Sleeps should NOT have completed (we stopped early)
+  REQUIRE(started.load() == 10);
+  REQUIRE(completed.load() == 0);
+}
+
+TEST_CASE("Rapid timer creation and cancellation", "[event_loop][stress][coroutine]") {
+  EventLoop loop;
+  loop.Start();
+
+  std::atomic<int> completed{0};
+  constexpr int NUM_TIMERS = 500;
+
+  // Create many short timers rapidly
+  std::vector<Task<void>> tasks;
+  tasks.reserve(NUM_TIMERS);
+
+  // Use helper function to avoid lambda capture lifetime issues
+  for (int i = 0; i < NUM_TIMERS; ++i) {
+    tasks.push_back(makeSimpleSleeper(loop, completed, 1));
+  }
+
+  // Start all
+  for (auto& task : tasks) {
+    loop.Post([&task]() { task.start(); });
+  }
+
+  // Wait for completion
+  auto start = std::chrono::steady_clock::now();
+  while (completed.load() < NUM_TIMERS) {
+    auto elapsed = std::chrono::steady_clock::now() - start;
+    if (elapsed > std::chrono::seconds(5)) {
+      FAIL("Timeout waiting for timers");
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+
+  REQUIRE(completed.load() == NUM_TIMERS);
+  loop.Stop();
+}
+
+TEST_CASE("Nested Post from callback", "[event_loop][edge_case]") {
+  EventLoop loop;
+  loop.Start();
+
+  std::atomic<int> depth{0};
+  std::atomic<int> max_depth{0};
+  std::promise<void> done;
+  auto done_future = done.get_future();
+
+  constexpr int TARGET_DEPTH = 100;
+
+  std::function<void()> nested_post;
+  nested_post = [&]() {
+    int current = depth.fetch_add(1) + 1;
+    int expected = max_depth.load();
+    while (current > expected && !max_depth.compare_exchange_weak(expected, current)) {}
+
+    if (current < TARGET_DEPTH) {
+      loop.Post(nested_post);
+    } else {
+      done.set_value();
+    }
+  };
+
+  loop.Post(nested_post);
+  done_future.wait();
+
+  REQUIRE(max_depth.load() == TARGET_DEPTH);
+  loop.Stop();
+}
+
+TEST_CASE("Post from destructor of posted object", "[event_loop][edge_case]") {
+  EventLoop loop;
+  loop.Start();
+
+  std::atomic<int> destructor_count{0};
+  std::atomic<bool> done_signaled{false};
+  std::promise<void> done;
+  auto done_future = done.get_future();
+
+  constexpr int NUM_OBJECTS = 10;
+
+  // Use a simple shared_ptr to a counter that signals when all are destroyed
+  auto signal_on_destroy = [&loop, &destructor_count, &done, &done_signaled]() {
+    int count = destructor_count.fetch_add(1) + 1;
+    if (count == NUM_OBJECTS) {
+      bool expected = false;
+      if (done_signaled.compare_exchange_strong(expected, true)) {
+        // Post the signal to ensure we're testing that posts from destructors work
+        loop.Post([&done]() { done.set_value(); });
+      }
+    }
+  };
+
+  // Post callbacks that call signal_on_destroy when lambda is destroyed
+  for (int i = 0; i < NUM_OBJECTS; ++i) {
+    // Capture a shared_ptr to ensure the destructor runs when the lambda is destroyed
+    auto destructor_trigger = std::make_shared<int>(0);
+    // Custom destructor via weak_ptr check in a nested shared_ptr
+    auto destroyer = std::shared_ptr<void>(nullptr, [signal_on_destroy](void*) {
+      signal_on_destroy();
+    });
+
+    loop.Post([destroyer]() {
+      // Destructor runs when lambda (and thus shared_ptr) is destroyed
+    });
+  }
+
+  done_future.wait();
+  REQUIRE(destructor_count.load() == NUM_OBJECTS);
+  loop.Stop();
+}
+
+// State for tracking interleaved sleep completion order
+struct InterleavedState {
+  std::vector<int> completion_order;
+  std::mutex order_mutex;
+  std::promise<void> done;
+  std::atomic<int> completed{0};
+  int total_count;
+
+  explicit InterleavedState(int count) : total_count(count) {}
+
+  void record_completion(int id) {
+    {
+      std::lock_guard<std::mutex> lock(order_mutex);
+      completion_order.push_back(id);
+    }
+    if (completed.fetch_add(1) == total_count - 1) {
+      done.set_value();
+    }
+  }
+};
+
+// Helper coroutine for interleaved sleep test
+static Task<void> makeInterleavedSleeper(EventLoop& loop, InterleavedState& state, int id, int ms) {
+  co_await SleepMs(loop, ms);
+  state.record_completion(id);
+}
+
+TEST_CASE("Interleaved sleeps with different durations", "[event_loop][coroutine]") {
+  EventLoop loop;
+  loop.Start();
+
+  InterleavedState state(5);
+  auto done_future = state.done.get_future();
+
+  // IDs and durations: expect completion order based on duration
+  std::vector<std::pair<int, int>> sleeps = {{1, 50}, {2, 10}, {3, 30}, {4, 20}, {5, 40}};
+  std::vector<Task<void>> tasks;
+  for (auto [id, ms] : sleeps) {
+    tasks.push_back(makeInterleavedSleeper(loop, state, id, ms));
+  }
+
+  // Start all
+  for (auto& task : tasks) {
+    loop.Post([&task]() { task.start(); });
+  }
+
+  done_future.wait();
+
+  // Check completion order matches duration order: 2(10), 4(20), 3(30), 5(40), 1(50)
+  std::vector<int> expected = {2, 4, 3, 5, 1};
+  REQUIRE(state.completion_order == expected);
+
+  loop.Stop();
+}
+
+TEST_CASE("High contention multi-producer", "[event_loop][stress]") {
+  EventLoop loop;
+  loop.Start();
+
+  constexpr int NUM_THREADS = 16;
+  constexpr int POSTS_PER_THREAD = 500;
+  constexpr int TOTAL = NUM_THREADS * POSTS_PER_THREAD;
+
+  std::atomic<int> counter{0};
+  std::promise<void> done;
+  auto done_future = done.get_future();
+  std::atomic<bool> signaled{false};
+
+  std::vector<std::thread> threads;
+  std::atomic<bool> start_flag{false};
+
+  // Create threads that all wait then post simultaneously
+  for (int t = 0; t < NUM_THREADS; ++t) {
+    threads.emplace_back([&]() {
+      while (!start_flag.load()) {
+        std::this_thread::yield();
+      }
+      for (int i = 0; i < POSTS_PER_THREAD; ++i) {
+        loop.Post([&]() {
+          int prev = counter.fetch_add(1);
+          if (prev == TOTAL - 1) {
+            bool expected = false;
+            if (signaled.compare_exchange_strong(expected, true)) {
+              done.set_value();
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // Start all threads simultaneously
+  start_flag.store(true);
+
+  // Wait for completion
+  auto status = done_future.wait_for(std::chrono::seconds(10));
+  REQUIRE(status == std::future_status::ready);
+
+  for (auto& t : threads) {
+    t.join();
+  }
+
+  REQUIRE(counter.load() == TOTAL);
+  loop.Stop();
 }

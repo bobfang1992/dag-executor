@@ -4,6 +4,17 @@
 
 namespace ranking {
 
+namespace {
+// Callback to close all handles during shutdown
+void CloseWalkCallback(uv_handle_t* handle, void* arg) {
+  auto* async_handle = static_cast<uv_async_t*>(arg);
+  // Don't close the async handle here - we handle it separately
+  if (handle != reinterpret_cast<uv_handle_t*>(async_handle) && !uv_is_closing(handle)) {
+    uv_close(handle, nullptr);
+  }
+}
+}  // namespace
+
 EventLoop::EventLoop() {
   int r = uv_loop_init(&loop_);
   if (r != 0) {
@@ -74,7 +85,16 @@ void EventLoop::Stop() {
     // Stop inline - don't queue a lambda that captures `this`
     // This avoids use-after-free if EventLoop is destroyed from a callback
     running_.store(false);
+
+    // Close all pending handles (timers, etc.) to prevent leaks
+    uv_walk(&loop_, CloseWalkCallback, &async_);
+
+    // Close the async handle last
     uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
+
+    // Run briefly to process close callbacks
+    uv_run(&loop_, UV_RUN_NOWAIT);
+
     uv_stop(&loop_);
 
     // Signal exit for any waiters (though destructor will skip wait on loop thread)
@@ -96,7 +116,16 @@ void EventLoop::Stop() {
       std::lock_guard<std::mutex> lock(queue_mutex_);
       queue_.push([this]() {
         running_.store(false);
+
+        // Close all pending handles (timers, etc.) to prevent leaks
+        uv_walk(&loop_, CloseWalkCallback, &async_);
+
+        // Close the async handle last
         uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
+
+        // Run briefly to process close callbacks
+        uv_run(&loop_, UV_RUN_NOWAIT);
+
         uv_stop(&loop_);
       });
     }
