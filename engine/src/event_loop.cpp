@@ -67,26 +67,40 @@ void EventLoop::Stop() {
     return;  // Never started
   }
 
-  // Check if we're on the loop thread to avoid deadlock
+  // Check if we're on the loop thread
   bool on_loop_thread = (std::this_thread::get_id() == loop_thread_id_);
 
-  // Directly queue and signal (don't use Post() which checks stopping_)
-  {
-    std::lock_guard<std::mutex> lock(queue_mutex_);
-    queue_.push([this]() {
-      running_.store(false);
-      uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
-      uv_stop(&loop_);
-    });
-  }
-  uv_async_send(&async_);
+  if (on_loop_thread) {
+    // Stop inline - don't queue a lambda that captures `this`
+    // This avoids use-after-free if EventLoop is destroyed from a callback
+    running_.store(false);
+    uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
+    uv_stop(&loop_);
 
-  // Only join if not on loop thread (avoids deadlock)
-  if (loop_thread_.joinable()) {
-    if (on_loop_thread) {
-      // Detach to avoid std::terminate on destruction
+    // Signal exit for any waiters (though destructor will skip wait on loop thread)
+    {
+      std::lock_guard<std::mutex> lock(exit_mutex_);
+      exited_ = true;
+    }
+    exit_cv_.notify_all();
+
+    // Detach to avoid std::terminate on destruction
+    if (loop_thread_.joinable()) {
       loop_thread_.detach();
-    } else {
+    }
+  } else {
+    // Queue shutdown and wait for completion
+    {
+      std::lock_guard<std::mutex> lock(queue_mutex_);
+      queue_.push([this]() {
+        running_.store(false);
+        uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
+        uv_stop(&loop_);
+      });
+    }
+    uv_async_send(&async_);
+
+    if (loop_thread_.joinable()) {
       loop_thread_.join();
     }
   }

@@ -82,14 +82,19 @@ TEST_CASE("EventLoop multiple posts", "[event_loop]") {
   std::atomic<int> counter{0};
   std::promise<void> done;
   auto done_future = done.get_future();
+  std::atomic<bool> done_signaled{false};
 
   constexpr int NUM_POSTS = 100;
 
   for (int i = 0; i < NUM_POSTS; ++i) {
-    loop.Post([&counter, &done, i]() {
-      counter.fetch_add(1);
-      if (i == NUM_POSTS - 1) {
-        done.set_value();
+    loop.Post([&counter, &done, &done_signaled]() {
+      int prev = counter.fetch_add(1);
+      // Signal when counter reaches NUM_POSTS (not based on index)
+      if (prev == NUM_POSTS - 1) {
+        bool expected = false;
+        if (done_signaled.compare_exchange_strong(expected, true)) {
+          done.set_value();
+        }
       }
     });
   }
