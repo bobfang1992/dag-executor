@@ -69,10 +69,24 @@ struct CommandState {
   ParsedReply reply;
   std::string error;
   AsyncInflightLimiter::Guard permit;  // Released when state is destroyed
+  uv_timer_t* timeout_timer = nullptr;  // Optional timeout timer
+  bool completed = false;  // Guard against double-resume (reply vs timeout race)
 
   static void OnReply(redisAsyncContext* c, void* reply_ptr, void* privdata) {
     auto* state = static_cast<CommandState*>(privdata);
     if (!state) return;
+
+    // Guard against double-resume if timeout already fired
+    if (state->completed) return;
+    state->completed = true;
+
+    // Cancel timeout timer if active
+    if (state->timeout_timer) {
+      uv_timer_stop(state->timeout_timer);
+      uv_close(reinterpret_cast<uv_handle_t*>(state->timeout_timer),
+               [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
+      state->timeout_timer = nullptr;
+    }
 
     if (reply_ptr) {
       // Deep-copy the reply data BEFORE hiredis frees it after this callback
@@ -89,6 +103,26 @@ struct CommandState {
     h.resume();
     // Note: state is owned by the awaitable, not deleted here
   }
+
+  static void OnTimeout(uv_timer_t* timer) {
+    auto* state = static_cast<CommandState*>(timer->data);
+    if (!state) return;
+
+    // Guard against double-resume if reply already arrived
+    if (state->completed) return;
+    state->completed = true;
+
+    state->error = "Request timeout";
+    state->timeout_timer = nullptr;
+
+    // Clean up the timer
+    uv_close(reinterpret_cast<uv_handle_t*>(timer),
+             [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
+
+    // Resume with timeout error
+    auto h = state->handle;
+    h.resume();
+  }
 };
 
 // Awaitable for a single Redis command that suspends until reply arrives.
@@ -103,11 +137,12 @@ class RedisCommandAwaitable {
   // to handle disconnection while waiting for permits - the client clears ctx_
   // on disconnect and we check it before issuing commands.
   RedisCommandAwaitable(EventLoop& loop, redisAsyncContext** ctx_ptr, AsyncInflightLimiter& limiter,
-                        std::string command)
+                        std::string command, int timeout_ms)
       : loop_(loop),
         ctx_ptr_(ctx_ptr),
         limiter_(limiter),
         command_(std::move(command)),
+        timeout_ms_(timeout_ms),
         state_(std::make_unique<CommandState>()) {}
 
   // Move-only (reference member prevents assignment)
@@ -201,12 +236,27 @@ class RedisCommandAwaitable {
       return;
     }
 
+    // Start timeout timer if configured
+    if (timeout_ms_ > 0) {
+      auto* timer = new uv_timer_t;
+      uv_timer_init(loop_.RawLoop(), timer);
+      timer->data = state_ptr;
+      state_ptr->timeout_timer = timer;
+      uv_timer_start(timer, CommandState::OnTimeout, static_cast<uint64_t>(timeout_ms_), 0);
+    }
+
     // Issue the async command
     int status = redisAsyncFormattedCommand(ctx, CommandState::OnReply, state_ptr,
                                             command_.c_str(), command_.size());
 
     if (status != REDIS_OK) {
-      // Command failed to queue - resume with error
+      // Command failed to queue - cancel timer and resume with error
+      if (state_ptr->timeout_timer) {
+        uv_timer_stop(state_ptr->timeout_timer);
+        uv_close(reinterpret_cast<uv_handle_t*>(state_ptr->timeout_timer),
+                 [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
+        state_ptr->timeout_timer = nullptr;
+      }
       state_ptr->error = ctx->errstr ? ctx->errstr : "Failed to queue Redis command";
       state_ptr->handle.resume();
     }
@@ -217,6 +267,7 @@ class RedisCommandAwaitable {
   redisAsyncContext** ctx_ptr_;  // Pointer to client's ctx_ member
   AsyncInflightLimiter& limiter_;
   std::string command_;
+  int timeout_ms_;  // 0 = no timeout
   std::unique_ptr<CommandState> state_;
 };
 
@@ -254,10 +305,12 @@ void RedisOpState::OnReply(redisAsyncContext* c, void* reply, void* privdata) {
 
 // AsyncRedisClient implementation
 
-AsyncRedisClient::AsyncRedisClient(EventLoop& loop, std::string endpoint_id, int max_inflight)
+AsyncRedisClient::AsyncRedisClient(EventLoop& loop, std::string endpoint_id, int max_inflight,
+                                   int request_timeout_ms)
     : loop_(loop),
       limiter_(max_inflight > 0 ? static_cast<size_t>(max_inflight) : 64),
-      endpoint_id_(std::move(endpoint_id)) {}
+      endpoint_id_(std::move(endpoint_id)),
+      request_timeout_ms_(request_timeout_ms) {}
 
 AsyncRedisClient::~AsyncRedisClient() {
   if (ctx_) {
@@ -283,9 +336,10 @@ std::expected<std::unique_ptr<AsyncRedisClient>, std::string> AsyncRedisClient::
   // Get configuration
   int max_inflight = spec.policy.max_inflight.value_or(64);
   int connect_timeout_ms = spec.policy.connect_timeout_ms.value_or(50);
+  int request_timeout_ms = spec.policy.request_timeout_ms.value_or(0);  // 0 = no timeout
 
-  auto client =
-      std::unique_ptr<AsyncRedisClient>(new AsyncRedisClient(loop, spec.endpoint_id, max_inflight));
+  auto client = std::unique_ptr<AsyncRedisClient>(
+      new AsyncRedisClient(loop, spec.endpoint_id, max_inflight, request_timeout_ms));
 
   // Connect
   auto result =
@@ -378,7 +432,8 @@ Task<AsyncRedisClient::Result<std::optional<std::string>>> AsyncRedisClient::HGe
   std::string cmd = build_command({"HGET", key, field});
 
   // Create awaitable and execute
-  auto reply_result = co_await RedisCommandAwaitable(loop_, &ctx_, limiter_, std::move(cmd));
+  auto reply_result =
+      co_await RedisCommandAwaitable(loop_, &ctx_, limiter_, std::move(cmd), request_timeout_ms_);
 
   if (!reply_result) {
     co_return std::unexpected(reply_result.error());
@@ -409,7 +464,7 @@ Task<AsyncRedisClient::Result<std::vector<std::string>>> AsyncRedisClient::LRang
   // Build LRANGE command
   std::string cmd = build_command({"LRANGE", key, std::to_string(start), std::to_string(stop)});
 
-  auto reply_result = co_await RedisCommandAwaitable(loop_, &ctx_, limiter_, std::move(cmd));
+  auto reply_result = co_await RedisCommandAwaitable(loop_, &ctx_, limiter_, std::move(cmd), request_timeout_ms_);
 
   if (!reply_result) {
     co_return std::unexpected(reply_result.error());
@@ -435,7 +490,7 @@ Task<AsyncRedisClient::Result<std::vector<std::string>>> AsyncRedisClient::HGetA
   // Build HGETALL command
   std::string cmd = build_command({"HGETALL", key});
 
-  auto reply_result = co_await RedisCommandAwaitable(loop_, &ctx_, limiter_, std::move(cmd));
+  auto reply_result = co_await RedisCommandAwaitable(loop_, &ctx_, limiter_, std::move(cmd), request_timeout_ms_);
 
   if (!reply_result) {
     co_return std::unexpected(reply_result.error());

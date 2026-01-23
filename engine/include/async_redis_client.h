@@ -113,7 +113,8 @@ class AsyncRedisClient {
 
  private:
   // Private constructor - use Create() factory
-  AsyncRedisClient(EventLoop& loop, std::string endpoint_id, int max_inflight);
+  AsyncRedisClient(EventLoop& loop, std::string endpoint_id, int max_inflight,
+                   int request_timeout_ms);
 
   // Initialize connection (called from Create)
   std::expected<void, std::string> connect(const std::string& host, int port,
@@ -130,6 +131,7 @@ class AsyncRedisClient {
   redisAsyncContext* ctx_ = nullptr;
   AsyncInflightLimiter limiter_;
   std::string endpoint_id_;
+  int request_timeout_ms_ = 0;  // 0 = no timeout
   bool connected_ = false;
   std::string last_error_;
 };
