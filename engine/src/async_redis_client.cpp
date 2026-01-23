@@ -63,8 +63,9 @@ ParsedReply parse_reply(redisReply* r) {
 }
 
 // State for a pending Redis command, used to communicate between callback and coroutine.
-// Heap-allocated and shared between the awaitable and the callback.
-struct CommandState {
+// Shared between the awaitable and the hiredis callback using shared_ptr to prevent
+// use-after-free when timeout fires before reply arrives.
+struct CommandState : std::enable_shared_from_this<CommandState> {
   std::coroutine_handle<> handle;
   ParsedReply reply;
   std::string error;
@@ -72,12 +73,25 @@ struct CommandState {
   uv_timer_t* timeout_timer = nullptr;  // Optional timeout timer
   bool completed = false;  // Guard against double-resume (reply vs timeout race)
 
+  // prevent_destroy holds a self-reference to prevent destruction until
+  // the hiredis callback has fired (even if coroutine resumes due to timeout).
+  // This is cleared when OnReply is called, allowing normal destruction.
+  std::shared_ptr<CommandState> prevent_destroy;
+
   static void OnReply(redisAsyncContext* c, void* reply_ptr, void* privdata) {
     auto* state = static_cast<CommandState*>(privdata);
     if (!state) return;
 
+    // Take ownership of prevent_destroy to allow destruction after this callback
+    auto prevent = std::move(state->prevent_destroy);
+
     // Guard against double-resume if timeout already fired
-    if (state->completed) return;
+    if (state->completed) {
+      // Timeout already resumed the coroutine. Just clean up and return.
+      // The 'prevent' shared_ptr going out of scope may destroy state if
+      // awaitable already finished.
+      return;
+    }
     state->completed = true;
 
     // Cancel timeout timer if active
@@ -101,7 +115,7 @@ struct CommandState {
     // We're already on the loop thread since this is a hiredis callback
     auto h = state->handle;
     h.resume();
-    // Note: state is owned by the awaitable, not deleted here
+    // 'prevent' is destroyed here, but state may still be owned by awaitable
   }
 
   static void OnTimeout(uv_timer_t* timer) {
@@ -120,6 +134,8 @@ struct CommandState {
              [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
 
     // Resume with timeout error
+    // Note: We do NOT clear prevent_destroy here - the hiredis callback
+    // will still fire later and needs to find valid state to clear it.
     auto h = state->handle;
     h.resume();
   }
@@ -143,7 +159,7 @@ class RedisCommandAwaitable {
         limiter_(limiter),
         command_(std::move(command)),
         timeout_ms_(timeout_ms),
-        state_(std::make_unique<CommandState>()) {}
+        state_(std::make_shared<CommandState>()) {}
 
   // Move-only (reference member prevents assignment)
   RedisCommandAwaitable(RedisCommandAwaitable&&) = default;
@@ -245,6 +261,10 @@ class RedisCommandAwaitable {
       uv_timer_start(timer, CommandState::OnTimeout, static_cast<uint64_t>(timeout_ms_), 0);
     }
 
+    // Set up prevent_destroy before issuing command - this keeps state alive
+    // until OnReply is called, even if timeout fires first and awaitable is destroyed.
+    state_ptr->prevent_destroy = state_;
+
     // Issue the async command
     int status = redisAsyncFormattedCommand(ctx, CommandState::OnReply, state_ptr,
                                             command_.c_str(), command_.size());
@@ -268,7 +288,7 @@ class RedisCommandAwaitable {
   AsyncInflightLimiter& limiter_;
   std::string command_;
   int timeout_ms_;  // 0 = no timeout
-  std::unique_ptr<CommandState> state_;
+  std::shared_ptr<CommandState> state_;
 };
 
 // Helper to build Redis protocol command
