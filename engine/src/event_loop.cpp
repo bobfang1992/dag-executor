@@ -59,18 +59,18 @@ void EventLoop::Start() {
   running_.store(true);
 
   // Capture exit_state_ by value (shared_ptr copy) so thread can safely access
-  // it even after EventLoop is destroyed (e.g., from a callback on loop thread)
+  // it even after EventLoop is destroyed (e.g., Stop called from callback)
   auto exit_state = exit_state_;
   loop_thread_ = std::thread([this, exit_state]() {
     // Run the loop until Stop() is called
     uv_run(&loop_, UV_RUN_DEFAULT);
 
-    // Signal that the loop has exited (unless detached - object may be destroyed)
-    if (!exit_state->detached.load()) {
-      std::lock_guard<std::mutex> lock(exit_state->exit_mutex);
-      exit_state->exited = true;
-      exit_state->exit_cv.notify_all();
-    }
+    // Always signal exit after uv_run returns. This is safe even if EventLoop
+    // is destroyed because exit_state is a shared_ptr copy. Destructor waits
+    // on this signal before calling uv_loop_close.
+    std::lock_guard<std::mutex> lock(exit_state->exit_mutex);
+    exit_state->exited = true;
+    exit_state->exit_cv.notify_all();
   });
   loop_thread_id_ = loop_thread_.get_id();
 }
@@ -82,8 +82,11 @@ void EventLoop::Stop() {
     return;  // Already stopping
   }
 
-  if (!started_.load()) {
-    return;  // Never started
+  // Check running_ (not started_) because started_ is set before uv_async_init
+  // completes. If we only checked started_, we could call uv_async_send on
+  // an uninitialized handle.
+  if (!running_.load()) {
+    return;  // Never started or async handle not ready
   }
 
   // Check if we're on the loop thread
@@ -110,17 +113,12 @@ void EventLoop::Stop() {
 
     uv_stop(&loop_);
 
-    // Signal exit for any waiters (though destructor will skip wait on loop thread)
-    {
-      std::lock_guard<std::mutex> lock(exit_state_->exit_mutex);
-      exit_state_->exited = true;
-    }
-    exit_state_->exit_cv.notify_all();
+    // Do NOT signal exited here - we're still inside uv_run() on the stack.
+    // The loop thread lambda will signal after uv_run() actually returns.
+    // Destructor waits on exit_cv regardless of detach status.
 
     // Detach to avoid std::terminate on destruction
-    // Set detached so thread skips cleanup after uv_run (object may be destroyed)
     if (loop_thread_.joinable()) {
-      exit_state_->detached.store(true);
       loop_thread_.detach();
     }
   } else {

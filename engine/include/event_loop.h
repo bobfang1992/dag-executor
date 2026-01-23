@@ -14,12 +14,11 @@ namespace ranking {
 
 // Shared state for loop thread synchronization.
 // Held by both EventLoop and the loop thread via shared_ptr, so the thread
-// can safely access it even after EventLoop is destroyed (e.g., from a callback).
+// can safely signal exit even after EventLoop is destroyed.
 struct EventLoopExitState {
   std::mutex exit_mutex;
   std::condition_variable exit_cv;
   bool exited{false};
-  std::atomic<bool> detached{false};
 };
 
 // Single-threaded libuv event loop wrapper.
