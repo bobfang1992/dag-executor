@@ -23,8 +23,23 @@ struct EventLoopExitState {
 
 // Single-threaded libuv event loop wrapper.
 // Provides thread-safe posting of callbacks to be executed on the loop thread.
+//
+// Lifecycle state machine:
+//   Idle → Starting → Running → Stopping → Stopped
+//                 ↘ Stopped (if Stop called during init)
+//
+// All transitions are atomic CAS operations - no race windows.
 class EventLoop {
 public:
+  // Lifecycle states
+  enum class State : int {
+    Idle,      // Not started
+    Starting,  // Init in progress (uv_async_init, thread creation)
+    Running,   // Loop thread active, accepting Post()
+    Stopping,  // Shutdown in progress
+    Stopped    // Done, can be destroyed
+  };
+
   EventLoop();
   ~EventLoop();
 
@@ -50,11 +65,15 @@ public:
   uv_loop_t* RawLoop() { return &loop_; }
 
   // Check if the loop is running
-  bool IsRunning() const { return running_.load(); }
+  bool IsRunning() const { return state_.load() == State::Running; }
+
+  // Get current state (for testing/debugging)
+  State GetState() const { return state_.load(); }
 
 private:
   static void OnAsync(uv_async_t* handle);
   void DrainQueue();
+  void DoStop();  // Internal stop logic, called on loop thread
 
   uv_loop_t loop_;
   uv_async_t async_;
@@ -62,12 +81,9 @@ private:
   std::thread::id loop_thread_id_;
   std::mutex queue_mutex_;
   std::queue<std::function<void()>> queue_;
-  std::atomic<bool> running_{false};
-  std::atomic<bool> started_{false};
-  std::atomic<bool> stopping_{false};
-  // Set by Stop() when it returns early because running_=false.
-  // Checked by Start() to honor stop requests during initialization.
-  std::atomic<bool> stop_requested_during_init_{false};
+
+  // Single atomic state - eliminates all race conditions between flags
+  std::atomic<State> state_{State::Idle};
 
   // Shared exit state - survives EventLoop destruction for safe thread cleanup
   std::shared_ptr<EventLoopExitState> exit_state_;

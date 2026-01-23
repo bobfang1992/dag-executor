@@ -37,185 +37,169 @@ EventLoop::EventLoop() : exit_state_(std::make_shared<EventLoopExitState>()) {
 EventLoop::~EventLoop() {
   Stop();
 
-  // Callbacks must NOT destroy the EventLoop. If we're on the loop thread,
-  // uv_run() is still on the stack and destroying loop_ would cause UAF.
-  // This is a programming error - assert to catch it during development.
-  bool on_loop_thread = started_.load() &&
-                        (std::this_thread::get_id() == loop_thread_id_);
-  assert(!on_loop_thread && "EventLoop destroyed from its own callback - this is undefined behavior");
-
-  // Wait for the loop thread to fully exit before closing the loop
-  if (started_.load()) {
+  // Wait for the loop thread to fully exit before closing the loop.
+  // The thread signals exit_state_->exited after uv_run returns.
+  State s = state_.load();
+  if (s == State::Stopped || s == State::Stopping) {
     std::unique_lock<std::mutex> lock(exit_state_->exit_mutex);
     exit_state_->exit_cv.wait(lock, [this]() { return exit_state_->exited; });
   }
 
-  uv_loop_close(&loop_);
+  // Only close if we actually initialized (state progressed past Idle)
+  if (s != State::Idle) {
+    uv_loop_close(&loop_);
+  }
 }
 
 void EventLoop::Start() {
-  bool expected = false;
-  if (!started_.compare_exchange_strong(expected, true)) {
-    return;  // Already started
+  // Transition: Idle → Starting (only valid from Idle)
+  State expected = State::Idle;
+  if (!state_.compare_exchange_strong(expected, State::Starting)) {
+    return;  // Already started or starting
   }
 
   // Initialize the async handle for cross-thread signaling
   int r = uv_async_init(&loop_, &async_, OnAsync);
   if (r != 0) {
-    started_.store(false);
+    state_.store(State::Idle);
     throw std::runtime_error("uv_async_init failed: " + std::string(uv_strerror(r)));
   }
   async_.data = this;
 
-  // Check if Stop() was called during initialization.
-  // If so, clean up and don't start the loop thread.
-  if (stop_requested_during_init_.load()) {
-    stop_requested_during_init_.store(false);
-    uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
-    uv_run(&loop_, UV_RUN_NOWAIT);  // Process the close
-    started_.store(false);
-    return;
-  }
-
-  running_.store(true);
-
   // Capture exit_state_ by value (shared_ptr copy) so thread can safely access
-  // it even after EventLoop is destroyed (e.g., Stop called from callback)
+  // it even after EventLoop is destroyed
   auto exit_state = exit_state_;
   try {
     loop_thread_ = std::thread([this, exit_state]() {
-      // Set own thread ID first, before any callbacks can run.
-      // This prevents Stop() from mis-detecting whether it's on the loop thread.
+      // Set own thread ID first, before any callbacks can run
       loop_thread_id_ = std::this_thread::get_id();
+
+      // Transition: Starting → Running (we're now ready)
+      State expected = State::Starting;
+      if (!state_.compare_exchange_strong(expected, State::Running)) {
+        // Stop was called during init - go directly to shutdown
+        DoStop();
+        // MUST still signal exit so destructor doesn't deadlock
+        std::lock_guard<std::mutex> lock(exit_state->exit_mutex);
+        exit_state->exited = true;
+        exit_state->exit_cv.notify_all();
+        return;
+      }
 
       // Run the loop until Stop() is called
       uv_run(&loop_, UV_RUN_DEFAULT);
 
-      // Always signal exit after uv_run returns. This is safe even if EventLoop
-      // is destroyed because exit_state is a shared_ptr copy. Destructor waits
-      // on this signal before calling uv_loop_close.
+      // Signal exit - safe even if EventLoop is destroyed (shared_ptr)
       std::lock_guard<std::mutex> lock(exit_state->exit_mutex);
       exit_state->exited = true;
       exit_state->exit_cv.notify_all();
     });
   } catch (...) {
-    // Thread creation failed (resource exhaustion). Reset state so Stop()
-    // doesn't spin-wait forever and destructor doesn't hang.
-    running_.store(false);
-    started_.store(false);
+    // Thread creation failed - clean up
     uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
     uv_run(&loop_, UV_RUN_NOWAIT);
+    state_.store(State::Idle);
     throw;
   }
 
-  // Re-check in case Stop() raced between the first check and running_.store(true).
-  // If Stop() snuck in, it set stop_requested_during_init_ and returned early.
-  // Now that running_ is true and the loop thread is launched, we can properly stop it.
-  if (stop_requested_during_init_.exchange(false)) {
-    Stop();
+  // Wait for loop thread to reach Running state (or shutdown path)
+  // This ensures Post() will work immediately after Start() returns
+  while (true) {
+    State s = state_.load();
+    if (s == State::Running || s == State::Stopping || s == State::Stopped) {
+      break;
+    }
+    std::this_thread::yield();
   }
 }
 
 void EventLoop::Stop() {
-  // Use stopping_ to prevent re-entry and signal Post() to reject new callbacks
-  bool expected = false;
-  if (!stopping_.compare_exchange_strong(expected, true)) {
-    return;  // Already stopping
-  }
+  // Try to transition to Stopping from valid states
+  while (true) {
+    State s = state_.load();
 
-  // Check running_ (not started_) because started_ is set before uv_async_init
-  // completes. If we only checked started_, we could call uv_async_send on
-  // an uninitialized handle.
-  if (!running_.load()) {
-    // Signal that Stop() was requested but couldn't proceed because init
-    // wasn't complete. Start() will check this flag and shut down.
-    stop_requested_during_init_.store(true);
-    stopping_.store(false);  // Reset so future Stop() can proceed
-    return;
-  }
+    switch (s) {
+      case State::Idle:
+        // Never started - nothing to do
+        return;
 
-  // Wait for loop_thread_id_ to be set. The thread sets it as its first operation,
-  // but there's a tiny window where Stop() could be called before that happens.
-  while (loop_thread_id_ == std::thread::id{}) {
-    std::this_thread::yield();
-  }
+      case State::Starting:
+        // Try to abort startup: Starting → Stopping
+        if (state_.compare_exchange_strong(s, State::Stopping)) {
+          // The thread will see Stopping and call DoStop()
+          // Wait for thread to finish
+          if (loop_thread_.joinable()) {
+            loop_thread_.join();
+          }
+          return;
+        }
+        // CAS failed - state changed, retry
+        continue;
 
-  // Check if we're on the loop thread
-  bool on_loop_thread = (std::this_thread::get_id() == loop_thread_id_);
+      case State::Running: {
+        // Normal case: Running → Stopping
+        if (!state_.compare_exchange_strong(s, State::Stopping)) {
+          continue;  // CAS failed, retry
+        }
 
-  if (on_loop_thread) {
-    // Stop inline - don't queue a lambda that captures `this`
-    // This avoids use-after-free if EventLoop is destroyed from a callback
-    running_.store(false);
+        // Check if we're on the loop thread
+        bool on_loop_thread = (std::this_thread::get_id() == loop_thread_id_);
 
-    // Drain any callbacks that were accepted before stopping_ was set.
-    // Without this, callbacks posted while the loop is busy can be dropped
-    // if Stop() is invoked on the loop thread.
-    DrainQueue();
+        if (on_loop_thread) {
+          // Stop inline
+          DoStop();
+          if (loop_thread_.joinable()) {
+            loop_thread_.detach();
+          }
+        } else {
+          // Queue shutdown to loop thread
+          {
+            std::lock_guard<std::mutex> lock(queue_mutex_);
+            queue_.push([this]() { DoStop(); });
+          }
+          uv_async_send(&async_);
 
-    // Close all pending handles (timers, etc.) to prevent leaks
-    uv_walk(&loop_, CloseWalkCallback, &async_);
+          if (loop_thread_.joinable()) {
+            loop_thread_.join();
+          }
+        }
+        return;
+      }
 
-    // Close the async handle last
-    uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
-
-    // Tell libuv to exit after processing close callbacks.
-    // Don't call uv_run here - we're already inside uv_run and re-entry is UB.
-    // The outer uv_run will process close callbacks before exiting.
-    uv_stop(&loop_);
-
-    // Do NOT signal exited here - we're still inside uv_run() on the stack.
-    // The loop thread lambda will signal after uv_run() actually returns.
-    // Destructor waits on exit_cv regardless of detach status.
-
-    // Detach to avoid std::terminate on destruction
-    if (loop_thread_.joinable()) {
-      loop_thread_.detach();
-    }
-  } else {
-    // Queue shutdown and wait for completion
-    {
-      std::lock_guard<std::mutex> lock(queue_mutex_);
-      queue_.push([this]() {
-        running_.store(false);
-
-        // Close all pending handles (timers, etc.) to prevent leaks
-        uv_walk(&loop_, CloseWalkCallback, &async_);
-
-        // Close the async handle last
-        uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
-
-        // Tell libuv to exit after processing close callbacks.
-        // Don't call uv_run here - we're inside uv_run and re-entry is UB.
-        uv_stop(&loop_);
-      });
-    }
-    uv_async_send(&async_);
-
-    // Wait for thread to be constructed if Start() is mid-flight.
-    // There's a tiny window between running_=true and loop_thread_ assignment.
-    while (running_.load() && !loop_thread_.joinable()) {
-      std::this_thread::yield();
-    }
-
-    if (loop_thread_.joinable()) {
-      loop_thread_.join();
+      case State::Stopping:
+      case State::Stopped:
+        // Already stopping or stopped
+        return;
     }
   }
 }
 
+void EventLoop::DoStop() {
+  // Drain any pending callbacks
+  DrainQueue();
+
+  // Close all pending handles
+  uv_walk(&loop_, CloseWalkCallback, &async_);
+
+  // Close the async handle last
+  uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
+
+  // Tell libuv to exit
+  uv_stop(&loop_);
+
+  // Transition to Stopped
+  state_.store(State::Stopped);
+}
+
 bool EventLoop::Post(std::function<void()> fn) {
-  // Reject posts before Start() completes or after Stop() begins.
-  // Use running_ (not started_) because started_ is set before uv_async_init
-  // completes, creating a race where Post could send to uninitialized handle.
-  if (!running_.load() || stopping_.load()) {
+  // Only accept posts in Running state
+  if (state_.load() != State::Running) {
     return false;
   }
   {
     std::lock_guard<std::mutex> lock(queue_mutex_);
     queue_.push(std::move(fn));
   }
-  // Wake up the loop thread
   uv_async_send(&async_);
   return true;
 }
