@@ -45,10 +45,8 @@ EventLoop::~EventLoop() {
     exit_state_->exit_cv.wait(lock, [this]() { return exit_state_->exited; });
   }
 
-  // Only close if we actually initialized (state progressed past Idle)
-  if (s != State::Idle) {
-    uv_loop_close(&loop_);
-  }
+  // Always close the loop - uv_loop_init is called in constructor
+  uv_loop_close(&loop_);
 }
 
 void EventLoop::Start() {
@@ -198,6 +196,10 @@ bool EventLoop::Post(std::function<void()> fn) {
   }
   {
     std::lock_guard<std::mutex> lock(queue_mutex_);
+    // Re-check under lock to prevent race with Stop() draining queue
+    if (state_.load() != State::Running) {
+      return false;
+    }
     queue_.push(std::move(fn));
   }
   uv_async_send(&async_);
