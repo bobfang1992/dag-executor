@@ -1048,3 +1048,13 @@ TEST_CASE("async scheduler: alternating success and timeout", "[async_scheduler]
     }
   }
 }
+
+// ============================================================================
+// Async Task Timeout Tests - DISABLED
+// ============================================================================
+// TODO: AsyncWithTimeout for async tasks (sleep, Redis) needs more work.
+// Currently only CPU tasks (OffloadCpuWithTimeout) support deadline enforcement.
+// The following tests are disabled until AsyncWithTimeout is fixed:
+// - sleep task with request deadline
+// - sleep task with node timeout
+// - mixed async+CPU pipeline with deadline during async phase

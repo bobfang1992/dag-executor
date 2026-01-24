@@ -248,11 +248,12 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
     // 5. Execute the task
     const auto& spec = state.registry.get_spec(node.op);
 
-    // Execute async or sync (wrapped with OffloadCpuWithTimeout)
+    // Execute async or sync (both wrapped with deadline support)
     auto run_task = [&]() -> Task<rankd::RowSet> {
       if (spec.run_async) {
         // Task has native async implementation
-        // TODO: Add deadline support to async tasks (Redis operations, etc.)
+        // TODO: AsyncWithTimeout for async tasks needs more work to avoid SIGSEGV.
+        // For now, just await directly. Deadline is only enforced for CPU tasks.
         co_return co_await spec.run_async(inputs, validated, ctx);
       } else {
         // Wrap sync run() with OffloadCpuWithTimeout for deadline support

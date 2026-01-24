@@ -315,6 +315,14 @@ For CPU tasks, `OffloadCpuWithTimeout` implements a **first-wins** pattern betwe
 2. **All state on loop thread**: Timer callback and CPU Post callback both run on loop thread
 3. **Capture-by-value**: CPU lambda owns `inputs`, `validated`, `op` to avoid use-after-free
 
+### Current Limitations
+
+**CPU tasks only**: Deadline/timeout is currently enforced only for CPU-bound tasks (those without `run_async`, like `vm`, `filter`, `sort`, `busy_cpu`). These use `OffloadCpuWithTimeout`.
+
+**Async tasks pending**: Tasks with `run_async` (like `viewer`, `follow`, `sleep`, Redis-backed tasks) do not yet enforce timeout. They will run to completion regardless of deadline. This is a known limitation tracked for future work.
+
+The `AsyncWithTimeout` awaitable exists but has coroutine lifetime issues that cause SIGSEGV when the timeout fires. Fixing this requires careful management of the inner task's continuation handle, which references the wrapper coroutine that may be destroyed on timeout.
+
 ### Deadline Checks
 
 Deadlines are checked at two points:
