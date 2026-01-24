@@ -73,6 +73,8 @@ set(TASK_SOURCES
   src/tasks/filter.cpp
   src/tasks/concat.cpp
   src/tasks/sleep.cpp
+  src/tasks/fixed_source.cpp
+  src/tasks/busy_cpu.cpp
 )
 
 add_executable(rankd

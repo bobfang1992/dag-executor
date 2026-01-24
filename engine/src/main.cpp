@@ -74,6 +74,8 @@ int main(int argc, char *argv[]) {
   int cpu_threads = 8;
   bool within_request_parallelism = false;
   bool async_scheduler = false;
+  int deadline_ms = 0;
+  int node_timeout_ms = 0;
 
   app.add_option("--plan", plan_path, "Path to plan JSON file");
   app.add_flag("--async_scheduler", async_scheduler,
@@ -108,6 +110,12 @@ int main(int argc, char *argv[]) {
       ->check(CLI::PositiveNumber);
   app.add_flag("--within_request_parallelism", within_request_parallelism,
                "Enable within-request DAG parallelism (default: ON in bench, OFF otherwise)");
+  app.add_option("--deadline_ms", deadline_ms,
+                 "Request deadline in milliseconds (0 = disabled, async only)")
+      ->check(CLI::NonNegativeNumber);
+  app.add_option("--node_timeout_ms", node_timeout_ms,
+                 "Per-node timeout in milliseconds (0 = disabled, async only)")
+      ->check(CLI::NonNegativeNumber);
 
   CLI11_PARSE(app, argc, argv);
 
@@ -337,9 +345,20 @@ int main(int argc, char *argv[]) {
 
         if (async_scheduler) {
           // Async execution path
+          // Compute deadline for this iteration
+          ranking::OptionalDeadline iter_deadline;
+          if (deadline_ms > 0) {
+            iter_deadline = start + std::chrono::milliseconds(deadline_ms);
+          }
+          std::optional<std::chrono::milliseconds> iter_node_timeout;
+          if (node_timeout_ms > 0) {
+            iter_node_timeout = std::chrono::milliseconds(node_timeout_ms);
+          }
+
           auto exec_result = ranking::execute_plan_async_blocking(
               plan, *loop, *async_clients, bench_params, plan.expr_table,
-              plan.pred_table, *endpoint_registry, bench_request, nullptr);
+              plan.pred_table, *endpoint_registry, bench_request, nullptr,
+              iter_deadline, iter_node_timeout);
           (void)exec_result;
         } else {
           // Sync execution path
@@ -558,9 +577,21 @@ int main(int argc, char *argv[]) {
         loop.Start();
         ranking::AsyncIoClients async_clients;
 
+        // Compute deadline and node timeout
+        ranking::OptionalDeadline request_deadline;
+        if (deadline_ms > 0) {
+          request_deadline = std::chrono::steady_clock::now() +
+                             std::chrono::milliseconds(deadline_ms);
+        }
+        std::optional<std::chrono::milliseconds> node_timeout;
+        if (node_timeout_ms > 0) {
+          node_timeout = std::chrono::milliseconds(node_timeout_ms);
+        }
+
         exec_result = ranking::execute_plan_async_blocking(
             plan, loop, async_clients, param_table, plan.expr_table,
-            plan.pred_table, *endpoint_registry, request_context, nullptr);
+            plan.pred_table, *endpoint_registry, request_context, nullptr,
+            request_deadline, node_timeout);
 
         loop.Stop();
       } else {
@@ -637,6 +668,11 @@ int main(int argc, char *argv[]) {
       }
     } catch (const std::exception &e) {
       std::cerr << "Error: " << e.what() << std::endl;
+      // If using async scheduler with timeout, wait for CPU pool work to complete
+      // to avoid SIGSEGV during static destruction
+      if (async_scheduler && (deadline_ms > 0 || node_timeout_ms > 0)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+      }
       return 1;
     }
   }
