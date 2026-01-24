@@ -315,6 +315,10 @@ int main(int argc, char *argv[]) {
       std::unique_ptr<ranking::EventLoop> loop;
       std::unique_ptr<ranking::AsyncIoClients> async_clients;
       if (async_scheduler) {
+        if (!endpoint_registry) {
+          throw std::runtime_error(
+              "async scheduler requires endpoint registry; check endpoints.<env>.json");
+        }
         loop = std::make_unique<ranking::EventLoop>();
         loop->Start();
         async_clients = std::make_unique<ranking::AsyncIoClients>();
