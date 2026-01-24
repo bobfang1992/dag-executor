@@ -14,10 +14,13 @@
 #include <thread>
 #include <vector>
 
+#include "async_dag_scheduler.h"
+#include "async_io_clients.h"
 #include "capability_registry.h"
 #include "cpu_pool.h"
 #include "capability_registry_gen.h"
 #include "endpoint_registry.h"
+#include "event_loop.h"
 #include "executor.h"
 #include "feature_registry.h"
 #include "io_clients.h"
@@ -70,8 +73,11 @@ int main(int argc, char *argv[]) {
   int bench_concurrency = 1;
   int cpu_threads = 8;
   bool within_request_parallelism = false;
+  bool async_scheduler = false;
 
   app.add_option("--plan", plan_path, "Path to plan JSON file");
+  app.add_flag("--async_scheduler", async_scheduler,
+               "Use async coroutine-based scheduler (libuv event loop)");
   app.add_option("--plan_dir", plan_dir,
                  "Plan store directory (default: artifacts/plans)");
   app.add_option("--plan_name", plan_name,
@@ -301,36 +307,53 @@ int main(int argc, char *argv[]) {
 
       std::cerr << "Running " << bench_iterations << " iterations of "
                 << plan.plan_name << " (concurrency=" << bench_concurrency
-                << ", parallel=" << (parallel ? "true" : "false") << ")..."
+                << ", parallel=" << (parallel ? "true" : "false")
+                << ", async=" << (async_scheduler ? "true" : "false") << ")..."
                 << std::endl;
+
+      // For async scheduler: create process-level EventLoop and AsyncIoClients
+      std::unique_ptr<ranking::EventLoop> loop;
+      std::unique_ptr<ranking::AsyncIoClients> async_clients;
+      if (async_scheduler) {
+        loop = std::make_unique<ranking::EventLoop>();
+        loop->Start();
+        async_clients = std::make_unique<ranking::AsyncIoClients>();
+      }
 
       auto total_start = std::chrono::steady_clock::now();
 
       // Run iterations with specified concurrency
       auto run_single_iteration = [&](int iter_id) -> double {
-        // Create fresh IoClients per iteration (simulates per-request)
-        rankd::IoClients bench_clients;
-
         // Create synthetic request context per iteration
         rankd::RequestContext bench_request;
         bench_request.request_id = "bench-" + std::to_string(iter_id);
         bench_request.user_id = 1;
 
-        rankd::ExecCtx bench_ctx;
-        bench_ctx.params = &bench_params;
-        bench_ctx.request = &bench_request;
-        bench_ctx.endpoints = endpoint_registry;
-        bench_ctx.clients = &bench_clients;
-        bench_ctx.expr_table = &plan.expr_table;
-        bench_ctx.pred_table = &plan.pred_table;
-        bench_ctx.parallel = parallel;
-
         auto start = std::chrono::steady_clock::now();
-        auto exec_result = rankd::execute_plan(plan, bench_ctx);
+
+        if (async_scheduler) {
+          // Async execution path
+          auto exec_result = ranking::execute_plan_async_blocking(
+              plan, *loop, *async_clients, bench_params, plan.expr_table,
+              plan.pred_table, *endpoint_registry, bench_request, nullptr);
+          (void)exec_result;
+        } else {
+          // Sync execution path
+          rankd::IoClients bench_clients;
+          rankd::ExecCtx bench_ctx;
+          bench_ctx.params = &bench_params;
+          bench_ctx.request = &bench_request;
+          bench_ctx.endpoints = endpoint_registry;
+          bench_ctx.clients = &bench_clients;
+          bench_ctx.expr_table = &plan.expr_table;
+          bench_ctx.pred_table = &plan.pred_table;
+          bench_ctx.parallel = parallel;
+
+          auto exec_result = rankd::execute_plan(plan, bench_ctx);
+          (void)exec_result;
+        }
+
         auto end = std::chrono::steady_clock::now();
-
-        (void)exec_result;  // Suppress unused
-
         return std::chrono::duration<double, std::micro>(end - start).count();
       };
 
@@ -384,6 +407,11 @@ int main(int argc, char *argv[]) {
         }
       }
 
+      // Stop async infrastructure if used
+      if (loop) {
+        loop->Stop();
+      }
+
       auto total_end = std::chrono::steady_clock::now();
       double total_ms =
           std::chrono::duration<double, std::milli>(total_end - total_start)
@@ -412,6 +440,7 @@ int main(int argc, char *argv[]) {
       output["iterations"] = bench_iterations;
       output["concurrency"] = bench_concurrency;
       output["within_request_parallelism"] = parallel;
+      output["async_scheduler"] = async_scheduler;
       output["cpu_threads"] = cpu_threads;
       output["total_ms"] = total_ms;
       output["throughput_rps"] = throughput_rps;
@@ -512,11 +541,26 @@ int main(int argc, char *argv[]) {
       rankd::Plan plan = rankd::parse_plan(plan_path);
       rankd::validate_plan(plan, endpoint_registry);
 
-      // Set expr_table and pred_table in context
-      ctx.expr_table = &plan.expr_table;
-      ctx.pred_table = &plan.pred_table;
+      // Execute plan (sync or async based on flag)
+      rankd::ExecutionResult exec_result;
 
-      auto exec_result = rankd::execute_plan(plan, ctx);
+      if (async_scheduler) {
+        // Async execution path
+        ranking::EventLoop loop;
+        loop.Start();
+        ranking::AsyncIoClients async_clients;
+
+        exec_result = ranking::execute_plan_async_blocking(
+            plan, loop, async_clients, param_table, plan.expr_table,
+            plan.pred_table, *endpoint_registry, request_context, nullptr);
+
+        loop.Stop();
+      } else {
+        // Sync execution path
+        ctx.expr_table = &plan.expr_table;
+        ctx.pred_table = &plan.pred_table;
+        exec_result = rankd::execute_plan(plan, ctx);
+      }
 
       // Merge all outputs into candidates
       for (const auto &rowset : exec_result.outputs) {

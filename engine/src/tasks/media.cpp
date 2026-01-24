@@ -1,3 +1,6 @@
+#include "async_dag_scheduler.h"
+#include "async_io_clients.h"
+#include "coro_task.h"
 #include "endpoint_registry.h"
 #include "io_clients.h"
 #include "param_table.h"
@@ -38,6 +41,7 @@ class MediaTask {
         .output_pattern = OutputPattern::VariableDense,
         .writes_effect = std::nullopt,
         .is_io = true,  // Redis LRANGE per input row
+        .run_async = run_async,
     };
   }
 
@@ -109,6 +113,71 @@ class MediaTask {
     }
 
     return RowSet(std::make_shared<ColumnBatch>(*batch));
+  }
+
+  // Async version using AsyncRedisClient
+  static ranking::Task<RowSet> run_async(const std::vector<RowSet>& inputs,
+                                          const ValidatedParams& params,
+                                          const ranking::ExecCtxAsync& ctx) {
+    if (inputs.size() != 1) {
+      throw std::runtime_error("media: expected exactly 1 input");
+    }
+
+    // Get fanout
+    int64_t fanout = params.get_int("fanout");
+    if (fanout <= 0) {
+      throw std::runtime_error("media: 'fanout' must be > 0");
+    }
+    constexpr int64_t kMaxFanout = 10'000;
+    if (fanout > kMaxFanout) {
+      throw std::runtime_error(
+          "media: 'fanout' exceeds per-row limit (10000)");
+    }
+
+    // Get endpoint ID and async Redis client
+    const std::string& endpoint_id = params.get_string("endpoint");
+    auto client_result = ctx.async_clients->GetRedis(
+        *ctx.loop, *ctx.endpoints, endpoint_id);
+    if (!client_result) {
+      throw std::runtime_error("media: " + client_result.error());
+    }
+    ranking::AsyncRedisClient& redis = **client_result;
+
+    // Collect all media IDs
+    std::vector<int64_t> media_ids;
+    const auto& input = inputs[0];
+
+    auto input_indices = input.materializeIndexViewForOutput(input.batch().size());
+    for (uint32_t idx : input_indices) {
+      int64_t row_id = input.batch().getId(idx);
+
+      // Fetch media list for this row's ID
+      std::string key = "media:" + std::to_string(row_id);
+      auto result = co_await redis.LRange(key, 0, fanout - 1);
+
+      if (!result) {
+        throw std::runtime_error("media: " + result.error().message);
+      }
+
+      for (const auto& id_str : result.value()) {
+        int64_t media_id = 0;
+        auto [ptr, ec] = std::from_chars(
+            id_str.data(), id_str.data() + id_str.size(), media_id);
+        if (ec == std::errc{}) {
+          media_ids.push_back(media_id);
+        }
+      }
+    }
+
+    // Create batch with media IDs
+    size_t n = media_ids.size();
+    auto batch = std::make_shared<ColumnBatch>(n);
+
+    for (size_t i = 0; i < n; ++i) {
+      batch->setId(i, media_ids[i]);
+    }
+
+    co_return RowSet(std::make_shared<ColumnBatch>(*batch));
   }
 };
 

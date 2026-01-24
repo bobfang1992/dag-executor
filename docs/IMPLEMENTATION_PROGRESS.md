@@ -214,19 +214,58 @@ This document tracks the implementation status of all features in the dag-execut
 - **Tests**: 30 assertions in 10 test cases (unit + Redis integration)
 - See PR #61
 
----
-
-## 🔲 Not Yet Implemented
-
-### Step 14.5c.3: Coroutine DAG Scheduler Integration
-- Integrate `AsyncRedisClient` with DAG scheduler
-- Replace thread-pool DAG scheduler with coroutine-based scheduler
-- CPU tasks stay on CPU pool, IO tasks become coroutines on EventLoop
-- **Task signature change**: `RowSet run(...)` → `Task<RowSet> run(...)`
+### Step 14.5c.3: Coroutine DAG Scheduler on libuv Loop
+- **Goal**: Replace thread-pool DAG scheduler with coroutine-based scheduler on single libuv thread
+- **Files**:
+  - `engine/include/cpu_offload.h` - `OffloadCpu` awaitable for CPU work on thread pool
+  - `engine/include/async_dag_scheduler.h` - `ExecCtxAsync` struct, async scheduler declarations
+  - `engine/src/async_dag_scheduler.cpp` - Async DAG scheduler with Kahn's algorithm
+  - `engine/include/task_registry.h` - Added `AsyncTaskFn` and `run_async` to TaskSpec
+  - `engine/src/tasks/{viewer,follow,media,recommendation,sleep}.cpp` - Added `run_async` methods
+  - `engine/src/main.cpp` - `--async_scheduler` flag
+- **Architecture**:
+  ```
+  ┌──────────────────────────────────────────────────────────────────┐
+  │                  Async DAG Scheduler (single thread)              │
+  │  ┌────────────────────────┐    ┌────────────────────────────────┐│
+  │  │   CPU Thread Pool      │    │   EventLoop (loop thread)      ││
+  │  │   (vm, filter, sort)   │◄───│   - Drives libuv poll          ││
+  │  │   via OffloadCpu       │    │   - Resumes coroutines         ││
+  │  └────────────────────────┘    │   - 100+ Redis in flight       ││
+  │            │                   └────────────────────────────────┘│
+  │            │ Post()                       ▲                       │
+  │            ▼                              │                       │
+  │  ┌────────────────────────────────────────┴─────────────────────┐│
+  │  │ Suspended Coroutines (Task<RowSet>)                          ││
+  │  │   - IO tasks: co_await AsyncRedisClient                       ││
+  │  │   - CPU tasks: co_await OffloadCpu(fn) → resume on loop      ││
+  │  └──────────────────────────────────────────────────────────────┘│
+  └──────────────────────────────────────────────────────────────────┘
+  ```
+- **Key Design**:
+  - `run_async` is OPTIONAL in TaskSpec; defaults to wrapping sync `run()` with `OffloadCpu`
+  - All scheduler state on loop thread (no mutexes in AsyncSchedulerState)
+  - `ExecCtxAsync` struct carries EventLoop*, AsyncIoClients* for async tasks
+  - `AsyncIoClients` is process-level (shared across requests)
+  - Independent DAG branches run concurrently via coroutine suspension
+- **OffloadCpu pattern**:
+  ```cpp
+  auto result = co_await OffloadCpu(loop, [&]() {
+    // CPU-intensive work on thread pool
+    return compute();
+  });
+  // Resume on loop thread with result
+  ```
 - **Benefits**:
   - 1 thread handles 100+ concurrent Redis calls (vs 8 threads = 8 calls)
   - Natural backpressure (coroutines suspend, don't spawn threads)
   - Fine-grained yielding: node can yield mid-execution on IO
+- **Validation**: All existing tests pass (290 assertions in 53 test cases)
+- **Usage**: `echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler`
+
+---
+
+## 🔲 Not Yet Implemented
 
 ### Step 14.5c.future: EventLoop Benchmarking
 - [ ] Benchmark EventLoop throughput (posts/sec, timers/sec)
