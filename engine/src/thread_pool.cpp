@@ -36,6 +36,11 @@ ThreadPool::~ThreadPool() {
   }
 }
 
+void ThreadPool::wait_idle() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  idle_cv_.wait(lock, [this] { return in_flight_.load() == 0; });
+}
+
 // Global IO thread pool - lazily initialized
 ThreadPool &GetIOThreadPool() {
   static ThreadPool pool(4); // 4 threads for IO operations

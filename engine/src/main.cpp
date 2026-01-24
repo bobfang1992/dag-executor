@@ -433,6 +433,8 @@ int main(int argc, char *argv[]) {
       // Stop async infrastructure if used
       if (loop) {
         loop->Stop();
+        // Drain CPU pool before destroying loop - pending CPU jobs may Post() to it
+        rankd::GetCPUThreadPool().wait_idle();
       }
 
       auto total_end = std::chrono::steady_clock::now();
@@ -594,6 +596,8 @@ int main(int argc, char *argv[]) {
             request_deadline, node_timeout);
 
         loop.Stop();
+        // Drain CPU pool before destroying loop - pending CPU jobs may Post() to it
+        rankd::GetCPUThreadPool().wait_idle();
       } else {
         // Sync execution path
         ctx.expr_table = &plan.expr_table;
