@@ -44,6 +44,7 @@ struct AsyncSchedulerState {
   std::vector<std::optional<rankd::NodeSchemaDelta>> schema_deltas;  // per node
   size_t num_nodes = 0;
   size_t nodes_remaining = 0;                            // countdown to 0 for completion
+  size_t inflight_count = 0;                             // running coroutines (for safe shutdown)
   std::queue<size_t> ready_queue;                        // nodes ready to run
   std::optional<std::string> first_error;                // fail-fast
 
@@ -171,16 +172,14 @@ void on_node_success(AsyncSchedulerState& state, size_t node_idx, rankd::RowSet 
   // Spawn newly ready nodes
   spawn_ready_nodes(state);
 
-  // Check completion
+  // Track completion count (main_coro resumed by run_node_async when inflight_count hits 0)
   --state.nodes_remaining;
-  if (state.nodes_remaining == 0 && state.main_coro) {
-    state.main_coro.resume();
-  }
 }
 
 /**
  * Called when a node fails.
- * Records the error and signals completion (fail-fast).
+ * Records the error (fail-fast: no new nodes spawned).
+ * main_coro resumed by run_node_async when inflight_count hits 0.
  */
 void on_node_failure(AsyncSchedulerState& state, const std::string& error) {
   if (!state.first_error) {
@@ -189,12 +188,6 @@ void on_node_failure(AsyncSchedulerState& state, const std::string& error) {
 
   // Decrement remaining but don't spawn new nodes
   --state.nodes_remaining;
-
-  // Resume main if this was the last inflight node
-  // (other nodes may still be running, but we'll fail-fast when they complete)
-  if (state.main_coro) {
-    state.main_coro.resume();
-  }
 }
 
 /**
@@ -204,9 +197,6 @@ void on_node_failure(AsyncSchedulerState& state, const std::string& error) {
  * For tasks without runAsync: wraps sync run() with OffloadCpu
  */
 Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
-  // Clear thread-local regex cache
-  rankd::clearRegexCache();
-
   try {
     const auto& node = state.plan.nodes[node_idx];
 
@@ -242,6 +232,9 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
       } else {
         // Wrap sync run() with OffloadCpu
         co_return co_await OffloadCpu(*ctx.loop, [&]() {
+          // Clear thread-local regex cache on CPU thread
+          rankd::clearRegexCache();
+
           // Build sync ExecCtx from async context
           rankd::ExecCtx sync_ctx;
           sync_ctx.params = ctx.params;
@@ -286,6 +279,13 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
     on_node_failure(state, e.what());
   }
 
+  // Decrement inflight count and resume main_coro when last task completes.
+  // This ensures AsyncSchedulerState stays alive until all suspended coroutines finish.
+  --state.inflight_count;
+  if (state.inflight_count == 0 && state.main_coro) {
+    state.main_coro.resume();
+  }
+
   co_return;
 }
 
@@ -296,6 +296,9 @@ void spawn_ready_nodes(AsyncSchedulerState& state) {
   while (!state.ready_queue.empty() && !state.first_error) {
     size_t node_idx = state.ready_queue.front();
     state.ready_queue.pop();
+
+    // Track inflight before starting (decremented in run_node_async on completion)
+    ++state.inflight_count;
 
     // Create and start the node coroutine
     state.node_tasks[node_idx] = run_node_async(state, node_idx);
