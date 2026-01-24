@@ -590,10 +590,17 @@ int main(int argc, char *argv[]) {
           node_timeout = std::chrono::milliseconds(node_timeout_ms);
         }
 
-        exec_result = ranking::execute_plan_async_blocking(
-            plan, loop, async_clients, param_table, plan.expr_table,
-            plan.pred_table, *endpoint_registry, request_context, nullptr,
-            request_deadline, node_timeout);
+        // Inner try-catch to ensure drain before loop destruction on exception
+        try {
+          exec_result = ranking::execute_plan_async_blocking(
+              plan, loop, async_clients, param_table, plan.expr_table,
+              plan.pred_table, *endpoint_registry, request_context, nullptr,
+              request_deadline, node_timeout);
+        } catch (...) {
+          loop.Stop();
+          rankd::GetCPUThreadPool().wait_idle();
+          throw;  // Rethrow after drain
+        }
 
         loop.Stop();
         // Drain CPU pool before destroying loop - pending CPU jobs may Post() to it
@@ -672,11 +679,6 @@ int main(int argc, char *argv[]) {
       }
     } catch (const std::exception &e) {
       std::cerr << "Error: " << e.what() << std::endl;
-      // If using async scheduler with timeout, wait for CPU pool work to complete
-      // to avoid SIGSEGV during static destruction
-      if (async_scheduler && (deadline_ms > 0 || node_timeout_ms > 0)) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
-      }
       return 1;
     }
   }
