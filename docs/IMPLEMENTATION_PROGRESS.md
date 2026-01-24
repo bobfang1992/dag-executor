@@ -263,6 +263,33 @@ This document tracks the implementation status of all features in the dag-execut
 - **Validation**: All existing tests pass (290 assertions in 53 test cases)
 - **Usage**: `echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler`
 
+### Step 14.5c.5b: Request Deadline + Node Timeout
+- **Goal**: Add deadline/timeout support for async scheduler with graceful timeout handling
+- **Files**:
+  - `engine/include/deadline.h` - Deadline types and helpers
+  - `engine/include/cpu_offload.h` - Added `OffloadCpuWithTimeout` awaitable
+  - `engine/src/async_dag_scheduler.cpp` - Deadline checks before spawning/executing nodes
+  - `engine/src/main.cpp` - `--deadline_ms` and `--node_timeout_ms` CLI flags
+  - `engine/src/tasks/fixed_source.cpp` - Pure source task for CI-safe testing (no Redis)
+  - `engine/src/tasks/busy_cpu.cpp` - CPU spin task for timeout testing
+- **Key Design**:
+  - **First-wins pattern**: Timer vs CPU completion race, all state mutations on loop thread
+  - **Timeout, not cancellation**: CPU work runs to completion, result discarded on timeout
+  - **Capture-by-value**: CPU lambda owns inputs to avoid use-after-free when coroutine destroyed
+  - **Deadline checks**: Before spawning new nodes (`spawn_ready_nodes`) and at node start
+  - **Effective deadline**: `min(request_deadline, now + node_timeout)` computed per node
+- **CLI flags**:
+  - `--deadline_ms N`: Request-level deadline (absolute time from request start)
+  - `--node_timeout_ms N`: Per-node timeout (max execution time per node)
+- **Tests**: 14 new tests (boundary + stress)
+  - Expired/short/generous deadlines
+  - Multi-stage pipelines with timeout
+  - Repeated operations (leak check)
+  - Alternating success/timeout patterns
+- **Validation**: 16 async scheduler tests, 97 assertions
+- **Usage**: `echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler --deadline_ms 100`
+- See PR #63
+
 ---
 
 ## 🔲 Not Yet Implemented

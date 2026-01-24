@@ -71,6 +71,12 @@ export interface CandidateSetLike {
 // Transform task option interfaces
 // =====================================================
 
+export interface BusyCpuOpts {
+  busyWaitMs: number;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
 export interface ConcatOpts {
   rhs: CandidateSetLike;
   trace?: string | null;
@@ -79,6 +85,12 @@ export interface ConcatOpts {
 
 export interface FilterOpts {
   pred: PredInput;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
+export interface FixedSourceOpts {
+  rowCount?: number;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
@@ -141,8 +153,8 @@ export interface VmOpts {
 // Metadata
 // =====================================================
 
-export const TASK_MANIFEST_DIGEST = "5f4edea81370dfee40f39e2fffc3501f7e4fc28d72e151fa3de9d030406455cb";
-export const TASK_COUNT = 10;
+export const TASK_MANIFEST_DIGEST = "432919e0c31b5d80896cfbbc46f65cc2dd8cca3329360a572326bf65e2ef39ad";
+export const TASK_COUNT = 12;
 
 // =====================================================
 // Task extraction metadata (for AST extractor)

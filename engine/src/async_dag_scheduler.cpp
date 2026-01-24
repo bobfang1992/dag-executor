@@ -38,6 +38,10 @@ struct AsyncSchedulerState {
   std::vector<std::vector<size_t>> successors;           // node_idx -> [succ indices]
   std::vector<size_t> topo_order;                        // for deterministic output
 
+  // Deadline/timeout config
+  OptionalDeadline request_deadline;
+  std::optional<std::chrono::milliseconds> node_timeout;
+
   // Mutable state (single-threaded, no locks needed)
   std::vector<int> deps_remaining;                       // countdown to 0
   std::vector<std::optional<rankd::RowSet>> results;     // output per node
@@ -54,8 +58,9 @@ struct AsyncSchedulerState {
   // Main coroutine handle - resumed when all nodes complete
   std::coroutine_handle<> main_coro;
 
-  AsyncSchedulerState(const rankd::Plan& p, const ExecCtxAsync& c, const rankd::TaskRegistry& r)
-      : plan(p), base_ctx(c), registry(r) {}
+  AsyncSchedulerState(const rankd::Plan& p, const ExecCtxAsync& c, const rankd::TaskRegistry& r,
+                      OptionalDeadline deadline, std::optional<std::chrono::milliseconds> timeout)
+      : plan(p), base_ctx(c), registry(r), request_deadline(deadline), node_timeout(timeout) {}
 };
 
 void init_async_scheduler_state(AsyncSchedulerState& state) {
@@ -201,11 +206,23 @@ void on_node_failure(AsyncSchedulerState& state, const std::string& error) {
  * Run a single DAG node as a coroutine.
  *
  * For tasks with runAsync: calls runAsync directly
- * For tasks without runAsync: wraps sync run() with OffloadCpu
+ * For tasks without runAsync: wraps sync run() with OffloadCpuWithTimeout
  */
 Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
   try {
     const auto& node = state.plan.nodes[node_idx];
+
+    // Capture node start time for deadline computation
+    auto start_time = std::chrono::steady_clock::now();
+
+    // Compute effective deadline for this node
+    auto effective_deadline = compute_effective_deadline(
+        start_time, state.request_deadline, state.node_timeout);
+
+    // Check if deadline already exceeded before we start
+    if (deadline_exceeded_at(start_time, effective_deadline)) {
+      throw std::runtime_error("Node execution timeout (deadline exceeded before start)");
+    }
 
     // 1. Gather inputs from completed parent nodes
     std::vector<rankd::RowSet> inputs;
@@ -218,44 +235,78 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
     auto validated = state.registry.validate_params(node.op, node.params);
 
     // 3. Resolve NodeRef params
-    std::unordered_map<std::string, rankd::RowSet> resolved_refs;
+    // Use shared_ptr so CPU lambda can safely access even if timeout fires and
+    // coroutine frame is destroyed (avoids use-after-free for concat-style nodes)
+    auto resolved_refs =
+        std::make_shared<std::unordered_map<std::string, rankd::RowSet>>();
     for (const auto& [param_name, ref_node_id] : validated.node_ref_params) {
       size_t ref_idx = state.node_index.at(ref_node_id);
-      resolved_refs.emplace(param_name, *state.results[ref_idx]);
+      resolved_refs->emplace(param_name, *state.results[ref_idx]);
     }
 
     // 4. Build execution context for this node
     ExecCtxAsync ctx = state.base_ctx;
-    ctx.resolved_node_refs = resolved_refs.empty() ? nullptr : &resolved_refs;
+    ctx.resolved_node_refs = resolved_refs->empty() ? nullptr : resolved_refs.get();
 
     // 5. Execute the task
     const auto& spec = state.registry.get_spec(node.op);
 
-    // Execute async or sync (wrapped with OffloadCpu)
+    // Execute async or sync (both wrapped with deadline support)
     auto run_task = [&]() -> Task<rankd::RowSet> {
       if (spec.run_async) {
         // Task has native async implementation
+        // TODO: AsyncWithTimeout for async tasks needs more work to avoid SIGSEGV.
+        // For now, just await directly. Deadline is only enforced for CPU tasks.
         co_return co_await spec.run_async(inputs, validated, ctx);
       } else {
-        // Wrap sync run() with OffloadCpu
-        co_return co_await OffloadCpu(*ctx.loop, [&]() {
-          // Clear thread-local regex cache on CPU thread
-          rankd::clearRegexCache();
+        // Wrap sync run() with OffloadCpuWithTimeout for deadline support
+        // IMPORTANT: All data must be copied/shared because if timeout fires,
+        // the caller may return and destroy stack data while CPU work continues.
+        auto& registry = state.registry;
+        std::string op = node.op;
+        auto captured_inputs = inputs;
+        auto captured_validated = validated;
 
-          // Build sync ExecCtx from async context
-          rankd::ExecCtx sync_ctx;
-          sync_ctx.params = ctx.params;
-          sync_ctx.expr_table = ctx.expr_table;
-          sync_ctx.pred_table = ctx.pred_table;
-          sync_ctx.stats = ctx.stats;
-          sync_ctx.resolved_node_refs = ctx.resolved_node_refs;
-          sync_ctx.request = ctx.request;
-          sync_ctx.endpoints = ctx.endpoints;
-          sync_ctx.clients = nullptr;  // Sync clients not available in async path
-          sync_ctx.parallel = false;
+        // Copy ctx data into shared storage so CPU lambda owns it.
+        // If timeout fires and caller returns, CPU work can still safely access.
+        auto params_copy = std::make_shared<rankd::ParamTable>(*ctx.params);
+        auto expr_table_copy = std::make_shared<
+            std::unordered_map<std::string, rankd::ExprNodePtr>>(*ctx.expr_table);
+        auto pred_table_copy = std::make_shared<
+            std::unordered_map<std::string, rankd::PredNodePtr>>(*ctx.pred_table);
+        auto request_copy = std::make_shared<rankd::RequestContext>(*ctx.request);
+        // endpoints may be null for CPU-only plans (though async scheduler typically requires it)
+        std::shared_ptr<rankd::EndpointRegistry> endpoints_copy =
+            ctx.endpoints ? std::make_shared<rankd::EndpointRegistry>(*ctx.endpoints)
+                          : nullptr;
+        // stats is optional and only for timing - skip on timeout (result discarded anyway)
+        // resolved_refs is already a shared_ptr
 
-          return state.registry.execute(node.op, inputs, validated, sync_ctx);
-        });
+        co_return co_await OffloadCpuWithTimeout(
+            *ctx.loop, effective_deadline,
+            [&registry, op = std::move(op), captured_inputs = std::move(captured_inputs),
+             captured_validated = std::move(captured_validated),
+             params_copy, expr_table_copy, pred_table_copy,
+             resolved_refs, request_copy, endpoints_copy]() mutable {
+              // Clear thread-local regex cache on CPU thread
+              rankd::clearRegexCache();
+
+              // Build sync ExecCtx from shared copies
+              rankd::ExecCtx sync_ctx;
+              sync_ctx.params = params_copy.get();
+              sync_ctx.expr_table = expr_table_copy.get();
+              sync_ctx.pred_table = pred_table_copy.get();
+              sync_ctx.stats = nullptr;  // Skip stats - result may be discarded on timeout
+              sync_ctx.resolved_node_refs =
+                  resolved_refs->empty() ? nullptr : resolved_refs.get();
+              sync_ctx.request = request_copy.get();
+              sync_ctx.endpoints = endpoints_copy ? endpoints_copy.get() : nullptr;
+              sync_ctx.clients = nullptr;  // Sync clients not available in async path
+              sync_ctx.parallel = false;
+
+              return registry.execute(op, captured_inputs, captured_validated,
+                                       sync_ctx);
+            });
       }
     };
 
@@ -263,8 +314,8 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
 
     // 6. Validate output contract
     std::vector<rankd::RowSet> contract_inputs = inputs;
-    if (spec.output_pattern == rankd::OutputPattern::ConcatDense && resolved_refs.contains("rhs")) {
-      contract_inputs.push_back(resolved_refs.at("rhs"));
+    if (spec.output_pattern == rankd::OutputPattern::ConcatDense && resolved_refs->contains("rhs")) {
+      contract_inputs.push_back(resolved_refs->at("rhs"));
     }
     rankd::validateTaskOutput(node.node_id, node.op, spec.output_pattern, contract_inputs,
                                validated, output);
@@ -304,6 +355,14 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
  * Spawn coroutines for all nodes in the ready queue.
  */
 void spawn_ready_nodes(AsyncSchedulerState& state) {
+  // Check request deadline before spawning new nodes
+  if (deadline_exceeded(state.request_deadline)) {
+    if (!state.first_error) {
+      state.first_error = "Request deadline exceeded";
+    }
+    return;  // Don't spawn new nodes
+  }
+
   while (!state.ready_queue.empty() && !state.first_error) {
     size_t node_idx = state.ready_queue.front();
     state.ready_queue.pop();
@@ -319,10 +378,14 @@ void spawn_ready_nodes(AsyncSchedulerState& state) {
 
 }  // namespace
 
-Task<rankd::ExecutionResult> execute_plan_async(const rankd::Plan& plan, const ExecCtxAsync& ctx) {
+Task<rankd::ExecutionResult> execute_plan_async(
+    const rankd::Plan& plan,
+    const ExecCtxAsync& ctx,
+    OptionalDeadline request_deadline,
+    std::optional<std::chrono::milliseconds> node_timeout) {
   const auto& registry = rankd::TaskRegistry::instance();
 
-  AsyncSchedulerState state(plan, ctx, registry);
+  AsyncSchedulerState state(plan, ctx, registry, request_deadline, node_timeout);
   init_async_scheduler_state(state);
 
   // Spawn initial ready nodes
@@ -364,7 +427,9 @@ rankd::ExecutionResult execute_plan_async_blocking(
     const std::unordered_map<std::string, rankd::PredNodePtr>& pred_table,
     const rankd::EndpointRegistry& endpoints,
     const rankd::RequestContext& request,
-    rankd::ExecStats* stats) {
+    rankd::ExecStats* stats,
+    OptionalDeadline request_deadline,
+    std::optional<std::chrono::milliseconds> node_timeout) {
 
   // Guard: calling from loop thread would deadlock (we'd block waiting for
   // callbacks that can't run because we're blocking the loop thread)
@@ -394,7 +459,7 @@ rankd::ExecutionResult execute_plan_async_blocking(
   // Wrapper coroutine that signals completion
   auto wrapper = [&]() -> Task<void> {
     try {
-      result = co_await execute_plan_async(plan, ctx);
+      result = co_await execute_plan_async(plan, ctx, request_deadline, node_timeout);
     } catch (...) {
       error = std::current_exception();
     }

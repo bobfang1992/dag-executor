@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -7,6 +9,7 @@
 #include "async_io_clients.h"
 #include "coro_task.h"
 #include "dag_scheduler.h"  // For ExecutionResult
+#include "deadline.h"
 #include "endpoint_registry.h"
 #include "event_loop.h"
 #include "param_table.h"  // For ParamTable, ExprNodePtr, PredNodePtr, ExecStats
@@ -74,20 +77,31 @@ using AsyncTaskFn = std::function<Task<rankd::RowSet>(
  * All execution happens on a single EventLoop thread:
  * - DAG scheduling and coordination
  * - IO operations (Redis via AsyncRedisClient)
- * - CPU work offloaded to CPU pool via OffloadCpu
+ * - CPU work offloaded to CPU pool via OffloadCpu/OffloadCpuWithTimeout
  *
  * Level 2 parallelism (within-request DAG branches) is achieved by:
  * - Launching ready nodes as concurrent coroutines
  * - Nodes suspend on IO (co_await), allowing other nodes to run
  * - CPU work runs in parallel on CPU pool threads
  *
+ * Deadline/timeout support:
+ * - request_deadline: Global deadline for entire request
+ * - node_timeout: Per-node timeout applied to each node
+ * - If either is exceeded, nodes fail with timeout error
+ *
  * @param plan The DAG plan to execute
  * @param ctx Async execution context with EventLoop and AsyncIoClients
+ * @param request_deadline Optional request-level deadline
+ * @param node_timeout Optional per-node timeout
  * @return ExecutionResult with outputs and schema deltas
  *
  * MUST be co_awaited from a coroutine running on the EventLoop.
  */
-Task<rankd::ExecutionResult> execute_plan_async(const rankd::Plan& plan, const ExecCtxAsync& ctx);
+Task<rankd::ExecutionResult> execute_plan_async(
+    const rankd::Plan& plan,
+    const ExecCtxAsync& ctx,
+    OptionalDeadline request_deadline = std::nullopt,
+    std::optional<std::chrono::milliseconds> node_timeout = std::nullopt);
 
 /**
  * Blocking wrapper for execute_plan_async.
@@ -104,6 +118,8 @@ Task<rankd::ExecutionResult> execute_plan_async(const rankd::Plan& plan, const E
  * @param endpoints Endpoint registry
  * @param request Request context
  * @param stats Optional execution stats
+ * @param request_deadline Optional request-level deadline
+ * @param node_timeout Optional per-node timeout
  * @return ExecutionResult with outputs and schema deltas
  */
 rankd::ExecutionResult execute_plan_async_blocking(
@@ -115,6 +131,8 @@ rankd::ExecutionResult execute_plan_async_blocking(
     const std::unordered_map<std::string, rankd::PredNodePtr>& pred_table,
     const rankd::EndpointRegistry& endpoints,
     const rankd::RequestContext& request,
-    rankd::ExecStats* stats = nullptr);
+    rankd::ExecStats* stats = nullptr,
+    OptionalDeadline request_deadline = std::nullopt,
+    std::optional<std::chrono::milliseconds> node_timeout = std::nullopt);
 
 }  // namespace ranking

@@ -7,6 +7,7 @@
 #include <utility>
 #include <variant>
 
+#include "coro_task.h"
 #include "cpu_pool.h"
 #include "event_loop.h"
 
@@ -98,5 +99,412 @@ class OffloadCpu {
 // Deduction guide for OffloadCpu
 template <typename F>
 OffloadCpu(EventLoop&, F&&) -> OffloadCpu<std::decay_t<F>>;
+
+/**
+ * OffloadCpuWithTimeout - awaitable that runs a callable on the CPU thread pool
+ * with deadline/timeout support.
+ *
+ * Key invariant: ALL state mutations happen on the loop thread only.
+ * The CPU job Posts back to the loop thread before touching shared state.
+ *
+ * Thread model:
+ *   1. Coroutine suspends on event loop thread
+ *   2. CPU work submitted to thread pool
+ *   3. Timer started on loop thread (if deadline set)
+ *   4. First-wins: CPU completion or timeout
+ *   5. Coroutine resumes on event loop thread
+ *
+ * If timeout fires before CPU completes:
+ *   - Sets timeout error in result
+ *   - Resumes coroutine with error
+ *   - CPU job completes later (result discarded)
+ *
+ * If CPU completes before timeout:
+ *   - Cancels timer (if set)
+ *   - Resumes coroutine with result
+ *
+ * Usage:
+ *   OptionalDeadline deadline = std::chrono::steady_clock::now() + 50ms;
+ *   auto result = co_await OffloadCpuWithTimeout(loop, deadline, [&]() {
+ *     return expensiveComputation();
+ *   });
+ */
+template <typename F>
+class OffloadCpuWithTimeout {
+ public:
+  using ResultType = std::invoke_result_t<F>;
+  using StoredResult =
+      std::conditional_t<std::is_void_v<ResultType>, std::monostate, ResultType>;
+
+  // Shared state between CPU job, timer, and coroutine
+  // Lives on heap so CPU job can safely access after coroutine resumes
+  struct State {
+    bool completed = false;  // First-wins guard (loop-thread only)
+    std::variant<StoredResult, std::exception_ptr> result{std::exception_ptr{}};
+    std::coroutine_handle<> handle;
+    uv_timer_t* timer = nullptr;
+    EventLoop* loop = nullptr;
+  };
+
+  OffloadCpuWithTimeout(EventLoop& loop, std::optional<std::chrono::steady_clock::time_point> deadline, F&& fn)
+      : loop_(loop),
+        deadline_(deadline),
+        fn_(std::forward<F>(fn)),
+        state_(std::make_shared<State>()) {
+    state_->loop = &loop;
+  }
+
+  // Check if deadline already exceeded (don't suspend)
+  bool await_ready() const noexcept {
+    if (deadline_ && std::chrono::steady_clock::now() >= *deadline_) {
+      // Deadline already exceeded - will set error in await_resume
+      return true;
+    }
+    return false;
+  }
+
+  bool await_suspend(std::coroutine_handle<> h) {
+    state_->handle = h;
+
+    // Check deadline again (might have passed since await_ready)
+    if (deadline_ && std::chrono::steady_clock::now() >= *deadline_) {
+      state_->completed = true;
+      state_->result = std::make_exception_ptr(
+          std::runtime_error("Node execution timeout (deadline exceeded before start)"));
+      return false;  // Don't suspend - resume immediately
+    }
+
+    // Submit CPU work
+    auto state = state_;  // Capture shared_ptr for lambda
+    auto fn = std::move(fn_);
+
+    rankd::GetCPUThreadPool().submit([state, fn = std::move(fn)]() mutable {
+      // Execute on CPU thread
+      std::variant<StoredResult, std::exception_ptr> local_result{std::exception_ptr{}};
+      try {
+        if constexpr (std::is_void_v<ResultType>) {
+          fn();
+          local_result.template emplace<0>(std::monostate{});
+        } else {
+          local_result.template emplace<0>(fn());
+        }
+      } catch (...) {
+        local_result.template emplace<1>(std::current_exception());
+      }
+
+      // Post back to loop thread before touching state
+      state->loop->Post([state, local_result = std::move(local_result)]() mutable {
+        if (state->completed) {
+          return;  // Timer already fired
+        }
+        state->completed = true;
+        state->result = std::move(local_result);
+
+        // Cancel timer if active
+        if (state->timer) {
+          uv_timer_stop(state->timer);
+          uv_close(reinterpret_cast<uv_handle_t*>(state->timer),
+                   [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
+          state->timer = nullptr;
+        }
+
+        state->handle.resume();
+      });
+    });
+
+    // Start deadline timer (if deadline set)
+    if (deadline_) {
+      auto now = std::chrono::steady_clock::now();
+      auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(*deadline_ - now).count();
+      if (ms <= 0) {
+        ms = 1;  // Minimum 1ms to ensure timer fires
+      }
+
+      // Create and start timer on loop thread
+      state = state_;  // Refresh capture
+      loop_.Post([state, ms]() {
+        if (state->completed) {
+          return;  // CPU job already finished
+        }
+
+        auto* timer = new uv_timer_t;
+        timer->data = state.get();
+        state->timer = timer;
+
+        uv_timer_init(state->loop->RawLoop(), timer);
+        uv_timer_start(timer, OnTimeout, static_cast<uint64_t>(ms), 0);
+      });
+    }
+
+    return true;  // Suspend
+  }
+
+  ResultType await_resume() {
+    // Handle deadline-exceeded-before-start case
+    if (!state_->completed && deadline_ && std::chrono::steady_clock::now() >= *deadline_) {
+      throw std::runtime_error("Node execution timeout (deadline exceeded)");
+    }
+
+    // Check for exception (includes timeout errors)
+    if (std::holds_alternative<std::exception_ptr>(state_->result)) {
+      auto& eptr = std::get<std::exception_ptr>(state_->result);
+      if (eptr) {
+        std::rethrow_exception(eptr);
+      }
+    }
+
+    // Return result
+    if constexpr (std::is_void_v<ResultType>) {
+      return;
+    } else {
+      return std::move(std::get<0>(state_->result));
+    }
+  }
+
+ private:
+  static void OnTimeout(uv_timer_t* t) {
+    auto* state = static_cast<State*>(t->data);
+    if (state->completed) {
+      return;  // CPU job already finished
+    }
+    state->completed = true;
+    state->result = std::make_exception_ptr(
+        std::runtime_error("Node execution timeout"));
+    state->timer = nullptr;
+
+    uv_close(reinterpret_cast<uv_handle_t*>(t),
+             [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
+
+    state->handle.resume();
+  }
+
+  EventLoop& loop_;
+  std::optional<std::chrono::steady_clock::time_point> deadline_;
+  F fn_;
+  std::shared_ptr<State> state_;
+};
+
+// Deduction guide for OffloadCpuWithTimeout
+template <typename F>
+OffloadCpuWithTimeout(EventLoop&, std::optional<std::chrono::steady_clock::time_point>, F&&)
+    -> OffloadCpuWithTimeout<std::decay_t<F>>;
+
+/**
+ * AsyncWithTimeout - awaitable that races an async Task against a deadline timer.
+ *
+ * This is the async equivalent of OffloadCpuWithTimeout. While OffloadCpuWithTimeout
+ * races CPU work against a timer, AsyncWithTimeout races an async coroutine (like
+ * Redis operations or sleep) against a timer.
+ *
+ * Key invariant: ALL state mutations happen on the loop thread.
+ * The wrapper coroutine and timer callback both run on the loop thread.
+ *
+ * Thread model:
+ *   1. Caller suspends on event loop thread
+ *   2. Inner task awaited in wrapper coroutine (loop thread)
+ *   3. Timer started on loop thread (if deadline set)
+ *   4. First-wins: inner task completion or timeout
+ *   5. Caller resumes on event loop thread
+ *
+ * If timeout fires before task completes:
+ *   - Sets timeout error in result
+ *   - Resumes caller with error
+ *   - Task continues to run (wrapper still alive in State) but result is discarded
+ *
+ * If task completes before timeout:
+ *   - Cancels timer (if set)
+ *   - Resumes caller with result
+ *
+ * IMPORTANT: The wrapper coroutine is stored in State (shared_ptr) so it survives
+ * after AsyncWithTimeout is destroyed. This is necessary because on timeout, the
+ * inner task still holds a reference to the wrapper's continuation handle.
+ *
+ * Usage:
+ *   OptionalDeadline deadline = std::chrono::steady_clock::now() + 50ms;
+ *   auto result = co_await AsyncWithTimeout(loop, deadline, asyncOperation());
+ */
+template <typename T>
+class AsyncWithTimeout {
+ public:
+  using ResultType = T;
+  using StoredResult =
+      std::conditional_t<std::is_void_v<T>, std::monostate, T>;
+
+  // Shared state - must outlive AsyncWithTimeout because wrapper coroutine
+  // may still be running after timeout
+  struct State {
+    bool completed = false;  // First-wins guard (loop-thread only)
+    std::variant<StoredResult, std::exception_ptr> result{std::exception_ptr{}};
+    std::coroutine_handle<> waiter;
+    uv_timer_t* timer = nullptr;
+    EventLoop* loop = nullptr;
+    // Wrapper coroutine stored here (not in AsyncWithTimeout) so it survives
+    // after timeout resumes the caller and destroys AsyncWithTimeout.
+    // The wrapper is still awaiting the inner task.
+    std::optional<Task<void>> wrapper;
+  };
+
+  AsyncWithTimeout(EventLoop& loop,
+                   std::optional<std::chrono::steady_clock::time_point> deadline,
+                   Task<T> task)
+      : loop_(loop),
+        deadline_(deadline),
+        task_(std::move(task)),
+        state_(std::make_shared<State>()) {
+    state_->loop = &loop;
+  }
+
+  // Check if deadline already exceeded (don't suspend)
+  bool await_ready() const noexcept {
+    if (deadline_ && std::chrono::steady_clock::now() >= *deadline_) {
+      return true;
+    }
+    return false;
+  }
+
+  bool await_suspend(std::coroutine_handle<> h) {
+    state_->waiter = h;
+
+    // Check deadline again (might have passed since await_ready)
+    if (deadline_ && std::chrono::steady_clock::now() >= *deadline_) {
+      state_->completed = true;
+      state_->result = std::make_exception_ptr(
+          std::runtime_error("Node execution timeout (deadline exceeded before start)"));
+      return false;  // Don't suspend - resume immediately
+    }
+
+    // Create wrapper coroutine that awaits inner task
+    // The wrapper captures state (shared_ptr) to keep State alive
+    //
+    // IMPORTANT: There's a reference cycle: State -> wrapper -> frame -> s -> State
+    // We break this cycle by posting a cleanup callback when wrapper finishes.
+    // The WrapperCleanup RAII guard posts s->wrapper = nullopt to the event loop,
+    // which runs after wrapper is suspended at final_suspend, safely destroying it.
+    auto state = state_;
+
+    // RAII guard that breaks the cycle when wrapper body exits
+    struct WrapperCleanup {
+      std::shared_ptr<State> s;
+      ~WrapperCleanup() {
+        // Post cleanup to break the cycle after wrapper is suspended
+        s->loop->Post([s = this->s]() mutable {
+          s->wrapper = std::nullopt;  // Destroys wrapper, breaks cycle
+        });
+      }
+    };
+
+    auto make_wrapper = [](std::shared_ptr<State> s, Task<T> t) -> Task<void> {
+      WrapperCleanup cleanup{s};  // RAII guard - destructor posts cleanup
+      try {
+        if constexpr (std::is_void_v<T>) {
+          co_await t;
+          if (!s->completed) {
+            s->completed = true;
+            s->result.template emplace<0>(std::monostate{});
+            cancel_timer_impl(s.get());
+            s->waiter.resume();
+          }
+        } else {
+          T result = co_await t;
+          if (!s->completed) {
+            s->completed = true;
+            s->result.template emplace<0>(std::move(result));
+            cancel_timer_impl(s.get());
+            s->waiter.resume();
+          }
+        }
+      } catch (...) {
+        if (!s->completed) {
+          s->completed = true;
+          s->result.template emplace<1>(std::current_exception());
+          cancel_timer_impl(s.get());
+          s->waiter.resume();
+        }
+      }
+      // WrapperCleanup destructor runs here, posting cleanup to event loop
+    };
+
+    // Store wrapper in State (shared_ptr) so it survives after AsyncWithTimeout
+    // is destroyed on timeout
+    state_->wrapper = make_wrapper(state, std::move(task_));
+    state_->wrapper->start();
+
+    // Start deadline timer (if deadline set)
+    if (deadline_) {
+      auto now = std::chrono::steady_clock::now();
+      auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(*deadline_ - now).count();
+      if (ms <= 0) {
+        ms = 1;  // Minimum 1ms to ensure timer fires
+      }
+
+      auto* timer = new uv_timer_t;
+      timer->data = state_.get();
+      state_->timer = timer;
+
+      uv_timer_init(loop_.RawLoop(), timer);
+      uv_timer_start(timer, OnTimeout, static_cast<uint64_t>(ms), 0);
+    }
+
+    return true;  // Suspend
+  }
+
+  ResultType await_resume() {
+    // Handle deadline-exceeded-before-start case
+    if (!state_->completed && deadline_ && std::chrono::steady_clock::now() >= *deadline_) {
+      throw std::runtime_error("Node execution timeout (deadline exceeded)");
+    }
+
+    // Check for exception (includes timeout errors)
+    if (std::holds_alternative<std::exception_ptr>(state_->result)) {
+      auto& eptr = std::get<std::exception_ptr>(state_->result);
+      if (eptr) {
+        std::rethrow_exception(eptr);
+      }
+    }
+
+    // Return result
+    if constexpr (std::is_void_v<ResultType>) {
+      return;
+    } else {
+      return std::move(std::get<0>(state_->result));
+    }
+  }
+
+ private:
+  static void cancel_timer_impl(State* state) {
+    if (state->timer) {
+      uv_timer_stop(state->timer);
+      uv_close(reinterpret_cast<uv_handle_t*>(state->timer),
+               [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
+      state->timer = nullptr;
+    }
+  }
+
+  static void OnTimeout(uv_timer_t* t) {
+    auto* state = static_cast<State*>(t->data);
+    if (state->completed) {
+      return;  // Task already finished
+    }
+    state->completed = true;
+    state->result = std::make_exception_ptr(
+        std::runtime_error("Node execution timeout"));
+    state->timer = nullptr;
+
+    uv_close(reinterpret_cast<uv_handle_t*>(t),
+             [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
+
+    state->waiter.resume();
+  }
+
+  EventLoop& loop_;
+  std::optional<std::chrono::steady_clock::time_point> deadline_;
+  Task<T> task_;
+  std::shared_ptr<State> state_;
+};
+
+// Deduction guide for AsyncWithTimeout
+template <typename T>
+AsyncWithTimeout(EventLoop&, std::optional<std::chrono::steady_clock::time_point>, Task<T>)
+    -> AsyncWithTimeout<T>;
 
 }  // namespace ranking

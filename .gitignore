@@ -46,3 +46,4 @@ compile_commands.json
 
 # Binary cache
 *.bin
+engine/build-asan/

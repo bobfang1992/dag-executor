@@ -169,6 +169,12 @@ This document categorizes all tests in the dag-executor project by type and feat
 | | Sleep task | identity behavior |
 | | Async scheduler | three-branch DAG with concurrent sleep + vm |
 | | Fault injection | no deadlock or UAF on error |
+| | Deadline | expired, short (1ms), generous |
+| | Node timeout | short (1ms), generous |
+| | Combined | both deadline and node_timeout |
+| | Multi-stage | pipeline timeout, pipeline success |
+| | fixed_source | no CPU offload path |
+| | Stress | repeated timeout, repeated success, alternating |
 
 ### Event Loop (`engine/bin/event_loop_tests`)
 
@@ -441,7 +447,7 @@ This document categorizes all tests in the dag-executor project by type and feat
 # C++ unit tests individually
 engine/bin/rankd_tests           # 290 assertions - core engine tests
 engine/bin/event_loop_tests      # 84 assertions - coroutine/libuv primitives
-engine/bin/dag_scheduler_tests   # 29 assertions - sync + async scheduler
+engine/bin/dag_scheduler_tests   # 97 assertions - sync + async scheduler + deadline/timeout
 engine/bin/async_redis_tests     # ~20 assertions - async Redis (requires Redis)
 engine/bin/concat_tests
 engine/bin/regex_tests
@@ -459,10 +465,11 @@ pnpm -C dsl/packages/eslint-plugin run test
 engine/bin/rankd_tests "[param_table]"
 engine/bin/rankd_tests "ParamTable basic*"
 
-# Async scheduler tests
+# Async scheduler tests (16 tests, 97 assertions)
 engine/bin/dag_scheduler_tests "[async_scheduler]"
-engine/bin/dag_scheduler_tests "[async_scheduler][concurrent]"
-engine/bin/dag_scheduler_tests "[async_scheduler][fault_injection]"
+engine/bin/dag_scheduler_tests "*deadline*"
+engine/bin/dag_scheduler_tests "*timeout*"
+engine/bin/dag_scheduler_tests "*repeated*"
 ```
 
 ## Test Dependencies
