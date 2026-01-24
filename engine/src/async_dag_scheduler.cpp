@@ -366,6 +366,13 @@ rankd::ExecutionResult execute_plan_async_blocking(
     const rankd::RequestContext& request,
     rankd::ExecStats* stats) {
 
+  // Guard: calling from loop thread would deadlock (we'd block waiting for
+  // callbacks that can't run because we're blocking the loop thread)
+  if (loop.IsLoopThread()) {
+    throw std::runtime_error(
+        "execute_plan_async_blocking called from loop thread; use execute_plan_async instead");
+  }
+
   // Build async context
   ExecCtxAsync ctx;
   ctx.params = &params;

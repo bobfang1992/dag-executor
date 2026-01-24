@@ -80,6 +80,9 @@ public:
   // Check if the loop is running
   bool IsRunning() const { return state_.load() == State::Running; }
 
+  // Check if current thread is the loop thread
+  bool IsLoopThread() const { return std::this_thread::get_id() == loop_thread_id_; }
+
   // Get current state (for testing/debugging)
   State GetState() const { return state_.load(); }
 
