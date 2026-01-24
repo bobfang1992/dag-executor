@@ -235,15 +235,18 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
     auto validated = state.registry.validate_params(node.op, node.params);
 
     // 3. Resolve NodeRef params
-    std::unordered_map<std::string, rankd::RowSet> resolved_refs;
+    // Use shared_ptr so CPU lambda can safely access even if timeout fires and
+    // coroutine frame is destroyed (avoids use-after-free for concat-style nodes)
+    auto resolved_refs =
+        std::make_shared<std::unordered_map<std::string, rankd::RowSet>>();
     for (const auto& [param_name, ref_node_id] : validated.node_ref_params) {
       size_t ref_idx = state.node_index.at(ref_node_id);
-      resolved_refs.emplace(param_name, *state.results[ref_idx]);
+      resolved_refs->emplace(param_name, *state.results[ref_idx]);
     }
 
     // 4. Build execution context for this node
     ExecCtxAsync ctx = state.base_ctx;
-    ctx.resolved_node_refs = resolved_refs.empty() ? nullptr : &resolved_refs;
+    ctx.resolved_node_refs = resolved_refs->empty() ? nullptr : resolved_refs.get();
 
     // 5. Execute the task
     const auto& spec = state.registry.get_spec(node.op);
@@ -276,15 +279,15 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
         auto* expr_table_ptr = ctx.expr_table;
         auto* pred_table_ptr = ctx.pred_table;
         auto* stats_ptr = ctx.stats;
-        auto* resolved_refs_ptr = ctx.resolved_node_refs;
         auto* request_ptr = ctx.request;
         auto* endpoints_ptr = ctx.endpoints;
+        // resolved_refs is already a shared_ptr, capture by value for safe access
 
         co_return co_await OffloadCpuWithTimeout(
             *ctx.loop, effective_deadline,
             [&registry, op = std::move(op), captured_inputs = std::move(captured_inputs),
              captured_validated = std::move(captured_validated), params_ptr,
-             expr_table_ptr, pred_table_ptr, stats_ptr, resolved_refs_ptr,
+             expr_table_ptr, pred_table_ptr, stats_ptr, resolved_refs,
              request_ptr, endpoints_ptr]() mutable {
               // Clear thread-local regex cache on CPU thread
               rankd::clearRegexCache();
@@ -295,7 +298,8 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
               sync_ctx.expr_table = expr_table_ptr;
               sync_ctx.pred_table = pred_table_ptr;
               sync_ctx.stats = stats_ptr;
-              sync_ctx.resolved_node_refs = resolved_refs_ptr;
+              sync_ctx.resolved_node_refs =
+                  resolved_refs->empty() ? nullptr : resolved_refs.get();
               sync_ctx.request = request_ptr;
               sync_ctx.endpoints = endpoints_ptr;
               sync_ctx.clients = nullptr;  // Sync clients not available in async path
@@ -311,8 +315,8 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
 
     // 6. Validate output contract
     std::vector<rankd::RowSet> contract_inputs = inputs;
-    if (spec.output_pattern == rankd::OutputPattern::ConcatDense && resolved_refs.contains("rhs")) {
-      contract_inputs.push_back(resolved_refs.at("rhs"));
+    if (spec.output_pattern == rankd::OutputPattern::ConcatDense && resolved_refs->contains("rhs")) {
+      contract_inputs.push_back(resolved_refs->at("rhs"));
     }
     rankd::validateTaskOutput(node.node_id, node.op, spec.output_pattern, contract_inputs,
                                validated, output);
