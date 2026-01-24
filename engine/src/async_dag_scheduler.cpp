@@ -260,48 +260,44 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
         co_return co_await spec.run_async(inputs, validated, ctx);
       } else {
         // Wrap sync run() with OffloadCpuWithTimeout for deadline support
-        // IMPORTANT: Capture by value because if timeout fires, the coroutine stack
-        // is destroyed while CPU work may still be running. References would dangle.
-        // We capture:
-        // - inputs/validated: copied (RowSet has shared_ptr, so cheap)
-        // - state.registry: reference to AsyncSchedulerState member (outlives CPU work
-        //   because on_node_failure is called which keeps state alive until all work done)
-        // - node.op: string from plan (owned by state.plan, same lifetime)
-        // - ctx pointers: point to base_ctx members or external refs (safe)
+        // IMPORTANT: All data must be copied/shared because if timeout fires,
+        // the caller may return and destroy stack data while CPU work continues.
         auto& registry = state.registry;
-        // Copy op string - node.op reference would dangle if state is destroyed
         std::string op = node.op;
         auto captured_inputs = inputs;
         auto captured_validated = validated;
 
-        // Capture pointers from ctx (they point to long-lived state)
-        auto* params_ptr = ctx.params;
-        auto* expr_table_ptr = ctx.expr_table;
-        auto* pred_table_ptr = ctx.pred_table;
-        auto* stats_ptr = ctx.stats;
-        auto* request_ptr = ctx.request;
-        auto* endpoints_ptr = ctx.endpoints;
-        // resolved_refs is already a shared_ptr, capture by value for safe access
+        // Copy ctx data into shared storage so CPU lambda owns it.
+        // If timeout fires and caller returns, CPU work can still safely access.
+        auto params_copy = std::make_shared<rankd::ParamTable>(*ctx.params);
+        auto expr_table_copy = std::make_shared<
+            std::unordered_map<std::string, rankd::ExprNodePtr>>(*ctx.expr_table);
+        auto pred_table_copy = std::make_shared<
+            std::unordered_map<std::string, rankd::PredNodePtr>>(*ctx.pred_table);
+        auto request_copy = std::make_shared<rankd::RequestContext>(*ctx.request);
+        auto endpoints_copy = std::make_shared<rankd::EndpointRegistry>(*ctx.endpoints);
+        // stats is optional and only for timing - skip on timeout (result discarded anyway)
+        // resolved_refs is already a shared_ptr
 
         co_return co_await OffloadCpuWithTimeout(
             *ctx.loop, effective_deadline,
             [&registry, op = std::move(op), captured_inputs = std::move(captured_inputs),
-             captured_validated = std::move(captured_validated), params_ptr,
-             expr_table_ptr, pred_table_ptr, stats_ptr, resolved_refs,
-             request_ptr, endpoints_ptr]() mutable {
+             captured_validated = std::move(captured_validated),
+             params_copy, expr_table_copy, pred_table_copy,
+             resolved_refs, request_copy, endpoints_copy]() mutable {
               // Clear thread-local regex cache on CPU thread
               rankd::clearRegexCache();
 
-              // Build sync ExecCtx from captured pointers
+              // Build sync ExecCtx from shared copies
               rankd::ExecCtx sync_ctx;
-              sync_ctx.params = params_ptr;
-              sync_ctx.expr_table = expr_table_ptr;
-              sync_ctx.pred_table = pred_table_ptr;
-              sync_ctx.stats = stats_ptr;
+              sync_ctx.params = params_copy.get();
+              sync_ctx.expr_table = expr_table_copy.get();
+              sync_ctx.pred_table = pred_table_copy.get();
+              sync_ctx.stats = nullptr;  // Skip stats - result may be discarded on timeout
               sync_ctx.resolved_node_refs =
                   resolved_refs->empty() ? nullptr : resolved_refs.get();
-              sync_ctx.request = request_ptr;
-              sync_ctx.endpoints = endpoints_ptr;
+              sync_ctx.request = request_copy.get();
+              sync_ctx.endpoints = endpoints_copy.get();
               sync_ctx.clients = nullptr;  // Sync clients not available in async path
               sync_ctx.parallel = false;
 
