@@ -287,10 +287,14 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
   }
 
   // Decrement inflight count and resume main_coro when last task completes.
-  // This ensures AsyncSchedulerState stays alive until all suspended coroutines finish.
+  // IMPORTANT: We must Post() the resume rather than calling it directly, because
+  // main_coro.resume() will destroy AsyncSchedulerState (including node_tasks),
+  // but we're still inside this coroutine! Resuming synchronously would destroy
+  // the coroutine that's currently running → use-after-free.
   --state.inflight_count;
   if (state.inflight_count == 0 && state.main_coro) {
-    state.main_coro.resume();
+    auto main_coro = state.main_coro;
+    state.base_ctx.loop->Post([main_coro]() { main_coro.resume(); });
   }
 
   co_return;

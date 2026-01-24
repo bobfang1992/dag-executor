@@ -374,7 +374,7 @@ static Plan create_three_branch_dag(int sleep_ms_a, int sleep_ms_b) {
   vm_node.op = "vm";
   vm_node.inputs = {"source"};
   vm_node.params = nlohmann::json::object();
-  vm_node.params["out_key"] = 102;  // Key.model_score_1
+  vm_node.params["out_key"] = 1001;  // Key.model_score_1
   vm_node.params["expr_id"] = "vm_const";
   plan.nodes.push_back(vm_node);
 
