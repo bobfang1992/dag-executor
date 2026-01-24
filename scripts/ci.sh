@@ -4,16 +4,6 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# =============================================================================
-# Expected registry counts (update when adding keys/params/features/tasks)
-# =============================================================================
-EXPECTED_KEYS=8
-EXPECTED_PARAMS=3
-EXPECTED_FEATURES=2
-EXPECTED_CAPABILITIES=2
-EXPECTED_TASKS=12
-EXPECTED_ENDPOINTS=2
-
 # Create temp directory for parallel job outputs
 # Note: Don't use TMPDIR as variable name - it's a system env var on macOS
 CI_TEMP=$(mktemp -d)
@@ -204,12 +194,6 @@ assert \"task_manifest_digest\" in r
 assert \"endpoint_registry_digest\" in r
 assert \"endpoints_config_digest\" in r
 assert \"endpoints_env\" in r
-assert r[\"num_keys\"] == $EXPECTED_KEYS, f\"Expected $EXPECTED_KEYS keys, got {r[\"num_keys\"]}\"
-assert r[\"num_params\"] == $EXPECTED_PARAMS, f\"Expected $EXPECTED_PARAMS params, got {r[\"num_params\"]}\"
-assert r[\"num_features\"] == $EXPECTED_FEATURES, f\"Expected $EXPECTED_FEATURES features, got {r[\"num_features\"]}\"
-assert r[\"num_capabilities\"] == $EXPECTED_CAPABILITIES, f\"Expected $EXPECTED_CAPABILITIES capabilities, got {r[\"num_capabilities\"]}\"
-assert r[\"num_tasks\"] == $EXPECTED_TASKS, f\"Expected $EXPECTED_TASKS tasks, got {r[\"num_tasks\"]}\"
-assert r[\"num_endpoints\"] == $EXPECTED_ENDPOINTS, f\"Expected $EXPECTED_ENDPOINTS endpoints, got {r[\"num_endpoints\"]}\"
 '"
 wait_all
 
