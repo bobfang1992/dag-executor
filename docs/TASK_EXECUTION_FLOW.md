@@ -10,14 +10,14 @@ JSON Plan → Parse → Validate → Build DAG → Execute Nodes → Collect Res
 
 ## Example 1: Single Node (Source Task)
 
-### Plan JSON
-```json
-{
-  "nodes": [
-    {"node_id": "v", "op": "viewer", "inputs": [], "params": {"endpoint": "ep_0001"}}
-  ],
-  "outputs": ["v"]
-}
+### Plan (TypeScript)
+```typescript
+import { definePlan } from "@ranking-dsl/runtime";
+
+export default definePlan({
+  name: "simple_viewer",
+  build: (ctx) => ctx.viewer({ endpoint: EP.redis.redis_default }),
+});
 ```
 
 ### Execution Timeline
@@ -48,15 +48,17 @@ Time(ms)  Loop Thread              CPU Pool         Redis
 
 ## Example 2: Two Nodes (Source → CPU)
 
-### Plan JSON
-```json
-{
-  "nodes": [
-    {"node_id": "v", "op": "viewer", "inputs": [], "params": {"endpoint": "ep_0001"}},
-    {"node_id": "f", "op": "filter", "inputs": ["v"], "params": {"pred": "..."}}
-  ],
-  "outputs": ["f"]
-}
+### Plan (TypeScript)
+```typescript
+import { definePlan, Pred, E } from "@ranking-dsl/runtime";
+
+export default definePlan({
+  name: "viewer_filter",
+  build: (ctx) =>
+    ctx
+      .viewer({ endpoint: EP.redis.redis_default })
+      .filter({ pred: Pred.cmp(">", E.key(Key.id), E.const(5)) }),
+});
 ```
 
 ### Execution Timeline
@@ -96,16 +98,20 @@ Time(ms)  Loop Thread              CPU Pool         Redis
 
 ## Example 3: Parallel Branches (Fan-out)
 
-### Plan JSON
-```json
-{
-  "nodes": [
-    {"node_id": "v", "op": "viewer", "inputs": []},
-    {"node_id": "follow", "op": "follow", "inputs": ["v"]},
-    {"node_id": "recs", "op": "recommendation", "inputs": ["v"]}
-  ],
-  "outputs": ["follow", "recs"]
-}
+### Plan (TypeScript)
+```typescript
+import { definePlan } from "@ranking-dsl/runtime";
+
+export default definePlan({
+  name: "parallel_fanout",
+  build: (ctx) => {
+    const v = ctx.viewer({ endpoint: EP.redis.redis_default });
+    const followBranch = v.follow({ endpoint: EP.redis.redis_default });
+    const recsBranch = v.recommendation({ endpoint: EP.redis.redis_default });
+    // Both branches returned - engine runs them in parallel
+    return [followBranch, recsBranch];
+  },
+});
 ```
 
 ### DAG Structure
@@ -156,19 +162,21 @@ Time(ms)  Loop Thread              CPU Pool         Redis
 
 ## Example 4: Mixed IO + CPU Pipeline
 
-### Plan JSON
-```json
-{
-  "nodes": [
-    {"node_id": "v", "op": "viewer", "inputs": []},
-    {"node_id": "f", "op": "follow", "inputs": ["v"]},
-    {"node_id": "vm1", "op": "vm", "inputs": ["f"], "params": {"expr": "..."}},
-    {"node_id": "filter", "op": "filter", "inputs": ["vm1"], "params": {"pred": "..."}},
-    {"node_id": "sort", "op": "sort", "inputs": ["filter"]},
-    {"node_id": "take", "op": "take", "inputs": ["sort"], "params": {"limit": 10}}
-  ],
-  "outputs": ["take"]
-}
+### Plan (TypeScript)
+```typescript
+import { definePlan, Pred, E } from "@ranking-dsl/runtime";
+
+export default definePlan({
+  name: "mixed_pipeline",
+  build: (ctx) =>
+    ctx
+      .viewer({ endpoint: EP.redis.redis_default })
+      .follow({ endpoint: EP.redis.redis_default })
+      .vm({ outKey: Key.score, expr: Key.id * coalesce(P.weight, 0.5) })
+      .filter({ pred: Pred.cmp(">=", E.key(Key.score), E.const(0.5)) })
+      .sort({ key: Key.score, order: "desc" })
+      .take({ count: 10 }),
+});
 ```
 
 ### DAG Structure
@@ -217,17 +225,19 @@ Total: ~35ms (10ms Redis + 15ms Redis + 4x2ms CPU)
 
 ## Example 5: Diamond Pattern
 
-### Plan JSON
-```json
-{
-  "nodes": [
-    {"node_id": "v", "op": "viewer", "inputs": []},
-    {"node_id": "left", "op": "follow", "inputs": ["v"]},
-    {"node_id": "right", "op": "recommendation", "inputs": ["v"]},
-    {"node_id": "join", "op": "concat", "inputs": ["left"], "params": {"rhs": "right"}}
-  ],
-  "outputs": ["join"]
-}
+### Plan (TypeScript)
+```typescript
+import { definePlan } from "@ranking-dsl/runtime";
+
+export default definePlan({
+  name: "diamond",
+  build: (ctx) => {
+    const v = ctx.viewer({ endpoint: EP.redis.redis_default });
+    const left = v.follow({ endpoint: EP.redis.redis_default });
+    const right = v.recommendation({ endpoint: EP.redis.redis_default });
+    return left.concat({ rhs: right }); // waits for both branches
+  },
+});
 ```
 
 ### DAG Structure
@@ -283,23 +293,34 @@ Time(ms)  Loop Thread                            Redis
 
 ## Example 6: Complex 10-Node DAG with Timeout
 
-### Plan JSON
-```json
-{
-  "nodes": [
-    {"node_id": "v", "op": "viewer", "inputs": []},
-    {"node_id": "follow", "op": "follow", "inputs": ["v"]},
-    {"node_id": "recs", "op": "recommendation", "inputs": ["v"]},
-    {"node_id": "media_f", "op": "media", "inputs": ["follow"]},
-    {"node_id": "media_r", "op": "media", "inputs": ["recs"]},
-    {"node_id": "vm_f", "op": "vm", "inputs": ["media_f"]},
-    {"node_id": "vm_r", "op": "vm", "inputs": ["media_r"]},
-    {"node_id": "merge", "op": "concat", "inputs": ["vm_f"], "params": {"rhs": "vm_r"}},
-    {"node_id": "sort", "op": "sort", "inputs": ["merge"]},
-    {"node_id": "take", "op": "take", "inputs": ["sort"], "params": {"limit": 50}}
-  ],
-  "outputs": ["take"]
-}
+### Plan (TypeScript)
+```typescript
+import { definePlan } from "@ranking-dsl/runtime";
+
+export default definePlan({
+  name: "complex_dag",
+  build: (ctx) => {
+    const v = ctx.viewer({ endpoint: EP.redis.redis_default });
+
+    // Left branch: follow → media → vm
+    const followBranch = v
+      .follow({ endpoint: EP.redis.redis_default })
+      .media({ endpoint: EP.redis.redis_default })
+      .vm({ outKey: Key.score, expr: Key.id * coalesce(P.weight, 0.1) });
+
+    // Right branch: recommendation → media → vm
+    const recsBranch = v
+      .recommendation({ endpoint: EP.redis.redis_default })
+      .media({ endpoint: EP.redis.redis_default })
+      .vm({ outKey: Key.score, expr: Key.id * coalesce(P.weight, 0.1) });
+
+    // Merge, sort, take
+    return followBranch
+      .concat({ rhs: recsBranch })
+      .sort({ key: Key.score, order: "desc" })
+      .take({ count: 50 });
+  },
+});
 ```
 
 ### DAG Structure
@@ -424,10 +445,172 @@ Total: 50ms (deadline exceeded)
 
 ---
 
+## How Task Scheduling is Decided
+
+The decision of whether a task runs on the **loop thread** or **CPU pool** is made by the **task author** (infra engineer implementing the C++ task), not the engine automatically.
+
+### Task Author's Choice
+
+When implementing a task in C++, the author decides whether to provide `run_async`:
+
+```cpp
+// In engine/src/tasks/viewer.cpp (IO-bound task)
+TaskSpec ViewerTask::spec() {
+  return TaskSpec{
+    .op = "viewer",
+    .params_schema = { /* ... */ },
+    .is_io = true,           // Hint: this is an IO task
+    .run_async = run_async,  // ✅ Provides async implementation
+  };
+}
+
+// In engine/src/tasks/vm.cpp (CPU-bound task)
+TaskSpec VmTask::spec() {
+  return TaskSpec{
+    .op = "vm",
+    .params_schema = { /* ... */ },
+    .is_io = false,          // Hint: this is a CPU task
+    // run_async not set     // ❌ No async implementation
+  };
+}
+```
+
+### Engine's Automatic Behavior
+
+The **engine** then automatically determines execution location based on whether `run_async` is provided:
+
+| Task provides `run_async`? | What engine does | Runs on |
+|---------------------------|------------------|---------|
+| ✅ Yes | Calls `run_async()` directly | Loop thread |
+| ❌ No | Wraps sync `run()` in `OffloadCpu` | CPU pool |
+
+```cpp
+// In async_dag_scheduler.cpp
+Task<RowSet> run_node_async(const std::string& node_id) {
+  auto& spec = TaskRegistry::instance().get_spec(op);
+
+  if (spec.run_async) {
+    // Task author provided async impl → run on loop thread
+    co_return co_await spec.run_async(inputs, params, async_ctx);
+  } else {
+    // No async impl → wrap sync run() with OffloadCpu
+    co_return co_await OffloadCpu(cpu_pool, [&] {
+      return TaskRegistry::instance().execute(op, inputs, params, sync_ctx);
+    });
+  }
+}
+```
+
+### Why This Design?
+
+- **IO-bound tasks** (Redis, HTTP) should implement `run_async` to use `co_await` on the loop thread, allowing hundreds of concurrent IO operations with a single thread.
+- **CPU-bound tasks** (vm, filter, sort) should NOT implement `run_async`, letting the engine automatically offload them to the CPU pool to avoid blocking the loop thread.
+
+---
+
+## Future Optimization: Inline Cheap CPU Tasks
+
+### The Problem
+
+Currently ALL CPU tasks are offloaded to the thread pool, even trivial ones:
+
+```
+Loop thread                    CPU Pool
+    │                              │
+    ├─── Post(vm work) ───────────►│
+    │    [context switch]          │
+    │                              ├── 2ms vm work
+    │◄─── Post(result) ────────────┤
+    │    [context switch]          │
+    ▼                              ▼
+```
+
+For a 2ms `vm` operation, the round-trip overhead (~0.5-1ms) is 25-50% of the work itself.
+
+This is especially wasteful for sequential CPU chains:
+
+```typescript
+.vm({ ... })      // offload, return, offload, return
+.filter({ ... })  // offload, return, offload, return
+.sort({ ... })    // offload, return, offload, return
+.take({ ... })    // offload, return
+```
+
+That's 4 round-trips for what could be one batch of CPU work.
+
+### Why We Offload Everything Today
+
+1. **Safety**: Keeps loop thread responsive. A slow `filter` with complex regex on 10K rows would block all Redis callbacks.
+2. **Simplicity**: Binary decision (has `run_async` or not) - no heuristics.
+3. **Worst-case protection**: "Cheap" operations can be expensive with bad inputs.
+
+### Potential Solutions
+
+**Option A: Task-level `run_inline` flag**
+
+Task author declares a task is always safe to run inline:
+
+```cpp
+TaskSpec{
+  .op = "take",
+  .run_inline = true,  // Always run on loop thread, never offload
+};
+```
+
+Good for: `take`, `fixed_source`, trivial transforms.
+
+**Option B: Runtime size threshold**
+
+Decide at runtime based on input size:
+
+```cpp
+if (input.size() < kInlineThreshold && !spec.is_expensive) {
+  co_return run_sync(inputs, params);  // Inline on loop thread
+} else {
+  co_return co_await OffloadCpu(...);  // Offload to pool
+}
+```
+
+Requires tuning `kInlineThreshold` (maybe 100-500 rows?).
+
+**Option C: Batch sequential CPU tasks**
+
+Detect sequential CPU chains and batch them:
+
+```
+Before: vm → [offload] → filter → [offload] → sort → [offload] → take → [offload]
+After:  vm+filter+sort+take → [single offload]
+```
+
+Requires scheduler to detect CPU chains and fuse them. More complex but biggest win.
+
+**Option D: Hybrid - inline small, batch large chains**
+
+Combine B + C:
+- Small inputs (< 100 rows): run inline
+- Large inputs with CPU chains: batch offload
+- Large inputs single CPU task: individual offload
+
+### Recommendation
+
+Start with **Option A** (task-level `run_inline`) for quick wins:
+- `take` is almost always trivial (slice a vector)
+- `fixed_source` just returns static data
+
+Then measure real workloads to decide if B/C/D are worth the complexity.
+
+### Open Questions
+
+1. What's the actual round-trip overhead? (Need benchmarks)
+2. What input size threshold makes offloading worthwhile?
+3. Should this be configurable per-request for experimentation?
+
+---
+
 ## Task Type Summary
 
-| Task | Has run_async | Runs On | Suspends For |
-|------|---------------|---------|--------------|
+| Task | Has `run_async` | Runs On | Suspends For |
+|------|-----------------|---------|--------------|
 | viewer | ✅ | Loop thread | Redis HGETALL |
 | follow | ✅ | Loop thread | Redis LRANGE |
 | recommendation | ✅ | Loop thread | Redis LRANGE |
