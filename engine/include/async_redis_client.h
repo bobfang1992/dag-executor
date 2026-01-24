@@ -34,6 +34,15 @@ namespace ranking {
  * Fail-fast: No automatic reconnection. If connection fails, operations return
  * errors. The caller can check is_connected() and recreate the client if needed.
  *
+ * IMPORTANT LIFETIME REQUIREMENTS:
+ * 1. The AsyncRedisClient MUST outlive all in-flight operations. Destroying the
+ *    client while Tasks are awaiting causes undefined behavior.
+ * 2. Tasks returned by HGet/LRange/HGetAll MUST be awaited to completion.
+ *    Destroying a Task mid-await causes undefined behavior.
+ *
+ * In practice: keep the client alive for the duration of the request, and
+ * always co_await the returned Tasks before the request completes.
+ *
  * Usage:
  *   auto client = AsyncRedisClient::Create(loop, spec);
  *   if (!client) { ... handle error ... }

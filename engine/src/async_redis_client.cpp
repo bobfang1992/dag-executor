@@ -159,10 +159,11 @@ struct CommandState : std::enable_shared_from_this<CommandState> {
 
 // Awaitable for a single Redis command that suspends until reply arrives.
 //
-// IMPORTANT: The Task returned by HGet/LRange/HGetAll MUST NOT be destroyed while
-// awaiting. Destroying a suspended coroutine while a Redis command is in flight
-// causes undefined behavior (the callback will have a dangling pointer).
-// In practice, this means: don't drop/reassign the Task until it completes.
+// IMPORTANT LIFETIME REQUIREMENTS:
+// 1. The AsyncRedisClient MUST outlive this awaitable. We store a pointer to
+//    the client's ctx_ member; if the client is destroyed, this becomes dangling.
+// 2. The Task MUST be awaited to completion. Destroying a suspended coroutine
+//    while a Redis command is in flight causes undefined behavior.
 class RedisCommandAwaitable {
  public:
   // Note: We store ctx_ptr (pointer to client's ctx_ member) instead of ctx value
