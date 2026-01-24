@@ -268,6 +268,110 @@ co_return co_await OffloadCpu(*ctx.loop, [&]() {
 });
 ```
 
+## Deadline and Timeout (Step 14.5c.5b)
+
+### Overview
+
+The scheduler supports request-level deadlines and per-node timeouts:
+
+- `--deadline_ms N`: Absolute deadline from request start
+- `--node_timeout_ms N`: Maximum time per node
+
+### OffloadCpuWithTimeout
+
+For CPU tasks, `OffloadCpuWithTimeout` implements a **first-wins** pattern between timer and CPU completion:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    OffloadCpuWithTimeout                        │
+├─────────────────────────────────────────────────────────────────┤
+│  shared State {                                                 │
+│    bool completed = false;  // First-wins guard                 │
+│    variant<Result, exception_ptr> result;                       │
+│  }                                                              │
+├─────────────────────────────────────────────────────────────────┤
+│  CPU Thread              Timer (loop thread)                    │
+│  ──────────              ───────────────────                    │
+│  Execute fn()            Start uv_timer                         │
+│       │                       │                                 │
+│       │                       ▼                                 │
+│       │                  Timer fires                            │
+│       │                  if (!completed) {                      │
+│       │                    completed = true ◄── WINS            │
+│       │                    result = timeout_error               │
+│       │                    handle.resume()                      │
+│       │                  }                                      │
+│       ▼                                                         │
+│  fn() returns                                                   │
+│  Post to loop:                                                  │
+│    if (!completed) ──► FALSE (timer already won)                │
+│      return;  // Discard result                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Points
+
+1. **Timeout, NOT Cancellation**: CPU work runs to completion; result is discarded on timeout
+2. **All state on loop thread**: Timer callback and CPU Post callback both run on loop thread
+3. **Capture-by-value**: CPU lambda owns `inputs`, `validated`, `op` to avoid use-after-free
+
+### Deadline Checks
+
+Deadlines are checked at two points:
+
+```cpp
+// 1. Before spawning new nodes
+void spawn_ready_nodes(AsyncSchedulerState& state) {
+  if (deadline_exceeded(state.request_deadline)) {
+    state.first_error = "Request deadline exceeded";
+    return;  // Don't spawn
+  }
+  // ...
+}
+
+// 2. At node start
+Task<void> run_node_async(...) {
+  auto effective = compute_effective_deadline(now, request_deadline, node_timeout);
+  if (deadline_exceeded(effective)) {
+    throw std::runtime_error("Deadline exceeded before node start");
+  }
+  // ...
+}
+```
+
+### Effective Deadline
+
+Per-node deadline is the minimum of request deadline and node timeout:
+
+```cpp
+inline OptionalDeadline compute_effective_deadline(
+    SteadyTimePoint start_time,
+    OptionalDeadline request_deadline,
+    std::optional<std::chrono::milliseconds> node_timeout) {
+  OptionalDeadline effective = request_deadline;
+  if (node_timeout) {
+    auto node_deadline = start_time + *node_timeout;
+    if (!effective || node_deadline < *effective) {
+      effective = node_deadline;
+    }
+  }
+  return effective;
+}
+```
+
+### Usage
+
+```bash
+# Request must complete within 100ms
+echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler --deadline_ms 100
+
+# Each node has max 50ms
+echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler --node_timeout_ms 50
+
+# Both: request deadline 200ms, each node max 50ms
+echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler --deadline_ms 200 --node_timeout_ms 50
+```
+
 ## Thread Safety
 
 | Component | Thread | Synchronization |
@@ -338,11 +442,14 @@ engine/bin/rankd --async_scheduler --bench 1000 --bench_concurrency 100 --plan_n
 
 | File | Purpose |
 |------|---------|
-| `engine/include/cpu_offload.h` | OffloadCpu awaitable |
+| `engine/include/cpu_offload.h` | OffloadCpu, OffloadCpuWithTimeout awaitables |
+| `engine/include/deadline.h` | Deadline types and helpers |
 | `engine/include/async_dag_scheduler.h` | ExecCtxAsync, scheduler declarations |
 | `engine/src/async_dag_scheduler.cpp` | Scheduler implementation |
 | `engine/include/task_registry.h` | AsyncTaskFn, run_async field |
 | `engine/src/tasks/*.cpp` | Task run_async implementations |
+| `engine/src/tasks/fixed_source.cpp` | Pure source task (CI testing, no Redis) |
+| `engine/src/tasks/busy_cpu.cpp` | CPU spin task (timeout testing) |
 | `engine/tests/test_dag_scheduler.cpp` | Async scheduler tests |
 
 ## Testing
@@ -353,8 +460,22 @@ Located in `engine/tests/test_dag_scheduler.cpp`:
 
 | Test | Purpose |
 |------|---------|
-| `async scheduler: three-branch DAG with concurrent sleep + vm` | Verifies concurrent execution of independent branches (sleep_a, sleep_b, vm) |
-| `async scheduler: fault injection - no deadlock or UAF on error` | Verifies fail-fast + safe teardown (waits for all in-flight tasks) |
+| `three-branch DAG with concurrent sleep + vm` | Concurrent execution of independent branches |
+| `fault injection - no deadlock or UAF on error` | Fail-fast + safe teardown |
+| `request deadline exceeded` | Request-level deadline fires |
+| `node timeout on CPU work` | Per-node timeout fires |
+| `deadline already expired` | Deadline in the past fails immediately |
+| `very short deadline (1ms)` | Minimal deadline quick timeout |
+| `generous deadline succeeds` | Ample time completes successfully |
+| `very short node timeout (1ms)` | Minimal node timeout |
+| `generous node timeout succeeds` | Ample timeout completes |
+| `both deadline and node_timeout set` | Node timeout fires first |
+| `multi-stage pipeline timeout` | 2-stage pipeline timing out |
+| `multi-stage pipeline succeeds` | 2-stage with generous deadline |
+| `fixed_source only (no CPU offload)` | Async path without OffloadCpu |
+| `repeated timeout operations` | 5 iterations (leak check) |
+| `repeated success operations` | 10 iterations (stability) |
+| `alternating success and timeout` | 6 iterations mixed |
 
 ### Fault Injection
 
@@ -378,12 +499,14 @@ The `sleep` task supports fault injection for testing error handling:
 # All DAG scheduler tests (sync + async)
 engine/bin/dag_scheduler_tests
 
-# Only async scheduler tests
+# Only async scheduler tests (16 tests, 97 assertions)
 engine/bin/dag_scheduler_tests "[async_scheduler]"
 
-# Only concurrent test
-engine/bin/dag_scheduler_tests "[async_scheduler][concurrent]"
+# Deadline/timeout tests
+engine/bin/dag_scheduler_tests "*deadline*"
+engine/bin/dag_scheduler_tests "*timeout*"
 
-# Only fault injection test
-engine/bin/dag_scheduler_tests "[async_scheduler][fault_injection]"
+# Stress tests
+engine/bin/dag_scheduler_tests "*repeated*"
+engine/bin/dag_scheduler_tests "*alternating*"
 ```

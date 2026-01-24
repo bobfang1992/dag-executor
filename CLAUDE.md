@@ -457,6 +457,10 @@ echo '{"request_id": "test", "user_id": 1}' | engine/bin/rankd --plan_name reels
 # Run with async scheduler (coroutine-based, single libuv thread)
 echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler --plan_name reels_plan_a
 
+# Run with deadline/timeout (async scheduler only)
+echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler --deadline_ms 100 --plan_name my_plan
+echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler --node_timeout_ms 50 --plan_name my_plan
+
 # Benchmark mode (latency/throughput measurement)
 engine/bin/rankd --bench 100 --plan_name reels_plan_a                    # Sync scheduler
 engine/bin/rankd --bench 100 --async_scheduler --plan_name reels_plan_a  # Async scheduler
