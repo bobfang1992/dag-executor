@@ -167,6 +167,48 @@ This document categorizes all tests in the dag-executor project by type and feat
 | | Determinism | schema_deltas are deterministic |
 | | Parity | parallel produces same results as sequential |
 | | Sleep task | identity behavior |
+| | Async scheduler | three-branch DAG with concurrent sleep + vm |
+| | Fault injection | no deadlock or UAF on error |
+
+### Event Loop (`engine/bin/event_loop_tests`)
+
+| Test File | Feature | Test Cases |
+|-----------|---------|------------|
+| `test_event_loop.cpp` | Basic | EventLoop basic post |
+| | | EventLoop multiple posts |
+| | Coroutines | Single SleepMs coroutine |
+| | | Two concurrent SleepMs complete in parallel |
+| | | Exception propagation in coroutine |
+| | | Zero sleep completes immediately |
+| | | Nested coroutine awaits |
+| | Edge cases | Post before Start returns false |
+| | | Post after Stop returns false |
+| | | Stop from within callback |
+| | | Multiple Stop calls are idempotent |
+| | | Destruction without Stop |
+| | | Destruction without Start |
+| | | Post during Stop is rejected |
+| | | Stop on loop thread drains callbacks |
+| | Stress | many concurrent posts |
+| | | posts from multiple threads |
+| | | many concurrent sleeps |
+| | | rapid start/stop cycles |
+
+### Async Redis (`engine/bin/async_redis_tests`)
+
+| Test File | Feature | Test Cases |
+|-----------|---------|------------|
+| `test_async_redis.cpp` | Inflight limiter | basic acquire/release |
+| | | Guard RAII |
+| | | coroutine acquire |
+| | | FIFO ordering |
+| | Connection | connection to invalid port |
+| | | client creation only |
+| | Commands | HGet |
+| | | LRange |
+| | | concurrent LRange with inflight limit |
+| | Caching | AsyncIoClients caching |
+| | Stress | stress test (optional) |
 
 ---
 
@@ -397,13 +439,15 @@ This document categorizes all tests in the dag-executor project by type and feat
 ./scripts/ci.sh
 
 # C++ unit tests individually
-engine/bin/rankd_tests
+engine/bin/rankd_tests           # 290 assertions - core engine tests
+engine/bin/event_loop_tests      # 84 assertions - coroutine/libuv primitives
+engine/bin/dag_scheduler_tests   # 29 assertions - sync + async scheduler
+engine/bin/async_redis_tests     # ~20 assertions - async Redis (requires Redis)
 engine/bin/concat_tests
 engine/bin/regex_tests
 engine/bin/writes_effect_tests
 engine/bin/plan_info_tests
 engine/bin/schema_delta_tests
-engine/bin/dag_scheduler_tests
 
 # TypeScript tests
 pnpm -C dsl run test:writes-effect
@@ -414,6 +458,11 @@ pnpm -C dsl/packages/eslint-plugin run test
 # Specific Catch2 test case
 engine/bin/rankd_tests "[param_table]"
 engine/bin/rankd_tests "ParamTable basic*"
+
+# Async scheduler tests
+engine/bin/dag_scheduler_tests "[async_scheduler]"
+engine/bin/dag_scheduler_tests "[async_scheduler][concurrent]"
+engine/bin/dag_scheduler_tests "[async_scheduler][fault_injection]"
 ```
 
 ## Test Dependencies

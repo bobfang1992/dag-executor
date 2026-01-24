@@ -308,6 +308,7 @@ export function sleepImpl(
   inputNodeId: string,
   opts: {
     durationMs: number;
+    failAfterSleep?: boolean;
     trace?: string | null;
     extensions?: Record<string, unknown>;
   }
@@ -325,6 +326,7 @@ export function sleepImpl(
 
   const params: Record<string, unknown> = {
     duration_ms: opts.durationMs,
+    fail_after_sleep: opts.failAfterSleep,
     trace: opts.trace ?? null,
   };
 

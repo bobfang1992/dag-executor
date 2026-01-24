@@ -421,8 +421,11 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
 cmake --build engine/build --parallel
 
-# Run RowSet unit tests
-engine/bin/rowset_tests
+# Run unit tests
+engine/bin/rankd_tests              # RowSet, ParamTable, PredEval, Sort, Request, etc. (290 assertions)
+engine/bin/event_loop_tests         # EventLoop, coroutine primitives (84 assertions)
+engine/bin/dag_scheduler_tests      # Sync + async DAG scheduler (29 assertions)
+engine/bin/async_redis_tests        # Async Redis client (requires Redis)
 
 # Run rankd (Step 00 fallback - no plan)
 echo '{"request_id": "test", "user_id": 1}' | engine/bin/rankd
@@ -450,6 +453,14 @@ engine/bin/rankd --print-plan-info --plan_name reels_plan_a
 
 # Run with schema delta trace (runtime audit)
 echo '{"request_id": "test", "user_id": 1}' | engine/bin/rankd --plan_name reels_plan_a --dump-run-trace
+
+# Run with async scheduler (coroutine-based, single libuv thread)
+echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler --plan_name reels_plan_a
+
+# Benchmark mode (latency/throughput measurement)
+engine/bin/rankd --bench 100 --plan_name reels_plan_a                    # Sync scheduler
+engine/bin/rankd --bench 100 --async_scheduler --plan_name reels_plan_a  # Async scheduler
+engine/bin/rankd --bench 1000 --bench-concurrency 8 --plan_name my_plan  # Concurrent requests
 
 # Run all CI tests
 ./scripts/ci.sh

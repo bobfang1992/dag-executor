@@ -1,9 +1,13 @@
+#include "async_dag_scheduler.h"
+#include "async_io_clients.h"
+#include "coro_task.h"
 #include "endpoint_registry.h"
 #include "io_clients.h"
 #include "param_table.h"
 #include "redis_client.h"
 #include "request.h"
 #include "task_registry.h"
+#include <coroutine>
 #include <stdexcept>
 
 namespace rankd {
@@ -34,6 +38,7 @@ class ViewerTask {
         .output_pattern = OutputPattern::VariableDense,
         .writes_effect = std::nullopt,
         .is_io = true,  // Redis HGETALL
+        .run_async = run_async,
     };
   }
 
@@ -88,6 +93,72 @@ class ViewerTask {
     }
 
     return RowSet(std::make_shared<ColumnBatch>(*batch));
+  }
+
+  // Async version using AsyncRedisClient
+  static ranking::Task<RowSet> run_async(const std::vector<RowSet>& inputs,
+                                          const ValidatedParams& params,
+                                          const ranking::ExecCtxAsync& ctx) {
+    if (!inputs.empty()) {
+      throw std::runtime_error("viewer: expected 0 inputs");
+    }
+
+    // Get user_id from request context
+    if (!ctx.request) {
+      throw std::runtime_error("viewer: missing request context");
+    }
+    uint32_t user_id = ctx.request->user_id;
+
+    // Get endpoint and Redis client
+    const std::string& endpoint_id = params.get_string("endpoint");
+    std::string key = "user:" + std::to_string(user_id);
+
+    // Get async Redis client
+    auto client_result = ctx.async_clients->GetRedis(
+        *ctx.loop, *ctx.endpoints, endpoint_id);
+    if (!client_result) {
+      throw std::runtime_error("viewer: " + client_result.error());
+    }
+    ranking::AsyncRedisClient& redis = **client_result;
+
+    // Fetch user data asynchronously
+    auto result = co_await redis.HGetAll(key);
+    if (!result) {
+      throw std::runtime_error("viewer: " + result.error().message);
+    }
+
+    // Parse result (alternating field/value pairs)
+    const auto& pairs = result.value();
+    std::unordered_map<std::string, std::string> user_data;
+    for (size_t i = 0; i + 1 < pairs.size(); i += 2) {
+      user_data[pairs[i]] = pairs[i + 1];
+    }
+
+    // Create single-row batch
+    auto batch = std::make_shared<ColumnBatch>(1);
+    batch->setId(0, static_cast<int64_t>(user_id));
+
+    // Add country column
+    auto country_it = user_data.find("country");
+    if (country_it != user_data.end()) {
+      auto country_dict =
+          std::make_shared<std::vector<std::string>>(1, country_it->second);
+      auto country_codes = std::make_shared<std::vector<int32_t>>(1, 0);
+      auto country_valid = std::make_shared<std::vector<uint8_t>>(1, 1);
+      auto country_col = std::make_shared<StringDictColumn>(
+          country_dict, country_codes, country_valid);
+      *batch = batch->withStringColumn(key_id(KeyId::country), country_col);
+    } else {
+      // No country data - create null column
+      auto country_dict = std::make_shared<std::vector<std::string>>();
+      auto country_codes = std::make_shared<std::vector<int32_t>>(1, -1);
+      auto country_valid = std::make_shared<std::vector<uint8_t>>(1, 0);
+      auto country_col = std::make_shared<StringDictColumn>(
+          country_dict, country_codes, country_valid);
+      *batch = batch->withStringColumn(key_id(KeyId::country), country_col);
+    }
+
+    co_return RowSet(std::make_shared<ColumnBatch>(*batch));
   }
 };
 

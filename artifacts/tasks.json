@@ -123,6 +123,12 @@
           "nullable": false
         },
         {
+          "name": "fail_after_sleep",
+          "type": "bool",
+          "required": false,
+          "nullable": false
+        },
+        {
           "name": "trace",
           "type": "string",
           "required": false,

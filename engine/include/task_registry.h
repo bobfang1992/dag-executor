@@ -1,5 +1,6 @@
 #pragma once
 
+#include "coro_task.h"
 #include "key_registry.h"
 #include "output_contract.h"
 #include "rowset.h"
@@ -11,6 +12,11 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
+
+// Forward declaration for async execution context
+namespace ranking {
+struct ExecCtxAsync;
+}  // namespace ranking
 
 namespace rankd {
 
@@ -51,6 +57,12 @@ struct DefaultBudget {
   int timeout_ms;
 };
 
+// Async task function signature: (inputs, validated_params, async_exec_ctx) -> Task<output>
+// Uses forward-declared ExecCtxAsync from ranking namespace.
+// Tasks that implement run_async can use co_await for IO operations.
+using AsyncTaskFn = std::function<ranking::Task<RowSet>(
+    const std::vector<RowSet>&, const ValidatedParams&, const ranking::ExecCtxAsync&)>;
+
 // Task specification - the single source of truth for task validation
 struct TaskSpec {
   std::string op;
@@ -61,6 +73,11 @@ struct TaskSpec {
   OutputPattern output_pattern; // Required output shape contract
   std::optional<WritesEffectExpr> writes_effect; // RFC0005: param-dependent writes
   bool is_io = false; // True for tasks that do blocking IO (Redis, HTTP, etc.)
+
+  // Optional async implementation. If provided, the async scheduler calls this
+  // instead of wrapping run() with OffloadCpu. Used by IO-bound tasks (Redis)
+  // and sleep task to natively suspend on the event loop.
+  AsyncTaskFn run_async;  // nullptr if not implemented
 };
 
 // Compute the effective writes contract expression from a TaskSpec.

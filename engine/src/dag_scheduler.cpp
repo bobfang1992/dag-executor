@@ -162,7 +162,7 @@ void run_node_job(SchedulerState& state, size_t node_idx) {
     // 6. Validate output contract
     const auto& spec = state.registry.get_spec(node.op);
     std::vector<RowSet> contract_inputs = inputs;
-    if (spec.output_pattern == OutputPattern::ConcatDense && !resolved_refs.empty()) {
+    if (spec.output_pattern == OutputPattern::ConcatDense && resolved_refs.contains("rhs")) {
       contract_inputs.push_back(resolved_refs.at("rhs"));
     }
     validateTaskOutput(node.node_id, node.op, spec.output_pattern, contract_inputs,
