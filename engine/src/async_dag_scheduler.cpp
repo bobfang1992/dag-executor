@@ -263,7 +263,7 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
 
     // 6. Validate output contract
     std::vector<rankd::RowSet> contract_inputs = inputs;
-    if (spec.output_pattern == rankd::OutputPattern::ConcatDense && !resolved_refs.empty()) {
+    if (spec.output_pattern == rankd::OutputPattern::ConcatDense && resolved_refs.contains("rhs")) {
       contract_inputs.push_back(resolved_refs.at("rhs"));
     }
     rankd::validateTaskOutput(node.node_id, node.op, spec.output_pattern, contract_inputs,
@@ -399,17 +399,19 @@ rankd::ExecutionResult execute_plan_async_blocking(
       error = std::current_exception();
     }
 
-    // Signal completion (must Post to event loop thread for safety)
-    loop.Post([&]() {
+    // Signal completion - we're on loop thread, cv notify is thread-safe
+    {
       std::lock_guard<std::mutex> lock(done_mutex);
       done = true;
-      done_cv.notify_one();
-    });
+    }
+    done_cv.notify_one();
   };
 
   // Start the wrapper coroutine on the event loop
   Task<void> task = wrapper();
-  loop.Post([&task]() { task.start(); });
+  if (!loop.Post([&task]() { task.start(); })) {
+    throw std::runtime_error("Failed to start async plan execution: EventLoop not running");
+  }
 
   // Wait for completion
   {
