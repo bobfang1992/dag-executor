@@ -236,6 +236,38 @@ if (!spec.run_async) {
 }
 ```
 
+## Error Handling and Shutdown
+
+### Fail-Fast with Safe Teardown
+
+The scheduler uses fail-fast semantics: when any node fails, no new nodes are spawned. However, we must wait for all in-flight tasks to complete before destroying state.
+
+**Key invariants:**
+1. `inflight_count` tracks running coroutines (incremented before spawn, decremented after completion)
+2. `main_coro` is only resumed when `inflight_count == 0`
+3. Resume is posted async to avoid destroying running coroutine
+
+```cpp
+// In run_node_async, after on_node_success or on_node_failure:
+--state.inflight_count;
+if (state.inflight_count == 0 && state.main_coro) {
+  auto main_coro = state.main_coro;
+  // IMPORTANT: Post async to let this coroutine complete before state destruction
+  state.base_ctx.loop->Post([main_coro]() { main_coro.resume(); });
+}
+```
+
+### Regex Cache on CPU Threads
+
+Thread-local regex cache must be cleared on CPU threads before sync task execution to avoid stale entries:
+
+```cpp
+co_return co_await OffloadCpu(*ctx.loop, [&]() {
+  rankd::clearRegexCache();  // Clear on CPU thread, not loop thread
+  return state.registry.execute(node.op, inputs, validated, sync_ctx);
+});
+```
+
 ## Thread Safety
 
 | Component | Thread | Synchronization |
@@ -311,3 +343,47 @@ engine/bin/rankd --async_scheduler --bench 1000 --bench_concurrency 100 --plan_n
 | `engine/src/async_dag_scheduler.cpp` | Scheduler implementation |
 | `engine/include/task_registry.h` | AsyncTaskFn, run_async field |
 | `engine/src/tasks/*.cpp` | Task run_async implementations |
+| `engine/tests/test_dag_scheduler.cpp` | Async scheduler tests |
+
+## Testing
+
+### Async Scheduler Tests
+
+Located in `engine/tests/test_dag_scheduler.cpp`:
+
+| Test | Purpose |
+|------|---------|
+| `async scheduler: three-branch DAG with concurrent sleep + vm` | Verifies concurrent execution of independent branches (sleep_a, sleep_b, vm) |
+| `async scheduler: fault injection - no deadlock or UAF on error` | Verifies fail-fast + safe teardown (waits for all in-flight tasks) |
+
+### Fault Injection
+
+The `sleep` task supports fault injection for testing error handling:
+
+```cpp
+// In plan JSON:
+{
+  "node_id": "failing_node",
+  "op": "sleep",
+  "params": {
+    "duration_ms": 20,
+    "fail_after_sleep": true  // Throws after sleeping
+  }
+}
+```
+
+### Running Tests
+
+```bash
+# All DAG scheduler tests (sync + async)
+engine/bin/dag_scheduler_tests
+
+# Only async scheduler tests
+engine/bin/dag_scheduler_tests "[async_scheduler]"
+
+# Only concurrent test
+engine/bin/dag_scheduler_tests "[async_scheduler][concurrent]"
+
+# Only fault injection test
+engine/bin/dag_scheduler_tests "[async_scheduler][fault_injection]"
+```
