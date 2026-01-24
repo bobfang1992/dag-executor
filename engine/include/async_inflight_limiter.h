@@ -105,18 +105,18 @@ class AsyncInflightLimiter {
   explicit AsyncInflightLimiter(size_t max_permits) : max_permits_(max_permits), current_(0) {}
 
   /**
-   * Destructor - asserts no pending waiters.
+   * Destructor - asserts no pending waiters or active permits.
    *
-   * If there are pending waiters at destruction time, it indicates a bug:
-   * the limiter is being destroyed while coroutines are still waiting for permits.
-   * This would leave those coroutines suspended forever.
+   * If there are pending waiters or active permits at destruction time, it
+   * indicates a bug: the limiter is being destroyed while operations are still
+   * in flight. This would cause use-after-free when Guards call release().
    *
    * IMPORTANT: Callers must ensure all operations complete before destroying the limiter.
    */
   ~AsyncInflightLimiter() {
     // Assert in debug builds to catch bugs early
-    // In release, this is undefined behavior - the coroutines would be leaked
     assert(waiters_.empty() && "AsyncInflightLimiter destroyed with pending waiters");
+    assert(current_ == 0 && "AsyncInflightLimiter destroyed with active permits");
   }
 
   // Non-copyable, non-movable (has waiters queue)
