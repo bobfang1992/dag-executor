@@ -275,7 +275,10 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
         auto pred_table_copy = std::make_shared<
             std::unordered_map<std::string, rankd::PredNodePtr>>(*ctx.pred_table);
         auto request_copy = std::make_shared<rankd::RequestContext>(*ctx.request);
-        auto endpoints_copy = std::make_shared<rankd::EndpointRegistry>(*ctx.endpoints);
+        // endpoints may be null for CPU-only plans (though async scheduler typically requires it)
+        std::shared_ptr<rankd::EndpointRegistry> endpoints_copy =
+            ctx.endpoints ? std::make_shared<rankd::EndpointRegistry>(*ctx.endpoints)
+                          : nullptr;
         // stats is optional and only for timing - skip on timeout (result discarded anyway)
         // resolved_refs is already a shared_ptr
 
@@ -297,7 +300,7 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
               sync_ctx.resolved_node_refs =
                   resolved_refs->empty() ? nullptr : resolved_refs.get();
               sync_ctx.request = request_copy.get();
-              sync_ctx.endpoints = endpoints_copy.get();
+              sync_ctx.endpoints = endpoints_copy ? endpoints_copy.get() : nullptr;
               sync_ctx.clients = nullptr;  // Sync clients not available in async path
               sync_ctx.parallel = false;
 
