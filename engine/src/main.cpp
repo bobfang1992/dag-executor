@@ -545,7 +545,11 @@ int main(int argc, char *argv[]) {
       rankd::ExecutionResult exec_result;
 
       if (async_scheduler) {
-        // Async execution path
+        // Async execution path requires endpoint registry
+        if (!endpoint_registry) {
+          throw std::runtime_error(
+              "async scheduler requires endpoint registry; check endpoints.<env>.json");
+        }
         ranking::EventLoop loop;
         loop.Start();
         ranking::AsyncIoClients async_clients;
