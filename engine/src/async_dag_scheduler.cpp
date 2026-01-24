@@ -254,10 +254,10 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
     // Execute async or sync (both wrapped with deadline support)
     auto run_task = [&]() -> Task<rankd::RowSet> {
       if (spec.run_async) {
-        // Task has native async implementation
-        // TODO: AsyncWithTimeout for async tasks needs more work to avoid SIGSEGV.
-        // For now, just await directly. Deadline is only enforced for CPU tasks.
-        co_return co_await spec.run_async(inputs, validated, ctx);
+        // Task has native async implementation - wrap with AsyncWithTimeout
+        co_return co_await AsyncWithTimeout<rankd::RowSet>(
+            *ctx.loop, effective_deadline,
+            spec.run_async(inputs, validated, ctx));
       } else {
         // Wrap sync run() with OffloadCpuWithTimeout for deadline support
         // IMPORTANT: All data must be copied/shared because if timeout fires,

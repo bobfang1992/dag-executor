@@ -11,6 +11,12 @@ export interface TaskContext {
     addExpr(expr: ExprNode): string;
     addPred(pred: PredNode): string;
 }
+/** Implementation for busy_cpu */
+export declare function busyCpuImpl(ctx: TaskContext, inputNodeId: string, opts: {
+    busyWaitMs: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}): string;
 /** Implementation for concat */
 export declare function concatImpl(ctx: TaskContext, inputNodeId: string, opts: {
     rhs: CandidateSetLike;
@@ -20,6 +26,12 @@ export declare function concatImpl(ctx: TaskContext, inputNodeId: string, opts: 
 /** Implementation for filter */
 export declare function filterImpl(ctx: TaskContext, inputNodeId: string, opts: {
     pred: PredInput;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}): string;
+/** Implementation for fixed_source */
+export declare function fixedSourceImpl(ctx: TaskContext, inputNodeId: string, opts: {
+    rowCount?: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;
@@ -47,6 +59,7 @@ export declare function recommendationImpl(ctx: TaskContext, inputNodeId: string
 /** Implementation for sleep */
 export declare function sleepImpl(ctx: TaskContext, inputNodeId: string, opts: {
     durationMs: number;
+    failAfterSleep?: boolean;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;
@@ -78,6 +91,6 @@ export declare function vmImpl(ctx: TaskContext, inputNodeId: string, opts: {
 }): string;
 export declare const GENERATED_TASKS: {
     readonly source: readonly [];
-    readonly transform: readonly ["concat", "filter", "follow", "media", "recommendation", "sleep", "sort", "take", "viewer", "vm"];
+    readonly transform: readonly ["busyCpu", "concat", "filter", "fixedSource", "follow", "media", "recommendation", "sleep", "sort", "take", "viewer", "vm"];
 };
 //# sourceMappingURL=task-impl.d.ts.map
