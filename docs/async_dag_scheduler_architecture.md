@@ -319,9 +319,21 @@ For CPU tasks, `OffloadCpuWithTimeout` implements a **first-wins** pattern betwe
 
 **CPU tasks only**: Deadline/timeout is currently enforced only for CPU-bound tasks (those without `run_async`, like `vm`, `filter`, `sort`, `busy_cpu`). These use `OffloadCpuWithTimeout`.
 
-**Async tasks pending**: Tasks with `run_async` (like `viewer`, `follow`, `sleep`, Redis-backed tasks) do not yet enforce timeout. They will run to completion regardless of deadline. This is a known limitation tracked for future work.
+**Async tasks pending**: Tasks with `run_async` (like `viewer`, `follow`, `sleep`, Redis-backed tasks) do not yet enforce timeout. They will run to completion regardless of deadline. This is a known limitation tracked for future work (Step 14.5c.5c).
 
-The `AsyncWithTimeout` awaitable exists but has coroutine lifetime issues that cause SIGSEGV when the timeout fires. Fixing this requires careful management of the inner task's continuation handle, which references the wrapper coroutine that may be destroyed on timeout.
+The `AsyncWithTimeout` awaitable exists in `cpu_offload.h` but has coroutine lifetime issues that cause SIGSEGV when the timeout fires. Fixing this requires careful management of the inner task's continuation handle, which references the wrapper coroutine that may be destroyed on timeout.
+
+### Safety Mechanisms
+
+**Safe capture**: When timeout fires, the coroutine frame is destroyed while CPU work continues. To prevent use-after-free:
+- All ExecCtx data (params, expr_table, pred_table, request, endpoints) is copied into `shared_ptr`
+- The CPU lambda captures these by value, owning the data
+- `resolved_refs` also uses `shared_ptr` for NodeRef params (concat-style nodes)
+
+**Drain semantics**: Before destroying EventLoop, we must wait for pending CPU jobs:
+- `ThreadPool::wait_idle()` blocks until all in-flight tasks complete
+- Called after `loop.Stop()` and on exception (inner try-catch with rethrow)
+- Prevents CPU jobs from calling `loop->Post()` on destroyed EventLoop
 
 ### Deadline Checks
 
