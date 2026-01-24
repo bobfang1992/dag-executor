@@ -132,17 +132,24 @@ void init_async_scheduler_state(AsyncSchedulerState& state) {
 }
 
 /**
- * Awaitable that suspends until all nodes complete.
+ * Awaitable that suspends until all in-flight tasks complete.
  *
- * If already complete (nodes_remaining == 0), returns immediately.
- * Otherwise, stores the main coroutine handle and suspends.
- * Resumed by the last completing node.
+ * IMPORTANT: We must wait for ALL in-flight coroutines, not just check for
+ * first_error. If we return early on error while coroutines are still suspended
+ * on Redis/OffloadCpu, destroying state causes use-after-free when they resume.
+ *
+ * Returns immediately only if no tasks were ever started (inflight_count == 0).
+ * Otherwise, stores the main coroutine handle and suspends until the last
+ * in-flight task decrements inflight_count to 0 and resumes us.
  */
 struct CompletionAwaitable {
   AsyncSchedulerState& state;
 
   bool await_ready() const noexcept {
-    return state.nodes_remaining == 0 || state.first_error.has_value();
+    // Only ready when ALL in-flight tasks have completed.
+    // Do NOT check first_error here - we must wait for suspended coroutines
+    // to finish before destroying state, even on error.
+    return state.inflight_count == 0;
   }
 
   void await_suspend(std::coroutine_handle<> h) noexcept {
