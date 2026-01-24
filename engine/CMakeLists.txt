@@ -276,3 +276,21 @@ target_link_libraries(event_loop_tests PRIVATE Catch2::Catch2WithMain uv_a)
 set_target_properties(event_loop_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )
+
+# Async Redis tests executable (Catch2) - async Redis client with libuv + hiredis
+add_executable(async_redis_tests
+  tests/test_async_redis.cpp
+  src/event_loop.cpp
+  src/async_redis_client.cpp
+  src/async_io_clients.cpp
+)
+
+target_include_directories(async_redis_tests PRIVATE
+  ${CMAKE_SOURCE_DIR}/include
+  ${hiredis_SOURCE_DIR}  # For adapters/libuv.h
+)
+target_link_libraries(async_redis_tests PRIVATE Catch2::Catch2WithMain uv_a hiredis::hiredis nlohmann_json::nlohmann_json)
+
+set_target_properties(async_redis_tests PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
+)
