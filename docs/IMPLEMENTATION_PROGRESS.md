@@ -191,16 +191,35 @@ This document tracks the implementation status of all features in the dag-execut
 - **Tests**: 26 test cases, 38 assertions
 - See PR #58, Issue #59
 
+### Step 14.5c.2: Async Redis Awaitables (libuv + hiredis)
+- **Goal**: Build async Redis IO bridge - convert hiredis callbacks to `co_await`-friendly awaitables
+- **Files**:
+  - `engine/include/async_inflight_limiter.h` - Coroutine-friendly FIFO queue for concurrency control
+  - `engine/include/async_redis_client.h` - AsyncRedisClient with `HGet`, `LRange`, `HGetAll` awaitables
+  - `engine/src/async_redis_client.cpp` - hiredis async + libuv integration
+  - `engine/include/async_io_clients.h` - Per-endpoint client cache
+  - `engine/src/async_io_clients.cpp` - Client creation on loop thread
+  - `engine/tests/test_async_redis.cpp` - Unit + integration tests
+- **Key Design**:
+  - All async ops on loop thread (no locks needed)
+  - `ParsedReply` extracts data in callback before hiredis frees reply (avoids UAF)
+  - RAII `Guard` releases permit on awaitable completion
+  - Request timeouts via `uv_timer_t` (prevents stalled connections from blocking)
+  - `CommandStateRef` with `weak_ptr` for safe late-reply handling after timeout
+- **Safety hardening** (Codex-reviewed, 10+ P1 fixes):
+  - `ctx_ptr_` double-pointer pattern for disconnect-while-waiting
+  - Capture loop ref before `issue_command` to avoid UAF on error path
+  - Permit released immediately on timeout (don't wait for reply that may never come)
+  - Client/Task lifetime requirements documented
+- **Tests**: 30 assertions in 10 test cases (unit + Redis integration)
+- See PR #61
+
 ---
 
 ## 🔲 Not Yet Implemented
 
-### Step 14.5c.2: Async Redis Awaitable
-- `RedisAwaitable` using `redisAsyncContext` + hiredis-libuv adapter
-- Convert viewer/follow/media/recommendation tasks to coroutines
-- Remove blocking Redis calls from IO thread pool
-
 ### Step 14.5c.3: Coroutine DAG Scheduler Integration
+- Integrate `AsyncRedisClient` with DAG scheduler
 - Replace thread-pool DAG scheduler with coroutine-based scheduler
 - CPU tasks stay on CPU pool, IO tasks become coroutines on EventLoop
 - **Task signature change**: `RowSet run(...)` → `Task<RowSet> run(...)`
