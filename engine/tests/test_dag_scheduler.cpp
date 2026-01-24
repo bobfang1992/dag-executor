@@ -648,9 +648,8 @@ TEST_CASE("async scheduler: request deadline exceeded", "[async_scheduler][deadl
 
   loop.Stop();
 
-  // Wait for CPU work to complete (it's still running on thread pool)
-  // This prevents SIGSEGV during process exit when CPU thread tries to post back
-  std::this_thread::sleep_for(std::chrono::milliseconds(250));
+  // Drain CPU pool before loop destruction - pending CPU jobs may Post() to it
+  rankd::GetCPUThreadPool().wait_idle();
 
   // Verify error was thrown
   REQUIRE(caught_error);
@@ -700,9 +699,8 @@ TEST_CASE("async scheduler: node timeout on CPU work", "[async_scheduler][timeou
 
   loop.Stop();
 
-  // Wait for CPU work to complete (it's still running on thread pool)
-  // This prevents SIGSEGV during process exit when CPU thread tries to post back
-  std::this_thread::sleep_for(std::chrono::milliseconds(250));
+  // Drain CPU pool before loop destruction - pending CPU jobs may Post() to it
+  rankd::GetCPUThreadPool().wait_idle();
 
   // Verify error was thrown
   REQUIRE(caught_error);
@@ -771,8 +769,7 @@ struct AsyncExecResult {
 static AsyncExecResult run_async_with_deadline(
     Plan& plan,
     ranking::OptionalDeadline deadline,
-    std::optional<std::chrono::milliseconds> node_timeout,
-    int wait_after_ms = 0) {
+    std::optional<std::chrono::milliseconds> node_timeout) {
 
   AsyncExecResult result;
 
@@ -802,11 +799,8 @@ static AsyncExecResult run_async_with_deadline(
   result.elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
 
   loop.Stop();
-
-  // Wait for any pending CPU work to complete
-  if (wait_after_ms > 0) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(wait_after_ms));
-  }
+  // Drain CPU pool before loop destruction - pending CPU jobs may Post() to it
+  rankd::GetCPUThreadPool().wait_idle();
 
   return result;
 }
@@ -818,7 +812,7 @@ TEST_CASE("async scheduler: deadline already expired", "[async_scheduler][deadli
 
   auto expired_deadline = std::chrono::steady_clock::now() - std::chrono::milliseconds(100);
 
-  auto result = run_async_with_deadline(plan, expired_deadline, std::nullopt, 100);
+  auto result = run_async_with_deadline(plan, expired_deadline, std::nullopt);
 
   REQUIRE(result.caught_error);
   REQUIRE_THAT(result.error_message, Catch::Matchers::ContainsSubstring("deadline"));
@@ -835,7 +829,7 @@ TEST_CASE("async scheduler: very short deadline (1ms)", "[async_scheduler][deadl
 
   auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
 
-  auto result = run_async_with_deadline(plan, deadline, std::nullopt, 150);
+  auto result = run_async_with_deadline(plan, deadline, std::nullopt);
 
   REQUIRE(result.caught_error);
   REQUIRE_THAT(result.error_message, Catch::Matchers::ContainsSubstring("timeout"));
@@ -852,7 +846,7 @@ TEST_CASE("async scheduler: generous deadline succeeds", "[async_scheduler][dead
 
   auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
 
-  auto result = run_async_with_deadline(plan, deadline, std::nullopt, 0);
+  auto result = run_async_with_deadline(plan, deadline, std::nullopt);
 
   REQUIRE(result.success);
   REQUIRE_FALSE(result.caught_error);
@@ -868,7 +862,7 @@ TEST_CASE("async scheduler: very short node timeout (1ms)", "[async_scheduler][t
   validate_plan(plan, nullptr);
 
   auto result = run_async_with_deadline(plan, std::nullopt,
-                                        std::chrono::milliseconds(1), 150);
+                                        std::chrono::milliseconds(1));
 
   REQUIRE(result.caught_error);
   REQUIRE_THAT(result.error_message, Catch::Matchers::ContainsSubstring("timeout"));
@@ -883,7 +877,7 @@ TEST_CASE("async scheduler: generous node timeout succeeds", "[async_scheduler][
   validate_plan(plan, nullptr);
 
   auto result = run_async_with_deadline(plan, std::nullopt,
-                                        std::chrono::milliseconds(500), 0);
+                                        std::chrono::milliseconds(500));
 
   REQUIRE(result.success);
   REQUIRE_FALSE(result.caught_error);
@@ -902,7 +896,7 @@ TEST_CASE("async scheduler: both deadline and node_timeout set", "[async_schedul
   auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
   auto node_timeout = std::chrono::milliseconds(30);
 
-  auto result = run_async_with_deadline(plan, deadline, node_timeout, 150);
+  auto result = run_async_with_deadline(plan, deadline, node_timeout);
 
   REQUIRE(result.caught_error);
   REQUIRE_THAT(result.error_message, Catch::Matchers::ContainsSubstring("timeout"));
@@ -920,7 +914,7 @@ TEST_CASE("async scheduler: multi-stage pipeline timeout", "[async_scheduler][de
 
   auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(40);
 
-  auto result = run_async_with_deadline(plan, deadline, std::nullopt, 100);
+  auto result = run_async_with_deadline(plan, deadline, std::nullopt);
 
   REQUIRE(result.caught_error);
   REQUIRE_THAT(result.error_message,
@@ -940,7 +934,7 @@ TEST_CASE("async scheduler: multi-stage pipeline succeeds", "[async_scheduler][d
 
   auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
 
-  auto result = run_async_with_deadline(plan, deadline, std::nullopt, 0);
+  auto result = run_async_with_deadline(plan, deadline, std::nullopt);
 
   REQUIRE(result.success);
   REQUIRE_FALSE(result.caught_error);
@@ -971,7 +965,7 @@ TEST_CASE("async scheduler: fixed_source only (no CPU offload)", "[async_schedul
   // Very short deadline - but fixed_source is instant so should succeed
   auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(10);
 
-  auto result = run_async_with_deadline(plan, deadline, std::nullopt, 0);
+  auto result = run_async_with_deadline(plan, deadline, std::nullopt);
 
   REQUIRE(result.success);
   REQUIRE_FALSE(result.caught_error);
@@ -989,7 +983,7 @@ TEST_CASE("async scheduler: repeated timeout operations", "[async_scheduler][tim
     DYNAMIC_SECTION("iteration " << i) {
       auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(20);
 
-      auto result = run_async_with_deadline(plan, deadline, std::nullopt, 150);
+      auto result = run_async_with_deadline(plan, deadline, std::nullopt);
 
       REQUIRE(result.caught_error);
       REQUIRE_THAT(result.error_message, Catch::Matchers::ContainsSubstring("timeout"));
@@ -1009,7 +1003,7 @@ TEST_CASE("async scheduler: repeated success operations", "[async_scheduler][dea
     DYNAMIC_SECTION("iteration " << i) {
       auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
 
-      auto result = run_async_with_deadline(plan, deadline, std::nullopt, 0);
+      auto result = run_async_with_deadline(plan, deadline, std::nullopt);
 
       REQUIRE(result.success);
       REQUIRE_FALSE(result.caught_error);
@@ -1035,8 +1029,7 @@ TEST_CASE("async scheduler: alternating success and timeout", "[async_scheduler]
       Plan& plan = should_timeout ? slow_plan : fast_plan;
       auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(30);
 
-      int wait_after = should_timeout ? 150 : 0;
-      auto result = run_async_with_deadline(plan, deadline, std::nullopt, wait_after);
+      auto result = run_async_with_deadline(plan, deadline, std::nullopt);
 
       if (should_timeout) {
         REQUIRE(result.caught_error);
