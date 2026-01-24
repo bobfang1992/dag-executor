@@ -135,6 +135,35 @@ function assertEndpointId(value: unknown, name: string): void {
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
 
+/** Implementation for busy_cpu */
+export function busyCpuImpl(
+  ctx: TaskContext,
+  inputNodeId: string,
+  opts: {
+    busyWaitMs: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "busyCpu(opts)");
+  assertNotUndefined(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
+  assertInteger(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "busyCpu(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "busyCpu({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    busy_wait_ms: opts.busyWaitMs,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("busy_cpu", [inputNodeId], params, extensions);
+}
+
 /** Implementation for concat */
 export function concatImpl(
   ctx: TaskContext,
@@ -201,6 +230,33 @@ export function filterImpl(
   };
 
   return ctx.addNode("filter", [inputNodeId], params, extensions);
+}
+
+/** Implementation for fixed_source */
+export function fixedSourceImpl(
+  ctx: TaskContext,
+  inputNodeId: string,
+  opts: {
+    rowCount?: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "fixedSource(opts)");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "fixedSource(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "fixedSource({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    row_count: opts.rowCount,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("fixed_source", [inputNodeId], params, extensions);
 }
 
 /** Implementation for follow */
@@ -471,5 +527,5 @@ export function vmImpl(
 
 export const GENERATED_TASKS = {
   source: [],
-  transform: ["concat", "filter", "follow", "media", "recommendation", "sleep", "sort", "take", "viewer", "vm"],
+  transform: ["busyCpu", "concat", "filter", "fixedSource", "follow", "media", "recommendation", "sleep", "sort", "take", "viewer", "vm"],
 } as const;

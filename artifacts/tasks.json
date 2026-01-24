@@ -2,6 +2,24 @@
   "schema_version": 1,
   "tasks": [
     {
+      "op": "busy_cpu",
+      "output_pattern": "UnaryPreserveView",
+      "params": [
+        {
+          "name": "busy_wait_ms",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
       "op": "concat",
       "output_pattern": "ConcatDense",
       "params": [
@@ -27,6 +45,24 @@
           "name": "pred_id",
           "type": "pred_id",
           "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "op": "fixed_source",
+      "output_pattern": "VariableDense",
+      "params": [
+        {
+          "name": "row_count",
+          "type": "int",
+          "required": false,
           "nullable": false
         },
         {
