@@ -22,6 +22,11 @@ public:
                  .type = TaskParamType::String,
                  .required = false,
                  .nullable = true},
+                // Fault injection: throw after sleeping (for testing fail-fast)
+                {.name = "fail_after_sleep",
+                 .type = TaskParamType::Bool,
+                 .required = false,
+                 .default_value = false},
             },
         .reads = {},
         .writes = {},
@@ -48,6 +53,11 @@ public:
       std::this_thread::sleep_for(std::chrono::milliseconds(duration_ms));
     }
 
+    // Fault injection for testing
+    if (params.get_bool("fail_after_sleep")) {
+      throw std::runtime_error("sleep: intentional failure (fail_after_sleep=true)");
+    }
+
     // Pass through input unchanged (identity operation)
     return inputs[0];
   }
@@ -67,6 +77,11 @@ public:
     // Async sleep using libuv timer
     if (duration_ms > 0) {
       co_await ranking::SleepMs(*ctx.loop, static_cast<uint64_t>(duration_ms));
+    }
+
+    // Fault injection for testing (throws AFTER async sleep completes)
+    if (params.get_bool("fail_after_sleep")) {
+      throw std::runtime_error("sleep: intentional failure (fail_after_sleep=true)");
     }
 
     // Pass through input unchanged (identity operation)

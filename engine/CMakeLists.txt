@@ -282,6 +282,7 @@ add_executable(dag_scheduler_tests
   src/plan.cpp
   src/executor.cpp
   src/dag_scheduler.cpp
+  src/async_dag_scheduler.cpp
   src/cpu_pool.cpp
   src/task_registry.cpp
   src/output_contract.cpp

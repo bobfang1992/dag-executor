@@ -1,10 +1,13 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include "async_dag_scheduler.h"
+#include "async_io_clients.h"
 #include "column_batch.h"
 #include "cpu_pool.h"
 #include "dag_scheduler.h"
 #include "endpoint_registry.h"
+#include "event_loop.h"
 #include "executor.h"
 #include "io_clients.h"
 #include "param_table.h"
@@ -14,6 +17,7 @@
 #include "task_registry.h"
 #include <chrono>
 #include <optional>
+#include <thread>
 
 using namespace rankd;
 
@@ -325,4 +329,221 @@ TEST_CASE("sleep task identity behavior", "[sleep][task]") {
   auto in_indices = input.materializeIndexViewForOutput(input.batch().size());
   auto out_indices = output.materializeIndexViewForOutput(output.batch().size());
   REQUIRE(in_indices == out_indices);
+}
+
+// =============================================================================
+// Async Scheduler Tests
+// =============================================================================
+
+// Helper to create a three-branch DAG: source -> [sleep_a, sleep_b, vm] -> concat_ab -> concat_final
+// Tests: multiple coroutines suspended concurrently + CPU offload (vm) doesn't block loop
+static Plan create_three_branch_dag(int sleep_ms_a, int sleep_ms_b) {
+  Plan plan;
+  plan.schema_version = 1;
+  plan.plan_name = "test_three_branch";
+
+  // Node 0: viewer source
+  Node viewer_node;
+  viewer_node.node_id = "source";
+  viewer_node.op = "viewer";
+  viewer_node.params = nlohmann::json::object();
+  viewer_node.params["endpoint"] = "ep_0001";
+  plan.nodes.push_back(viewer_node);
+
+  // Node 1: sleep_a (async timer)
+  Node sleep_a;
+  sleep_a.node_id = "sleep_a";
+  sleep_a.op = "sleep";
+  sleep_a.inputs = {"source"};
+  sleep_a.params = nlohmann::json::object();
+  sleep_a.params["duration_ms"] = sleep_ms_a;
+  plan.nodes.push_back(sleep_a);
+
+  // Node 2: sleep_b (async timer)
+  Node sleep_b;
+  sleep_b.node_id = "sleep_b";
+  sleep_b.op = "sleep";
+  sleep_b.inputs = {"source"};
+  sleep_b.params = nlohmann::json::object();
+  sleep_b.params["duration_ms"] = sleep_ms_b;
+  plan.nodes.push_back(sleep_b);
+
+  // Node 3: vm (CPU offload) - add a constant to model_score_1
+  Node vm_node;
+  vm_node.node_id = "vm_branch";
+  vm_node.op = "vm";
+  vm_node.inputs = {"source"};
+  vm_node.params = nlohmann::json::object();
+  vm_node.params["out_key"] = 102;  // Key.model_score_1
+  vm_node.params["expr_id"] = "vm_const";
+  plan.nodes.push_back(vm_node);
+
+  // Add expr to plan's expr_table
+  auto const_expr = std::make_shared<ExprNode>();
+  const_expr->op = "const_number";
+  const_expr->const_value = 1.0;
+  plan.expr_table["vm_const"] = const_expr;
+
+  // Node 4: concat sleep_a + sleep_b
+  Node concat_ab;
+  concat_ab.node_id = "concat_ab";
+  concat_ab.op = "concat";
+  concat_ab.inputs = {"sleep_a"};
+  concat_ab.params = nlohmann::json::object();
+  concat_ab.params["rhs"] = "sleep_b";
+  plan.nodes.push_back(concat_ab);
+
+  // Node 5: concat result + vm_branch
+  Node concat_final;
+  concat_final.node_id = "output";
+  concat_final.op = "concat";
+  concat_final.inputs = {"concat_ab"};
+  concat_final.params = nlohmann::json::object();
+  concat_final.params["rhs"] = "vm_branch";
+  plan.nodes.push_back(concat_final);
+
+  plan.outputs = {"output"};
+  return plan;
+}
+
+// Helper to create a plan with fault injection: source -> [sleep_ok, sleep_fail] -> concat
+static Plan create_fault_injection_plan(int sleep_ms_ok, int sleep_ms_fail) {
+  Plan plan;
+  plan.schema_version = 1;
+  plan.plan_name = "test_fault_injection";
+
+  // Node 0: viewer source
+  Node viewer_node;
+  viewer_node.node_id = "source";
+  viewer_node.op = "viewer";
+  viewer_node.params = nlohmann::json::object();
+  viewer_node.params["endpoint"] = "ep_0001";
+  plan.nodes.push_back(viewer_node);
+
+  // Node 1: sleep_ok (completes normally)
+  Node sleep_ok;
+  sleep_ok.node_id = "sleep_ok";
+  sleep_ok.op = "sleep";
+  sleep_ok.inputs = {"source"};
+  sleep_ok.params = nlohmann::json::object();
+  sleep_ok.params["duration_ms"] = sleep_ms_ok;
+  sleep_ok.params["fail_after_sleep"] = false;
+  plan.nodes.push_back(sleep_ok);
+
+  // Node 2: sleep_fail (throws after sleeping)
+  Node sleep_fail;
+  sleep_fail.node_id = "sleep_fail";
+  sleep_fail.op = "sleep";
+  sleep_fail.inputs = {"source"};
+  sleep_fail.params = nlohmann::json::object();
+  sleep_fail.params["duration_ms"] = sleep_ms_fail;
+  sleep_fail.params["fail_after_sleep"] = true;  // Fault injection!
+  plan.nodes.push_back(sleep_fail);
+
+  // Node 3: concat (won't run if either fails)
+  Node concat;
+  concat.node_id = "concat_result";
+  concat.op = "concat";
+  concat.inputs = {"sleep_ok"};
+  concat.params = nlohmann::json::object();
+  concat.params["rhs"] = "sleep_fail";
+  plan.nodes.push_back(concat);
+
+  plan.outputs = {"concat_result"};
+  return plan;
+}
+
+TEST_CASE("async scheduler: three-branch DAG with concurrent sleep + vm",
+          "[async_scheduler][concurrent]") {
+  // Three branches: sleep_a (50ms), sleep_b (50ms), vm (CPU offload)
+  // All run concurrently; total time should be ~50ms, not 100ms+ (sequential)
+  Plan plan = create_three_branch_dag(50, 50);
+  validate_plan(plan, &get_test_endpoint_registry());
+
+  // Start event loop (internally spawns thread)
+  ranking::EventLoop loop;
+  loop.Start();
+
+  ranking::AsyncIoClients async_clients;
+  ParamTable params;
+  RequestContext request_ctx;
+  request_ctx.user_id = 1;
+  request_ctx.request_id = "test_three_branch";
+
+  auto start = std::chrono::steady_clock::now();
+
+  auto result = ranking::execute_plan_async_blocking(
+      plan, loop, async_clients, params, plan.expr_table, plan.pred_table,
+      get_test_endpoint_registry(), request_ctx, nullptr);
+
+  auto end = std::chrono::steady_clock::now();
+  double elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
+
+  // Stop loop (joins internal thread)
+  loop.Stop();
+
+  // Verify results
+  REQUIRE(result.outputs.size() == 1);
+
+  // With concurrent execution, three 50ms branches should complete in ~50-80ms
+  // Sequential would take 150ms+
+  INFO("Elapsed time: " << elapsed_ms << "ms");
+  REQUIRE(elapsed_ms < 120.0);  // Allow overhead but verify parallelism
+
+  // Verify output has expected rows (source + source + source from 3 branches)
+  // Source returns 1 row (viewer), concat doubles it each time
+  REQUIRE(result.outputs[0].rowCount() >= 1);
+}
+
+TEST_CASE("async scheduler: fault injection - no deadlock or UAF on error",
+          "[async_scheduler][fault_injection]") {
+  // Two parallel branches: one succeeds (100ms), one fails after 20ms
+  // The failing branch should trigger error without deadlock
+  // And the successful branch should complete without UAF
+  Plan plan = create_fault_injection_plan(100, 20);
+  validate_plan(plan, &get_test_endpoint_registry());
+
+  // Start event loop (internally spawns thread)
+  ranking::EventLoop loop;
+  loop.Start();
+
+  ranking::AsyncIoClients async_clients;
+  ParamTable params;
+  RequestContext request_ctx;
+  request_ctx.user_id = 1;
+  request_ctx.request_id = "test_fault_injection";
+
+  auto start = std::chrono::steady_clock::now();
+
+  bool caught_error = false;
+  std::string error_message;
+
+  try {
+    ranking::execute_plan_async_blocking(plan, loop, async_clients, params,
+                                          plan.expr_table, plan.pred_table,
+                                          get_test_endpoint_registry(), request_ctx,
+                                          nullptr);
+  } catch (const std::exception& e) {
+    caught_error = true;
+    error_message = e.what();
+  }
+
+  auto end = std::chrono::steady_clock::now();
+  double elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
+
+  // Stop loop (joins internal thread; should not hang - no deadlock)
+  loop.Stop();
+
+  // Verify error was thrown
+  REQUIRE(caught_error);
+  REQUIRE_THAT(error_message,
+               Catch::Matchers::ContainsSubstring("intentional failure"));
+
+  // Verify timing: should complete after ~100ms (waiting for all inflight)
+  // not immediately after 20ms (would indicate premature return)
+  INFO("Elapsed time: " << elapsed_ms << "ms");
+  REQUIRE(elapsed_ms >= 90.0);   // Wait for 100ms branch to complete
+  REQUIRE(elapsed_ms < 200.0);   // But not hung/deadlocked
+
+  // If we get here without crash/hang, no UAF or deadlock occurred!
 }

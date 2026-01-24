@@ -1,7 +1,7 @@
 # AUTO-GENERATED from C++ TaskSpec - DO NOT EDIT
 # Regenerate with: engine/bin/rankd --print-task-manifest > registry/tasks.toml
 schema_version = 1
-manifest_digest = "2b7ecee984cfb73c6f3d27aca4dd1c72e255a714524de8edf307dd4707ffc26a"
+manifest_digest = "5f4edea81370dfee40f39e2fffc3501f7e4fc28d72e151fa3de9d030406455cb"
 
 [[task]]
 op = "concat"
@@ -112,6 +112,12 @@ output_pattern = "UnaryPreserveView"
   name = "duration_ms"
   type = "int"
   required = true
+  nullable = false
+
+  [[task.param]]
+  name = "fail_after_sleep"
+  type = "bool"
+  required = false
   nullable = false
 
   [[task.param]]
