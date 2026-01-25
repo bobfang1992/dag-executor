@@ -1,7 +1,7 @@
 // Monaco type definitions generator
 
 import type { KeyEntry, ParamEntry, TaskRegistry, TaskEntry, EndpointEntry } from "./types.js";
-import { friendlyParamName } from "./utils.js";
+import { friendlyParamName, opToMethodName } from "./utils.js";
 
 /**
  * Generate inline opts type for Monaco intellisense.
@@ -174,18 +174,15 @@ export function generateMonacoTypes(
     "",
   ];
 
-  // Generate source task methods for PlanCtx.viewer
-  const sourceTasks = tasks.tasks.filter(t => t.op.startsWith("viewer."));
-  const transformTasks = tasks.tasks.filter(t => !t.op.startsWith("viewer."));
+  // Source task is viewer (core::viewer), transform tasks are everything else
+  const viewerTask = tasks.tasks.find(t => opToMethodName(t.op) === "viewer");
+  const transformTasks = tasks.tasks.filter(t => opToMethodName(t.op) !== "viewer");
 
   lines.push("  export interface PlanCtx {");
-  lines.push("    viewer: {");
-  for (const task of sourceTasks) {
-    const methodName = task.op.replace("viewer.", "");
-    const optsType = generateMonacoOptsType(task);
-    lines.push(`      ${methodName}(opts: ${optsType}): CandidateSet;`);
+  if (viewerTask) {
+    const optsType = generateMonacoOptsType(viewerTask);
+    lines.push(`    viewer(opts: ${optsType}): CandidateSet;`);
   }
-  lines.push("    };");
   lines.push("    requireCapability(capId: string, payload?: unknown): void;");
   lines.push("  }");
   lines.push("");
@@ -193,8 +190,9 @@ export function generateMonacoTypes(
   // Generate CandidateSet interface with transform task methods
   lines.push("  export interface CandidateSet {");
   for (const task of transformTasks) {
+    const methodName = opToMethodName(task.op);
     const optsType = generateMonacoOptsType(task);
-    lines.push(`    ${task.op}(opts: ${optsType}): CandidateSet;`);
+    lines.push(`    ${methodName}(opts: ${optsType}): CandidateSet;`);
   }
   lines.push("  }");
   lines.push("");
