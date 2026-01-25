@@ -360,6 +360,11 @@ class AsyncWithTimeout {
     // if it's safe to do direct resume when Post() fails during shutdown.
     bool await_suspend_returned = false;
 
+    // Set to true when runner completes but Post() failed. Signals await_suspend
+    // to return false (don't suspend) so the waiter resumes immediately.
+    // This handles synchronous completion during shutdown.
+    bool needs_direct_resume = false;
+
     // Cancel and close the timer (idempotent)
     void cancel_timer() {
       if (timer) {
@@ -441,16 +446,19 @@ class AsyncWithTimeout {
             s->result.template emplace<0>(std::monostate{});
             s->cancel_timer();
             // Post resume for reentrancy safety.
+            // If Post fails (loop stopping), we must still resume the waiter since
+            // we completed successfully. Mark that we need direct resume.
+            s->needs_direct_resume = true;
             auto waiter = s->waiter;
             if (!s->loop->Post([waiter]() { waiter.resume(); })) {
-              // Post failed (loop stopping). Safe to direct resume only if
-              // await_suspend has returned (otherwise we're inside await_suspend
-              // and direct resume would violate coroutine contract).
+              // Post failed - await_suspend will check needs_direct_resume and
+              // return false to resume waiter. If await_suspend already returned,
+              // do direct resume here.
               if (s->await_suspend_returned) {
                 waiter.resume();
               }
-              // If !await_suspend_returned, we're inside await_suspend and the
-              // caller will return false from await_suspend, resuming the waiter.
+            } else {
+              s->needs_direct_resume = false;  // Post succeeded
             }
           }
         } else {
@@ -465,11 +473,14 @@ class AsyncWithTimeout {
             s->done = true;
             s->result.template emplace<0>(std::move(result));
             s->cancel_timer();
+            s->needs_direct_resume = true;
             auto waiter = s->waiter;
             if (!s->loop->Post([waiter]() { waiter.resume(); })) {
               if (s->await_suspend_returned) {
                 waiter.resume();
               }
+            } else {
+              s->needs_direct_resume = false;
             }
           }
         }
@@ -485,11 +496,14 @@ class AsyncWithTimeout {
           s->done = true;
           s->result.template emplace<1>(eptr);
           s->cancel_timer();
+          s->needs_direct_resume = true;
           auto waiter = s->waiter;
           if (!s->loop->Post([waiter]() { waiter.resume(); })) {
             if (s->await_suspend_returned) {
               waiter.resume();
             }
+          } else {
+            s->needs_direct_resume = false;
           }
         }
       }
@@ -524,9 +538,13 @@ class AsyncWithTimeout {
 
     // Mark that await_suspend has returned. This allows runner completion
     // to safely do direct resume if Post() fails (loop is stopping).
-    // If runner completed synchronously (before this line), it already posted
-    // the resume callback, so this flag doesn't matter.
     state_->await_suspend_returned = true;
+
+    // If runner completed synchronously and Post() failed (needs_direct_resume),
+    // return false to resume immediately instead of suspending forever.
+    if (state_->needs_direct_resume) {
+      return false;  // Don't suspend - resume immediately
+    }
 
     return true;  // Suspend
   }
