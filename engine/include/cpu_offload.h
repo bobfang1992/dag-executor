@@ -437,11 +437,10 @@ class AsyncWithTimeout {
             s->result.template emplace<0>(std::monostate{});
             s->cancel_timer();
             // Post resume for reentrancy safety. If Post fails (loop stopping),
-            // resume directly - we're on loop thread and runner holds s alive.
+            // don't resume directly - we might be inside await_suspend (if inner
+            // task completed synchronously). During shutdown, cleanup will handle it.
             auto waiter = s->waiter;
-            if (!s->loop->Post([waiter]() { waiter.resume(); })) {
-              waiter.resume();
-            }
+            s->loop->Post([waiter]() { waiter.resume(); });
           }
         } else {
           T result = co_await t;
@@ -456,9 +455,7 @@ class AsyncWithTimeout {
             s->result.template emplace<0>(std::move(result));
             s->cancel_timer();
             auto waiter = s->waiter;
-            if (!s->loop->Post([waiter]() { waiter.resume(); })) {
-              waiter.resume();
-            }
+            s->loop->Post([waiter]() { waiter.resume(); });
           }
         }
       } catch (...) {
@@ -474,9 +471,7 @@ class AsyncWithTimeout {
           s->result.template emplace<1>(eptr);
           s->cancel_timer();
           auto waiter = s->waiter;
-          if (!s->loop->Post([waiter]() { waiter.resume(); })) {
-            waiter.resume();
-          }
+          s->loop->Post([waiter]() { waiter.resume(); });
         }
       }
       // RunnerCleanup destructor runs here, posting cleanup to event loop
