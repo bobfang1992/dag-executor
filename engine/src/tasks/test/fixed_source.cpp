@@ -87,7 +87,7 @@ class FixedSourceTask {
   }
 };
 
-// Auto-register this task
-static TaskRegistrar<FixedSourceTask> registrar;
+// Auto-register this task with namespace
+REGISTER_TASK(FixedSourceTask);
 
 }  // namespace rankd

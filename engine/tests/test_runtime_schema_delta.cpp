@@ -99,7 +99,7 @@ TEST_CASE("Runtime schema delta: vm_and_row_ops fixture",
   REQUIRE(result.schema_deltas.size() == 5);
 
   SECTION("Source node (follow) has new_keys") {
-    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "follow");
+    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "core::follow");
     REQUIRE(delta_opt.has_value());
     auto delta = delta_opt.value();
 
@@ -113,7 +113,7 @@ TEST_CASE("Runtime schema delta: vm_and_row_ops fixture",
   }
 
   SECTION("VM node adds out_key to new_keys") {
-    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "vm");
+    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "core::vm");
     REQUIRE(delta_opt.has_value());
     auto delta = delta_opt.value();
 
@@ -133,7 +133,7 @@ TEST_CASE("Runtime schema delta: vm_and_row_ops fixture",
   }
 
   SECTION("Filter node (row-only) has empty new_keys and removed_keys") {
-    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "filter");
+    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "core::filter");
     REQUIRE(delta_opt.has_value());
     auto delta = delta_opt.value();
 
@@ -146,7 +146,7 @@ TEST_CASE("Runtime schema delta: vm_and_row_ops fixture",
   }
 
   SECTION("Take node (row-only) has empty new_keys and removed_keys") {
-    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "take");
+    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "core::take");
     REQUIRE(delta_opt.has_value());
     auto delta = delta_opt.value();
 
@@ -175,7 +175,7 @@ TEST_CASE("Runtime schema delta: fixed_source fixture (concat)",
   SECTION("Source nodes have schema deltas") {
     // follow source
     auto follow_delta =
-        find_delta_by_op(result.schema_deltas, plan, "follow");
+        find_delta_by_op(result.schema_deltas, plan, "core::follow");
     REQUIRE(follow_delta.has_value());
     REQUIRE(follow_delta->delta.removed_keys.empty());
     REQUIRE(follow_delta->delta.in_keys_union.empty());
@@ -191,7 +191,7 @@ TEST_CASE("Runtime schema delta: fixed_source fixture (concat)",
   }
 
   SECTION("Concat node (binary, row-only) has empty new_keys") {
-    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "concat");
+    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "core::concat");
     REQUIRE(delta_opt.has_value());
     auto delta = delta_opt.value();
 
@@ -207,7 +207,7 @@ TEST_CASE("Runtime schema delta: fixed_source fixture (concat)",
   }
 
   SECTION("Take node (row-only) has empty new_keys and removed_keys") {
-    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "take");
+    auto delta_opt = find_delta_by_op(result.schema_deltas, plan, "core::take");
     REQUIRE(delta_opt.has_value());
     auto delta = delta_opt.value();
 

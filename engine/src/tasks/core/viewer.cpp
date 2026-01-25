@@ -162,7 +162,7 @@ class ViewerTask {
   }
 };
 
-// Auto-register this task
-static TaskRegistrar<ViewerTask> registrar;
+// Auto-register this task with namespace
+REGISTER_TASK(ViewerTask);
 
 }  // namespace rankd

@@ -4,7 +4,7 @@
     {
       "name": "concat_plan",
       "path": "concat_plan.plan.json",
-      "digest": "sha256:04ef48f228934e611dec8b0f9151c6efa4361bc075ebcb09b1fe6d0fa3843cc1",
+      "digest": "sha256:504ec470eab9cd2ac7fcfb1a41f84d35220d04930fd82cdd869a75e08250a1ae",
       "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",
@@ -15,18 +15,7 @@
     {
       "name": "parallel_sleep_plan",
       "path": "parallel_sleep_plan.plan.json",
-      "digest": "sha256:8a8271080b1cfa7bdd9dbdaae07a12c50504a2da5c5487def0a25fbe040c1405",
-      "capabilities_digest": "",
-      "built_by": {
-        "backend": "quickjs",
-        "tool": "dslc",
-        "tool_version": "0.1.0"
-      }
-    },
-    {
-      "name": "reels_plan_a",
-      "path": "reels_plan_a.plan.json",
-      "digest": "sha256:2787ebb19eec8a573f67eb11853bb768d8a4e66cc494b454ccdd3fa15d770f8b",
+      "digest": "sha256:e316fffdb99bf0700ef4eb4a258e03090112deb32e9e22c4d9da0c0f9d10f767",
       "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",
@@ -37,7 +26,7 @@
     {
       "name": "regex_plan",
       "path": "regex_plan.plan.json",
-      "digest": "sha256:0e5097317ec11295b1e271ab45123a9f2f88333dc4d6a91e342692ae776fccc0",
+      "digest": "sha256:c4df52cef002b06fde664cb59d2f56a9a4a03ded7c6a556543c74b80349465b2",
       "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",

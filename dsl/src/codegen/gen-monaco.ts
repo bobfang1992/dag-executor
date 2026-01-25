@@ -1,6 +1,6 @@
 // Monaco type definitions generator
 
-import type { KeyEntry, ParamEntry, TaskRegistry, TaskEntry } from "./types.js";
+import type { KeyEntry, ParamEntry, TaskRegistry, TaskEntry, EndpointEntry } from "./types.js";
 import { friendlyParamName } from "./utils.js";
 
 /**
@@ -65,7 +65,8 @@ function generateMonacoOptsType(task: TaskEntry): string {
 export function generateMonacoTypes(
   keys: KeyEntry[],
   params: ParamEntry[],
-  tasks: TaskRegistry
+  tasks: TaskRegistry,
+  endpoints: EndpointEntry[]
 ): string {
   const lines: string[] = [
     "// AUTO-GENERATED from registries - DO NOT EDIT",
@@ -98,6 +99,12 @@ export function generateMonacoTypes(
     "    // Natural expression support: P.weight * 0.5",
     "    valueOf(): number;",
     "  }",
+    "",
+    "  /**",
+    "   * Branded EndpointId type for type-safe endpoint references.",
+    "   * Use EP.redis.* or EP.http.* to get valid endpoint IDs.",
+    "   */",
+    "  export type EndpointId = string & { readonly __brand: 'EndpointId' };",
     "",
     "  // =====================================================",
     "  // Expression types",
@@ -230,6 +237,29 @@ export function generateMonacoTypes(
     lines.push(`    readonly ${p.name}: ParamToken;`);
   }
   lines.push("  };");
+  lines.push("");
+
+  // Generate EP object with endpoints grouped by kind
+  const byKind = new Map<string, EndpointEntry[]>();
+  for (const ep of endpoints) {
+    const list = byKind.get(ep.kind) ?? [];
+    list.push(ep);
+    byKind.set(ep.kind, list);
+  }
+
+  lines.push("  // =====================================================");
+  lines.push("  // Endpoint registry (generated from endpoints.*.toml)");
+  lines.push("  // =====================================================");
+  lines.push("");
+  lines.push("  export const EP: {");
+  for (const [kind, eps] of Array.from(byKind.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    lines.push(`    readonly ${kind}: {`);
+    for (const ep of eps) {
+      lines.push(`      readonly ${ep.name}: EndpointId;`);
+    }
+    lines.push("    };");
+  }
+  lines.push("  };");
   lines.push("}");
   lines.push("");
 
@@ -245,6 +275,7 @@ export function generateMonacoTypes(
   lines.push("type _KeyToken = import('@ranking-dsl/runtime').KeyToken;");
   lines.push("type _ParamToken = import('@ranking-dsl/runtime').ParamToken;");
   lines.push("type _PredNode = import('@ranking-dsl/runtime').PredNode;");
+  lines.push("type _EndpointId = import('@ranking-dsl/runtime').EndpointId;");
   lines.push("");
 
   // Global Key object
@@ -259,6 +290,18 @@ export function generateMonacoTypes(
   lines.push("declare const P: {");
   for (const p of params) {
     lines.push(`  readonly ${p.name}: _ParamToken;`);
+  }
+  lines.push("};");
+  lines.push("");
+
+  // Global EP object
+  lines.push("declare const EP: {");
+  for (const [kind, eps] of Array.from(byKind.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    lines.push(`  readonly ${kind}: {`);
+    for (const ep of eps) {
+      lines.push(`    readonly ${ep.name}: _EndpointId;`);
+    }
+    lines.push("  };");
   }
   lines.push("};");
   lines.push("");

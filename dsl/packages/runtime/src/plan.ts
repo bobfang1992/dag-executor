@@ -65,7 +65,7 @@ export class PlanCtx {
     }
 
     const nodeId = this.addNode(
-      "viewer",
+      "core::viewer",
       [],
       { endpoint: opts.endpoint, trace: opts.trace ?? null },
       extensions

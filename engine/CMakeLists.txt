@@ -61,20 +61,46 @@ set(LIBUV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(json cli11 Catch2 re2 hiredis libuv)
 
-# Task source files (self-registering via static TaskRegistrar)
+# =============================================================================
+# Task registration with namespace inference
+# =============================================================================
+#
+# Tasks live in namespace folders: src/tasks/<namespace>/<task>.cpp
+# Namespace is inferred from folder name and injected via TASK_NAMESPACE define.
+#
+# Example: src/tasks/core/vm.cpp -> TASK_NAMESPACE="core"
+#          src/tasks/test/sleep.cpp -> TASK_NAMESPACE="test"
+#
+
+# Helper function: register a task source file with namespace compile definition
+function(register_task target source_file)
+  # Extract namespace from path: src/tasks/<namespace>/<file>.cpp
+  get_filename_component(parent_dir "${source_file}" DIRECTORY)
+  get_filename_component(namespace "${parent_dir}" NAME)
+
+  # Set compile definition for this source file only
+  set_source_files_properties("${source_file}"
+    TARGET_DIRECTORY ${target}
+    PROPERTIES COMPILE_DEFINITIONS "TASK_NAMESPACE=\"${namespace}\""
+  )
+endfunction()
+
+# Task source files organized by namespace
 set(TASK_SOURCES
-  src/tasks/viewer.cpp
-  src/tasks/follow.cpp
-  src/tasks/media.cpp
-  src/tasks/recommendation.cpp
-  src/tasks/take.cpp
-  src/tasks/sort.cpp
-  src/tasks/vm.cpp
-  src/tasks/filter.cpp
-  src/tasks/concat.cpp
-  src/tasks/sleep.cpp
-  src/tasks/fixed_source.cpp
-  src/tasks/busy_cpu.cpp
+  # core:: namespace - shared production tasks
+  src/tasks/core/viewer.cpp
+  src/tasks/core/follow.cpp
+  src/tasks/core/media.cpp
+  src/tasks/core/recommendation.cpp
+  src/tasks/core/take.cpp
+  src/tasks/core/sort.cpp
+  src/tasks/core/vm.cpp
+  src/tasks/core/filter.cpp
+  src/tasks/core/concat.cpp
+  # test:: namespace - testing/debugging tasks
+  src/tasks/test/sleep.cpp
+  src/tasks/test/fixed_source.cpp
+  src/tasks/test/busy_cpu.cpp
 )
 
 add_executable(rankd
@@ -104,6 +130,11 @@ target_include_directories(rankd PRIVATE
   ${hiredis_SOURCE_DIR}  # For adapters/libuv.h
 )
 target_link_libraries(rankd PRIVATE nlohmann_json::nlohmann_json CLI11::CLI11 re2::re2 hiredis::hiredis uv_a)
+
+# Register task namespaces for rankd
+foreach(task_source ${TASK_SOURCES})
+  register_task(rankd "${task_source}")
+endforeach()
 
 # Output to engine/bin/
 set_target_properties(rankd PROPERTIES
@@ -138,6 +169,11 @@ target_include_directories(rankd_tests PRIVATE
 )
 target_link_libraries(rankd_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis uv_a)
 
+# Register task namespaces for rankd_tests
+foreach(task_source ${TASK_SOURCES})
+  register_task(rankd_tests "${task_source}")
+endforeach()
+
 set_target_properties(rankd_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )
@@ -169,6 +205,11 @@ target_include_directories(concat_tests PRIVATE
 )
 target_link_libraries(concat_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis uv_a)
 
+# Register task namespaces for concat_tests
+foreach(task_source ${TASK_SOURCES})
+  register_task(concat_tests "${task_source}")
+endforeach()
+
 set_target_properties(concat_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )
@@ -199,6 +240,11 @@ target_include_directories(regex_tests PRIVATE
   ${hiredis_SOURCE_DIR}
 )
 target_link_libraries(regex_tests PRIVATE nlohmann_json::nlohmann_json re2::re2 hiredis::hiredis uv_a)
+
+# Register task namespaces for regex_tests
+foreach(task_source ${TASK_SOURCES})
+  register_task(regex_tests "${task_source}")
+endforeach()
 
 set_target_properties(regex_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
@@ -244,6 +290,11 @@ target_include_directories(plan_info_tests PRIVATE
 )
 target_link_libraries(plan_info_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis uv_a)
 
+# Register task namespaces for plan_info_tests
+foreach(task_source ${TASK_SOURCES})
+  register_task(plan_info_tests "${task_source}")
+endforeach()
+
 set_target_properties(plan_info_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
 )
@@ -274,6 +325,11 @@ target_include_directories(schema_delta_tests PRIVATE
   ${hiredis_SOURCE_DIR}
 )
 target_link_libraries(schema_delta_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis uv_a)
+
+# Register task namespaces for schema_delta_tests
+foreach(task_source ${TASK_SOURCES})
+  register_task(schema_delta_tests "${task_source}")
+endforeach()
 
 set_target_properties(schema_delta_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"
@@ -306,6 +362,11 @@ target_include_directories(dag_scheduler_tests PRIVATE
   ${hiredis_SOURCE_DIR}
 )
 target_link_libraries(dag_scheduler_tests PRIVATE nlohmann_json::nlohmann_json Catch2::Catch2WithMain re2::re2 hiredis::hiredis uv_a)
+
+# Register task namespaces for dag_scheduler_tests
+foreach(task_source ${TASK_SOURCES})
+  register_task(dag_scheduler_tests "${task_source}")
+endforeach()
 
 set_target_properties(dag_scheduler_tests PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin"

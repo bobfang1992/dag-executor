@@ -207,7 +207,7 @@ public:
   }
 };
 
-// Auto-register this task
-static TaskRegistrar<ConcatTask> registrar;
+// Auto-register this task with namespace
+REGISTER_TASK(ConcatTask);
 
 } // namespace rankd

@@ -135,36 +135,7 @@ function assertEndpointId(value: unknown, name: string): void {
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
 
-/** Implementation for busy_cpu */
-export function busyCpuImpl(
-  ctx: TaskContext,
-  inputNodeId: string,
-  opts: {
-    busyWaitMs: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-  }
-): string {
-  assertNotUndefined(opts, "busyCpu(opts)");
-  assertNotUndefined(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
-  assertInteger(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
-  const { extensions, ...rest } = opts;
-  checkNoUndefined(rest as Record<string, unknown>, "busyCpu(opts)");
-
-  // Validate trace
-  if (opts.trace !== undefined) {
-    assertStringOrNull(opts.trace, "busyCpu({ trace })");
-  }
-
-  const params: Record<string, unknown> = {
-    busy_wait_ms: opts.busyWaitMs,
-    trace: opts.trace ?? null,
-  };
-
-  return ctx.addNode("busy_cpu", [inputNodeId], params, extensions);
-}
-
-/** Implementation for concat */
+/** Implementation for core::concat */
 export function concatImpl(
   ctx: TaskContext,
   inputNodeId: string,
@@ -190,10 +161,10 @@ export function concatImpl(
     trace: opts.trace ?? null,
   };
 
-  return ctx.addNode("concat", [inputNodeId], params, extensions);
+  return ctx.addNode("core::concat", [inputNodeId], params, extensions);
 }
 
-/** Implementation for filter */
+/** Implementation for core::filter */
 export function filterImpl(
   ctx: TaskContext,
   inputNodeId: string,
@@ -229,37 +200,10 @@ export function filterImpl(
     trace: opts.trace ?? null,
   };
 
-  return ctx.addNode("filter", [inputNodeId], params, extensions);
+  return ctx.addNode("core::filter", [inputNodeId], params, extensions);
 }
 
-/** Implementation for fixed_source */
-export function fixedSourceImpl(
-  ctx: TaskContext,
-  inputNodeId: string,
-  opts: {
-    rowCount?: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-  }
-): string {
-  assertNotUndefined(opts, "fixedSource(opts)");
-  const { extensions, ...rest } = opts;
-  checkNoUndefined(rest as Record<string, unknown>, "fixedSource(opts)");
-
-  // Validate trace
-  if (opts.trace !== undefined) {
-    assertStringOrNull(opts.trace, "fixedSource({ trace })");
-  }
-
-  const params: Record<string, unknown> = {
-    row_count: opts.rowCount,
-    trace: opts.trace ?? null,
-  };
-
-  return ctx.addNode("fixed_source", [inputNodeId], params, extensions);
-}
-
-/** Implementation for follow */
+/** Implementation for core::follow */
 export function followImpl(
   ctx: TaskContext,
   inputNodeId: string,
@@ -289,10 +233,10 @@ export function followImpl(
     trace: opts.trace ?? null,
   };
 
-  return ctx.addNode("follow", [inputNodeId], params, extensions);
+  return ctx.addNode("core::follow", [inputNodeId], params, extensions);
 }
 
-/** Implementation for media */
+/** Implementation for core::media */
 export function mediaImpl(
   ctx: TaskContext,
   inputNodeId: string,
@@ -322,10 +266,10 @@ export function mediaImpl(
     trace: opts.trace ?? null,
   };
 
-  return ctx.addNode("media", [inputNodeId], params, extensions);
+  return ctx.addNode("core::media", [inputNodeId], params, extensions);
 }
 
-/** Implementation for recommendation */
+/** Implementation for core::recommendation */
 export function recommendationImpl(
   ctx: TaskContext,
   inputNodeId: string,
@@ -355,41 +299,10 @@ export function recommendationImpl(
     trace: opts.trace ?? null,
   };
 
-  return ctx.addNode("recommendation", [inputNodeId], params, extensions);
+  return ctx.addNode("core::recommendation", [inputNodeId], params, extensions);
 }
 
-/** Implementation for sleep */
-export function sleepImpl(
-  ctx: TaskContext,
-  inputNodeId: string,
-  opts: {
-    durationMs: number;
-    failAfterSleep?: boolean;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-  }
-): string {
-  assertNotUndefined(opts, "sleep(opts)");
-  assertNotUndefined(opts.durationMs, "sleep({ durationMs })");
-  assertInteger(opts.durationMs, "sleep({ durationMs })");
-  const { extensions, ...rest } = opts;
-  checkNoUndefined(rest as Record<string, unknown>, "sleep(opts)");
-
-  // Validate trace
-  if (opts.trace !== undefined) {
-    assertStringOrNull(opts.trace, "sleep({ trace })");
-  }
-
-  const params: Record<string, unknown> = {
-    duration_ms: opts.durationMs,
-    fail_after_sleep: opts.failAfterSleep,
-    trace: opts.trace ?? null,
-  };
-
-  return ctx.addNode("sleep", [inputNodeId], params, extensions);
-}
-
-/** Implementation for sort */
+/** Implementation for core::sort */
 export function sortImpl(
   ctx: TaskContext,
   inputNodeId: string,
@@ -417,10 +330,10 @@ export function sortImpl(
     trace: opts.trace ?? null,
   };
 
-  return ctx.addNode("sort", [inputNodeId], params, extensions);
+  return ctx.addNode("core::sort", [inputNodeId], params, extensions);
 }
 
-/** Implementation for take */
+/** Implementation for core::take */
 export function takeImpl(
   ctx: TaskContext,
   inputNodeId: string,
@@ -446,10 +359,10 @@ export function takeImpl(
     trace: opts.trace ?? null,
   };
 
-  return ctx.addNode("take", [inputNodeId], params, extensions);
+  return ctx.addNode("core::take", [inputNodeId], params, extensions);
 }
 
-/** Implementation for viewer */
+/** Implementation for core::viewer */
 export function viewerImpl(
   ctx: TaskContext,
   inputNodeId: string,
@@ -475,10 +388,10 @@ export function viewerImpl(
     trace: opts.trace ?? null,
   };
 
-  return ctx.addNode("viewer", [inputNodeId], params, extensions);
+  return ctx.addNode("core::viewer", [inputNodeId], params, extensions);
 }
 
-/** Implementation for vm */
+/** Implementation for core::vm */
 export function vmImpl(
   ctx: TaskContext,
   inputNodeId: string,
@@ -518,7 +431,94 @@ export function vmImpl(
     trace: opts.trace ?? null,
   };
 
-  return ctx.addNode("vm", [inputNodeId], params, extensions);
+  return ctx.addNode("core::vm", [inputNodeId], params, extensions);
+}
+
+/** Implementation for test::busy_cpu */
+export function busyCpuImpl(
+  ctx: TaskContext,
+  inputNodeId: string,
+  opts: {
+    busyWaitMs: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "busyCpu(opts)");
+  assertNotUndefined(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
+  assertInteger(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "busyCpu(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "busyCpu({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    busy_wait_ms: opts.busyWaitMs,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("test::busy_cpu", [inputNodeId], params, extensions);
+}
+
+/** Implementation for test::fixed_source */
+export function fixedSourceImpl(
+  ctx: TaskContext,
+  inputNodeId: string,
+  opts: {
+    rowCount?: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "fixedSource(opts)");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "fixedSource(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "fixedSource({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    row_count: opts.rowCount,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("test::fixed_source", [inputNodeId], params, extensions);
+}
+
+/** Implementation for test::sleep */
+export function sleepImpl(
+  ctx: TaskContext,
+  inputNodeId: string,
+  opts: {
+    durationMs: number;
+    failAfterSleep?: boolean;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "sleep(opts)");
+  assertNotUndefined(opts.durationMs, "sleep({ durationMs })");
+  assertInteger(opts.durationMs, "sleep({ durationMs })");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "sleep(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "sleep({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    duration_ms: opts.durationMs,
+    fail_after_sleep: opts.failAfterSleep,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("test::sleep", [inputNodeId], params, extensions);
 }
 
 // =====================================================
@@ -527,5 +527,5 @@ export function vmImpl(
 
 export const GENERATED_TASKS = {
   source: [],
-  transform: ["busyCpu", "concat", "filter", "fixedSource", "follow", "media", "recommendation", "sleep", "sort", "take", "viewer", "vm"],
+  transform: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "viewer", "vm", "busyCpu", "fixedSource", "sleep"],
 } as const;

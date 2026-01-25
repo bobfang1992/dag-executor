@@ -38,9 +38,9 @@ TEST_CASE("sort orders floats ascending with nulls last", "[sort][task]") {
 
   nlohmann::json params;
   params["by"] = key_id(KeyId::final_score);
-  auto validated = registry.validate_params("sort", params);
+  auto validated = registry.validate_params("core::sort", params);
 
-  RowSet result = registry.execute("sort", {input}, validated, ctx);
+  RowSet result = registry.execute("core::sort", {input}, validated, ctx);
   REQUIRE(result.rowCount() == 5);
   REQUIRE(result.logicalSize() == 5);
 
@@ -78,9 +78,9 @@ TEST_CASE("sort respects selection/order for strings and desc ordering", "[sort]
   nlohmann::json params;
   params["by"] = key_id(KeyId::country);
   params["order"] = "desc";
-  auto validated = registry.validate_params("sort", params);
+  auto validated = registry.validate_params("core::sort", params);
 
-  RowSet result = registry.execute("sort", {input}, validated, ctx);
+  RowSet result = registry.execute("core::sort", {input}, validated, ctx);
   REQUIRE(result.rowCount() == 4);
   REQUIRE(result.logicalSize() == 3); // selection preserved
 
@@ -111,9 +111,9 @@ TEST_CASE("sort handles string null-null comparisons safely", "[sort][task]") {
 
   nlohmann::json params;
   params["by"] = key_id(KeyId::country);
-  auto validated = registry.validate_params("sort", params);
+  auto validated = registry.validate_params("core::sort", params);
 
-  RowSet result = registry.execute("sort", {input}, validated, ctx);
+  RowSet result = registry.execute("core::sort", {input}, validated, ctx);
   REQUIRE(result.rowCount() == 2);
   REQUIRE(result.logicalSize() == 2);
 
@@ -133,10 +133,10 @@ TEST_CASE("sort rejects invalid params or unsupported keys", "[sort][task]") {
 
   auto expect_throw = [&](const nlohmann::json &params,
                           const std::string &msg) {
-    auto validated = registry.validate_params("sort", params);
+    auto validated = registry.validate_params("core::sort", params);
     try {
-      (void)registry.execute("sort", {input}, validated, ctx);
-      FAIL("sort did not throw");
+      (void)registry.execute("core::sort", {input}, validated, ctx);
+      FAIL("core::sort did not throw");
     } catch (const std::exception &e) {
       REQUIRE(std::string(e.what()) == msg);
     }

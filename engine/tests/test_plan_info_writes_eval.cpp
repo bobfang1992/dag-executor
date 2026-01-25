@@ -50,7 +50,7 @@ TEST_CASE("Fixture A: vm + row-only ops writes_eval", "[writes_eval][plan_info]"
   validate_plan(plan, &get_test_endpoint_registry());
 
   SECTION("vm node has Exact with out_key") {
-    const Node* vm = find_node_by_op(plan, "vm");
+    const Node* vm = find_node_by_op(plan, "core::vm");
     REQUIRE(vm != nullptr);
 
     // vm node should have Exact kind
@@ -65,7 +65,7 @@ TEST_CASE("Fixture A: vm + row-only ops writes_eval", "[writes_eval][plan_info]"
   }
 
   SECTION("filter node has Exact with empty keys") {
-    const Node* filter = find_node_by_op(plan, "filter");
+    const Node* filter = find_node_by_op(plan, "core::filter");
     REQUIRE(filter != nullptr);
 
     REQUIRE(filter->writes_eval_kind == EffectKind::Exact);
@@ -73,7 +73,7 @@ TEST_CASE("Fixture A: vm + row-only ops writes_eval", "[writes_eval][plan_info]"
   }
 
   SECTION("take node has Exact with empty keys") {
-    const Node* take = find_node_by_op(plan, "take");
+    const Node* take = find_node_by_op(plan, "core::take");
     REQUIRE(take != nullptr);
 
     REQUIRE(take->writes_eval_kind == EffectKind::Exact);
@@ -81,7 +81,7 @@ TEST_CASE("Fixture A: vm + row-only ops writes_eval", "[writes_eval][plan_info]"
   }
 
   SECTION("follow source has Exact with country") {
-    const Node* source = find_node_by_op(plan, "follow");
+    const Node* source = find_node_by_op(plan, "core::follow");
     REQUIRE(source != nullptr);
 
     REQUIRE(source->writes_eval_kind == EffectKind::Exact);
@@ -99,7 +99,7 @@ TEST_CASE("Fixture B: fixed-writes source writes_eval", "[writes_eval][plan_info
   validate_plan(plan, &get_test_endpoint_registry());
 
   SECTION("recommendation has Exact with country") {
-    const Node* cached = find_node_by_op(plan, "recommendation");
+    const Node* cached = find_node_by_op(plan, "core::recommendation");
     REQUIRE(cached != nullptr);
 
     REQUIRE(cached->writes_eval_kind == EffectKind::Exact);
@@ -109,7 +109,7 @@ TEST_CASE("Fixture B: fixed-writes source writes_eval", "[writes_eval][plan_info
   }
 
   SECTION("concat node has Exact with empty keys") {
-    const Node* concat = find_node_by_op(plan, "concat");
+    const Node* concat = find_node_by_op(plan, "core::concat");
     REQUIRE(concat != nullptr);
 
     REQUIRE(concat->writes_eval_kind == EffectKind::Exact);
@@ -117,7 +117,7 @@ TEST_CASE("Fixture B: fixed-writes source writes_eval", "[writes_eval][plan_info
   }
 
   SECTION("take node has Exact with empty keys") {
-    const Node* take = find_node_by_op(plan, "take");
+    const Node* take = find_node_by_op(plan, "core::take");
     REQUIRE(take != nullptr);
 
     REQUIRE(take->writes_eval_kind == EffectKind::Exact);
@@ -125,7 +125,7 @@ TEST_CASE("Fixture B: fixed-writes source writes_eval", "[writes_eval][plan_info
   }
 
   SECTION("follow source has Exact with country") {
-    const Node* source = find_node_by_op(plan, "follow");
+    const Node* source = find_node_by_op(plan, "core::follow");
     REQUIRE(source != nullptr);
 
     REQUIRE(source->writes_eval_kind == EffectKind::Exact);

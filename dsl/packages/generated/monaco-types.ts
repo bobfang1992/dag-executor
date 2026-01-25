@@ -29,6 +29,12 @@ declare module '@ranking-dsl/runtime' {
     valueOf(): number;
   }
 
+  /**
+   * Branded EndpointId type for type-safe endpoint references.
+   * Use EP.redis.* or EP.http.* to get valid endpoint IDs.
+   */
+  export type EndpointId = string & { readonly __brand: 'EndpointId' };
+
   // =====================================================
   // Expression types
   // =====================================================
@@ -102,18 +108,18 @@ declare module '@ranking-dsl/runtime' {
   }
 
   export interface CandidateSet {
-    busy_cpu(opts: { busyWaitMs: number; trace?: string }): CandidateSet;
-    concat(opts: { rhs: CandidateSet; trace?: string }): CandidateSet;
-    filter(opts: { pred: PredNode; trace?: string }): CandidateSet;
-    fixed_source(opts: { rowCount?: number; trace?: string }): CandidateSet;
-    follow(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
-    media(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
-    recommendation(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
-    sleep(opts: { durationMs: number; failAfterSleep?: boolean; trace?: string }): CandidateSet;
-    sort(opts: { by: KeyToken; order?: string; trace?: string }): CandidateSet;
-    take(opts: { count: number; trace?: string }): CandidateSet;
-    viewer(opts: { endpoint: unknown; trace?: string }): CandidateSet;
-    vm(opts: { expr: ExprNode | number; outKey: KeyToken; trace?: string }): CandidateSet;
+    core::concat(opts: { rhs: CandidateSet; trace?: string }): CandidateSet;
+    core::filter(opts: { pred: PredNode; trace?: string }): CandidateSet;
+    core::follow(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
+    core::media(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
+    core::recommendation(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
+    core::sort(opts: { by: KeyToken; order?: string; trace?: string }): CandidateSet;
+    core::take(opts: { count: number; trace?: string }): CandidateSet;
+    core::viewer(opts: { endpoint: unknown; trace?: string }): CandidateSet;
+    core::vm(opts: { expr: ExprNode | number; outKey: KeyToken; trace?: string }): CandidateSet;
+    test::busy_cpu(opts: { busyWaitMs: number; trace?: string }): CandidateSet;
+    test::fixed_source(opts: { rowCount?: number; trace?: string }): CandidateSet;
+    test::sleep(opts: { durationMs: number; failAfterSleep?: boolean; trace?: string }): CandidateSet;
   }
 
   export interface PlanConfig {
@@ -154,6 +160,19 @@ declare module '@ranking-dsl/runtime' {
     readonly blocklist_regex: ParamToken;
     readonly esr_cutoff: ParamToken;
   };
+
+  // =====================================================
+  // Endpoint registry (generated from endpoints.*.toml)
+  // =====================================================
+
+  export const EP: {
+    readonly http: {
+      readonly http_api: EndpointId;
+    };
+    readonly redis: {
+      readonly redis_default: EndpointId;
+    };
+  };
 }
 
 // =====================================================
@@ -163,6 +182,7 @@ declare module '@ranking-dsl/runtime' {
 type _KeyToken = import('@ranking-dsl/runtime').KeyToken;
 type _ParamToken = import('@ranking-dsl/runtime').ParamToken;
 type _PredNode = import('@ranking-dsl/runtime').PredNode;
+type _EndpointId = import('@ranking-dsl/runtime').EndpointId;
 
 declare const Key: {
   readonly id: _KeyToken;
@@ -179,6 +199,15 @@ declare const P: {
   readonly media_age_penalty_weight: _ParamToken;
   readonly blocklist_regex: _ParamToken;
   readonly esr_cutoff: _ParamToken;
+};
+
+declare const EP: {
+  readonly http: {
+    readonly http_api: _EndpointId;
+  };
+  readonly redis: {
+    readonly redis_default: _EndpointId;
+  };
 };
 
 declare function coalesce(a: _KeyToken | _ParamToken | number | null, b: _KeyToken | _ParamToken | number): number;

@@ -357,6 +357,26 @@ This document tracks the implementation status of all features in the dag-execut
   - `scripts/perf_throughput_sweep.sh` - Throughput/latency sweep across concurrency levels
   - `scripts/plot_perf_sweep.py` - Generate plots from sweep CSV (QPS scaling, latency curves, Pareto frontier)
 
+### RFC 0007: Namespaced Task Operation Names ✅
+- **Goal**: Introduce namespaced task operation names (e.g., `core::vm`, `test::sleep`)
+- **Status**: Implemented
+- **Key Changes**:
+  - Task ops now use `namespace::local_name` format (e.g., `core::viewer`, `test::busy_cpu`)
+  - Folder structure: `engine/src/tasks/<namespace>/<task>.cpp`
+  - CMake function `register_task()` infers namespace from folder
+  - `REGISTER_TASK` macro uses `TASK_NAMESPACE` compile definition
+  - TypeScript codegen handles `::` separator (e.g., `CoreVmOpts`, `TestSleepOpts`)
+  - Plan JSON emits qualified ops: `"op": "core::vm"`
+- **Files Modified**:
+  - `engine/include/task_registry.h` - TaskRegistrar with namespace support
+  - `engine/CMakeLists.txt` - `register_task()` function with namespace inference
+  - `engine/src/tasks/core/*.cpp` - All core tasks moved to `core/` folder
+  - `engine/src/tasks/test/*.cpp` - Test tasks moved to `test/` folder
+  - `dsl/src/codegen/utils.ts` - `opToInterfaceName()`, `opToMethodName()` handle `::`
+  - `dsl/packages/runtime/src/plan.ts` - `PlanCtx.viewer()` uses `"core::viewer"`
+  - `registry/tasks.toml` - Regenerated with namespaced ops
+- **Test Updates**: All test files updated to use qualified ops
+
 ---
 
 ## 🔲 Not Yet Implemented

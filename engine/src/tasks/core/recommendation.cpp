@@ -13,14 +13,14 @@
 
 namespace rankd {
 
-// Follow task: fan-out transform that fetches follows for each input user
+// Recommendation task: fan-out transform that fetches recommendations for each input user
 // Input: rows with user IDs
-// Output: for each input user, up to 'fanout' followee rows
-class FollowTask {
+// Output: for each input user, up to 'fanout' recommendation rows
+class RecommendationTask {
  public:
   static TaskSpec spec() {
     return TaskSpec{
-        .op = "follow",
+        .op = "recommendation",
         .params_schema =
             {
                 {.name = "endpoint",
@@ -42,7 +42,7 @@ class FollowTask {
         .default_budget = {.timeout_ms = 100},
         .output_pattern = OutputPattern::VariableDense,
         .writes_effect = std::nullopt,
-        .is_io = true,  // Redis LRANGE + HGETALL per followee
+        .is_io = true,  // Redis LRANGE + HGETALL per recommendation
         .run_async = run_async,
     };
   }
@@ -51,7 +51,7 @@ class FollowTask {
                     const ValidatedParams& params,
                     const ExecCtx& ctx) {
     if (inputs.size() != 1) {
-      throw std::runtime_error("follow: expected 1 input, got " +
+      throw std::runtime_error("recommendation: expected 1 input, got " +
                                std::to_string(inputs.size()));
     }
 
@@ -60,12 +60,12 @@ class FollowTask {
     // Get fanout (per input user)
     int64_t fanout = params.get_int("fanout");
     if (fanout <= 0) {
-      throw std::runtime_error("follow: 'fanout' must be > 0");
+      throw std::runtime_error("recommendation: 'fanout' must be > 0");
     }
     constexpr int64_t kMaxFanout = 10'000'000;
     if (fanout > kMaxFanout) {
       throw std::runtime_error(
-          "follow: 'fanout' exceeds maximum limit (10000000)");
+          "recommendation: 'fanout' exceeds maximum limit (10000000)");
     }
 
     // Get endpoint ID for Redis calls
@@ -74,37 +74,37 @@ class FollowTask {
     // Materialize input indices
     auto input_indices = input.materializeIndexViewForOutput(input.batch().size());
 
-    // Collect all followee IDs
-    std::vector<int64_t> all_followees;
+    // Collect all recommendation IDs
+    std::vector<int64_t> all_recs;
 
     for (uint32_t idx : input_indices) {
       int64_t user_id = input.batch().getId(idx);
 
-      // Fetch follow list for this user (with inflight limiting)
-      std::string key = "follow:" + std::to_string(user_id);
+      // Fetch recommendation list for this user (with inflight limiting)
+      std::string key = "recommendation:" + std::to_string(user_id);
       auto result = WithInflightLimit(ctx, endpoint_id,
           [&key, fanout](RedisClient& redis) {
             return redis.lrange(key, 0, fanout - 1);
           });
 
       if (!result) {
-        throw std::runtime_error("follow: " + result.error());
+        throw std::runtime_error("recommendation: " + result.error());
       }
 
-      // Parse and collect followee IDs
-      for (const auto& followee_str : result.value()) {
+      // Parse and collect recommendation IDs
+      for (const auto& rec_str : result.value()) {
         int64_t id = 0;
         auto [ptr, ec] = std::from_chars(
-            followee_str.data(), followee_str.data() + followee_str.size(), id);
+            rec_str.data(), rec_str.data() + rec_str.size(), id);
         if (ec == std::errc{}) {
-          all_followees.push_back(id);
+          all_recs.push_back(id);
         }
         // Skip invalid IDs silently
       }
     }
 
-    // Create batch with all followee IDs and hydrate country
-    size_t n = all_followees.size();
+    // Create batch with all recommendation IDs and hydrate country
+    size_t n = all_recs.size();
     auto batch = std::make_shared<ColumnBatch>(n);
 
     // Build country column (dictionary-encoded strings)
@@ -114,16 +114,16 @@ class FollowTask {
     std::unordered_map<std::string, int32_t> country_to_code;
 
     for (size_t i = 0; i < n; ++i) {
-      int64_t followee_id = all_followees[i];
-      batch->setId(i, followee_id);
+      int64_t rec_id = all_recs[i];
+      batch->setId(i, rec_id);
 
-      // Fetch user data for this followee (with inflight limiting)
-      std::string user_key = "user:" + std::to_string(followee_id);
+      // Fetch user data for this recommendation (with inflight limiting)
+      std::string user_key = "user:" + std::to_string(rec_id);
       auto user_result = WithInflightLimit(ctx, endpoint_id,
           [&user_key](RedisClient& redis) { return redis.hgetall(user_key); });
       if (!user_result) {
         // Fail on Redis errors (consistent with LRANGE above)
-        throw std::runtime_error("follow: " + user_result.error());
+        throw std::runtime_error("recommendation: " + user_result.error());
       }
       // Empty result means user doesn't exist - leave country as null
       auto country_it = user_result.value().find("country");
@@ -156,7 +156,7 @@ class FollowTask {
                                           const ValidatedParams& params,
                                           const ranking::ExecCtxAsync& ctx) {
     if (inputs.size() != 1) {
-      throw std::runtime_error("follow: expected 1 input, got " +
+      throw std::runtime_error("recommendation: expected 1 input, got " +
                                std::to_string(inputs.size()));
     }
 
@@ -165,12 +165,12 @@ class FollowTask {
     // Get fanout (per input user)
     int64_t fanout = params.get_int("fanout");
     if (fanout <= 0) {
-      throw std::runtime_error("follow: 'fanout' must be > 0");
+      throw std::runtime_error("recommendation: 'fanout' must be > 0");
     }
     constexpr int64_t kMaxFanout = 10'000'000;
     if (fanout > kMaxFanout) {
       throw std::runtime_error(
-          "follow: 'fanout' exceeds maximum limit (10000000)");
+          "recommendation: 'fanout' exceeds maximum limit (10000000)");
     }
 
     // Get endpoint ID and async Redis client
@@ -178,40 +178,40 @@ class FollowTask {
     auto client_result = ctx.async_clients->GetRedis(
         *ctx.loop, *ctx.endpoints, endpoint_id);
     if (!client_result) {
-      throw std::runtime_error("follow: " + client_result.error());
+      throw std::runtime_error("recommendation: " + client_result.error());
     }
     ranking::AsyncRedisClient& redis = **client_result;
 
     // Materialize input indices
     auto input_indices = input.materializeIndexViewForOutput(input.batch().size());
 
-    // Collect all followee IDs
-    std::vector<int64_t> all_followees;
+    // Collect all recommendation IDs
+    std::vector<int64_t> all_recs;
 
     for (uint32_t idx : input_indices) {
       int64_t user_id = input.batch().getId(idx);
 
-      // Fetch follow list for this user
-      std::string key = "follow:" + std::to_string(user_id);
+      // Fetch recommendation list for this user
+      std::string key = "recommendation:" + std::to_string(user_id);
       auto result = co_await redis.LRange(key, 0, fanout - 1);
 
       if (!result) {
-        throw std::runtime_error("follow: " + result.error().message);
+        throw std::runtime_error("recommendation: " + result.error().message);
       }
 
-      // Parse and collect followee IDs
-      for (const auto& followee_str : result.value()) {
+      // Parse and collect recommendation IDs
+      for (const auto& rec_str : result.value()) {
         int64_t id = 0;
         auto [ptr, ec] = std::from_chars(
-            followee_str.data(), followee_str.data() + followee_str.size(), id);
+            rec_str.data(), rec_str.data() + rec_str.size(), id);
         if (ec == std::errc{}) {
-          all_followees.push_back(id);
+          all_recs.push_back(id);
         }
       }
     }
 
-    // Create batch with all followee IDs and hydrate country
-    size_t n = all_followees.size();
+    // Create batch with all recommendation IDs and hydrate country
+    size_t n = all_recs.size();
     auto batch = std::make_shared<ColumnBatch>(n);
 
     // Build country column (dictionary-encoded strings)
@@ -221,14 +221,14 @@ class FollowTask {
     std::unordered_map<std::string, int32_t> country_to_code;
 
     for (size_t i = 0; i < n; ++i) {
-      int64_t followee_id = all_followees[i];
-      batch->setId(i, followee_id);
+      int64_t rec_id = all_recs[i];
+      batch->setId(i, rec_id);
 
-      // Fetch user data for this followee
-      std::string user_key = "user:" + std::to_string(followee_id);
+      // Fetch user data for this recommendation
+      std::string user_key = "user:" + std::to_string(rec_id);
       auto user_result = co_await redis.HGetAll(user_key);
       if (!user_result) {
-        throw std::runtime_error("follow: " + user_result.error().message);
+        throw std::runtime_error("recommendation: " + user_result.error().message);
       }
 
       // Parse HGETALL result (alternating field/value pairs)
@@ -264,7 +264,7 @@ class FollowTask {
   }
 };
 
-// Auto-register this task
-static TaskRegistrar<FollowTask> registrar;
+// Auto-register this task with namespace
+REGISTER_TASK(RecommendationTask);
 
 }  // namespace rankd
