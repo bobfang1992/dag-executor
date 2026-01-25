@@ -464,7 +464,22 @@ echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler --node_timeout_ms 50 
 # Benchmark mode (latency/throughput measurement)
 engine/bin/rankd --bench 100 --plan_name reels_plan_a                    # Sync scheduler
 engine/bin/rankd --bench 100 --async_scheduler --plan_name reels_plan_a  # Async scheduler
-engine/bin/rankd --bench 1000 --bench-concurrency 8 --plan_name my_plan  # Concurrent requests
+engine/bin/rankd --bench 1000 --bench_concurrency 8 --plan_name my_plan  # Concurrent requests
+
+# EventLoop micro-benchmarks (no Redis/plans required)
+engine/bin/rankd --bench_eventloop                                       # All modes, human output
+engine/bin/rankd --bench_eventloop --bench_json                          # JSON output
+engine/bin/rankd --bench_eventloop --bench_eventloop_mode posts          # Post() throughput only
+engine/bin/rankd --bench_eventloop --bench_eventloop_mode timers         # Timer throughput only
+engine/bin/rankd --bench_eventloop --bench_eventloop_mode sleep_vs_pool  # Coro vs ThreadPool
+
+# Throughput sweep (requires Redis for most plans)
+VCPUS=4 DURATION_SEC=2 ./scripts/perf_throughput_sweep.sh                # Full sweep
+CONCURRENCY_LEVELS="1 2 4 8" ./scripts/perf_throughput_sweep.sh          # Custom concurrency
+
+# Generate plots from sweep CSV
+pip install matplotlib  # If not installed
+python3 scripts/plot_perf_sweep.py --in perf_results/sweep_*.csv --out perf_results/plots/
 
 # Run all CI tests
 ./scripts/ci.sh
