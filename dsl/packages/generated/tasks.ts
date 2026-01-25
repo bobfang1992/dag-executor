@@ -170,6 +170,6 @@ export interface TaskExtractionInfo {
 
 /** Map from method name to extraction info */
 export const TASK_EXTRACTION_INFO: Record<string, TaskExtractionInfo> = {
-  "core::filter": { predProp: "pred" },
-  "core::vm": { exprProp: "expr" },
+  "filter": { predProp: "pred" },
+  "vm": { exprProp: "expr" },
 };

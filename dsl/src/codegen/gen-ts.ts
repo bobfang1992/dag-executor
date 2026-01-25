@@ -608,10 +608,8 @@ export function generateTasksTs(registry: TaskRegistry): string {
   lines.push("export const TASK_EXTRACTION_INFO: Record<string, TaskExtractionInfo> = {");
 
   for (const task of registry.tasks) {
-    // Method name: for "viewer.foo" it's "foo", otherwise it's the op itself
-    const methodName = task.op.startsWith("viewer.")
-      ? task.op.slice("viewer.".length)
-      : task.op;
+    // Method name: extract local name from namespaced op (e.g., "core::vm" -> "vm")
+    const methodName = opToMethodName(task.op);
 
     // Check if task has expr_id or pred_id params
     let exprProp: string | null = null;
