@@ -156,7 +156,9 @@ This enables higher concurrency with fewer threads (1 thread can have 100+ Redis
 | Step | Status | Description |
 |------|--------|-------------|
 | 14.5c.1 | ✅ Done | EventLoop + Task<T> + SleepMs awaitable |
-| 14.5c.2 | 🔲 | Async Redis awaitable (hiredis async) |
-| 14.5c.3 | 🔲 | Coroutine DAG scheduler integration |
+| 14.5c.2 | ✅ Done | Async Redis awaitable (hiredis async) |
+| 14.5c.3 | ✅ Done | Coroutine DAG scheduler integration |
 
 See [event_loop_architecture.md](event_loop_architecture.md) for detailed architecture diagrams.
+
+See [EVENT_LOOP_SHUTDOWN.md](EVENT_LOOP_SHUTDOWN.md) for shutdown/drain semantics.
