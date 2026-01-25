@@ -463,6 +463,98 @@ static RowSet run(const std::vector<RowSet>& inputs, ...) {
 
 ---
 
+## Benchmarking Tasks
+
+After implementing a task, benchmark it to ensure acceptable performance.
+
+### Quick Benchmark
+
+Create a minimal plan using your task and run with `--bench`:
+
+```bash
+# Compile your test plan
+pnpm run dslc build plans/my_task_test.plan.ts --out artifacts/plans
+
+# Run 1000 iterations with async scheduler
+echo '{"user_id": 1}' | engine/bin/rankd --bench 1000 --async_scheduler --plan_name my_task_test
+
+# Run with concurrency to test parallel performance
+echo '{"user_id": 1}' | engine/bin/rankd --bench 500 --bench_concurrency 8 --async_scheduler --plan_name my_task_test
+```
+
+### Benchmark Output
+
+The benchmark outputs JSON with latency distribution:
+
+```json
+{
+  "iterations": 1000,
+  "concurrency": 1,
+  "throughput_rps": 2850.3,
+  "p50_us": 346.2,
+  "p99_us": 503.2,
+  "max_us": 1211.6
+}
+```
+
+**Key metrics:**
+- `throughput_rps`: Requests per second
+- `p50_us` / `p99_us`: Median and tail latency in microseconds
+- Watch for p99 spikes indicating contention issues
+
+### Throughput Sweep
+
+To find the saturation point (knee), run a concurrency sweep:
+
+```bash
+# Quick sweep with multiple concurrency levels
+for c in 1 2 4 8 16 32; do
+  echo '{"user_id": 1}' | engine/bin/rankd --bench 300 --bench_concurrency $c \
+    --async_scheduler --plan_name my_task_test 2>/dev/null | \
+    jq -c "{c: .concurrency, qps: .throughput_rps, p99: .p99_us}"
+done
+
+# Or use the sweep script (generates CSV + plots)
+CONCURRENCY_LEVELS="1 2 4 8 16 32" PLAN_NAME=my_task_test ./scripts/perf_throughput_sweep.sh
+python3 scripts/plot_perf_sweep.py --in perf_results/sweep_*.csv --out perf_results/plots/
+```
+
+### EventLoop Benchmarks (Infrastructure)
+
+If your task involves async IO or timers, use EventLoop benchmarks to profile the infrastructure independently:
+
+```bash
+# Test Post() throughput (queue efficiency)
+engine/bin/rankd --bench_eventloop --bench_eventloop_mode posts
+
+# Test timer scheduling (if task uses SleepMs or timers)
+engine/bin/rankd --bench_eventloop --bench_eventloop_mode timers
+
+# Compare coroutine vs thread pool (for IO-bound tasks)
+engine/bin/rankd --bench_eventloop --bench_eventloop_mode sleep_vs_pool
+```
+
+### Performance Guidelines
+
+| Metric | Good | Warning | Action Needed |
+|--------|------|---------|---------------|
+| p50 latency | < 1ms | 1-5ms | > 5ms |
+| p99 latency | < 5ms | 5-20ms | > 20ms |
+| p99/p50 ratio | < 3x | 3-10x | > 10x (contention) |
+| QPS scaling | Linear to 8x | Sublinear | Flat (bottleneck) |
+
+**Common issues:**
+- **High p99/p50 ratio**: Lock contention, GC pauses, or resource exhaustion
+- **Flat QPS scaling**: Single-threaded bottleneck or shared resource
+- **Memory growth**: Check RSS in benchmark output for leaks
+
+### See Also
+
+- [EVENT_LOOP_BENCH.md](EVENT_LOOP_BENCH.md) - EventLoop benchmark details
+- [PERF_VM.md](PERF_VM.md) - VM setup and sweep script usage
+
+---
+
 ## See Also
 
 - [PLAN_AUTHORING_GUIDE.md](PLAN_AUTHORING_GUIDE.md) - For ranking engineers
