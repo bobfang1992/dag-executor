@@ -530,5 +530,6 @@ export function sleepImpl(
 
 export const GENERATED_TASKS = {
   source: ["viewer"],
-  transform: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "vm", "busyCpu", "fixedSource", "sleep"],
+  core: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "vm"],
+  test: ["busyCpu", "fixedSource", "sleep"],
 } as const;

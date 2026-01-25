@@ -1,7 +1,7 @@
 // Monaco type definitions generator
 
 import type { KeyEntry, ParamEntry, TaskRegistry, TaskEntry, EndpointEntry } from "./types.js";
-import { friendlyParamName, opToMethodName } from "./utils.js";
+import { friendlyParamName, opToMethodName, opToNamespace } from "./utils.js";
 
 /**
  * Generate inline opts type for Monaco intellisense.
@@ -178,6 +178,34 @@ export function generateMonacoTypes(
   const viewerTask = tasks.tasks.find(t => opToMethodName(t.op) === "viewer");
   const transformTasks = tasks.tasks.filter(t => opToMethodName(t.op) !== "viewer");
 
+  // Group transform tasks by namespace
+  const coreTransformTasks: TaskEntry[] = [];
+  const tasksByNamespace = new Map<string, TaskEntry[]>();
+
+  for (const task of transformTasks) {
+    const ns = opToNamespace(task.op);
+    if (ns === "core" || ns === undefined) {
+      coreTransformTasks.push(task);
+    } else {
+      const list = tasksByNamespace.get(ns) || [];
+      list.push(task);
+      tasksByNamespace.set(ns, list);
+    }
+  }
+
+  // Generate namespace interfaces for non-core namespaces
+  for (const [ns, nsTasks] of Array.from(tasksByNamespace.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    const pascalNs = ns.charAt(0).toUpperCase() + ns.slice(1);
+    lines.push(`  export interface ${pascalNs}Tasks {`);
+    for (const task of nsTasks) {
+      const methodName = opToMethodName(task.op);
+      const optsType = generateMonacoOptsType(task);
+      lines.push(`    ${methodName}(opts: ${optsType}): CandidateSet;`);
+    }
+    lines.push("  }");
+    lines.push("");
+  }
+
   lines.push("  export interface PlanCtx {");
   if (viewerTask) {
     const optsType = generateMonacoOptsType(viewerTask);
@@ -187,12 +215,19 @@ export function generateMonacoTypes(
   lines.push("  }");
   lines.push("");
 
-  // Generate CandidateSet interface with transform task methods
+  // Generate CandidateSet interface with core transform task methods at root level
+  // and namespace objects for non-core tasks
   lines.push("  export interface CandidateSet {");
-  for (const task of transformTasks) {
+  // Core tasks at root level
+  for (const task of coreTransformTasks) {
     const methodName = opToMethodName(task.op);
     const optsType = generateMonacoOptsType(task);
     lines.push(`    ${methodName}(opts: ${optsType}): CandidateSet;`);
+  }
+  // Namespace objects for non-core tasks
+  for (const ns of Array.from(tasksByNamespace.keys()).sort()) {
+    const pascalNs = ns.charAt(0).toUpperCase() + ns.slice(1);
+    lines.push(`    ${ns}: ${pascalNs}Tasks;`);
   }
   lines.push("  }");
   lines.push("");

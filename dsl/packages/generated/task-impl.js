@@ -96,6 +96,26 @@ function assertEndpointId(value, name) {
     }
 }
 // =====================================================
+// Source task implementations (for PlanCtx.viewer)
+// =====================================================
+/** Implementation for core::viewer */
+export function viewerImpl(ctx, opts) {
+    assertNotUndefined(opts, "viewer(opts)");
+    assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
+    assertEndpointId(opts.endpoint, "viewer({ endpoint })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "viewer(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "viewer({ trace })");
+    }
+    const params = {
+        endpoint: opts.endpoint,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("core::viewer", [], params, extensions);
+}
+// =====================================================
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
 /** Implementation for core::concat */
@@ -237,23 +257,6 @@ export function takeImpl(ctx, inputNodeId, opts) {
     };
     return ctx.addNode("core::take", [inputNodeId], params, extensions);
 }
-/** Implementation for core::viewer */
-export function viewerImpl(ctx, inputNodeId, opts) {
-    assertNotUndefined(opts, "viewer(opts)");
-    assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
-    assertEndpointId(opts.endpoint, "viewer({ endpoint })");
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest, "viewer(opts)");
-    // Validate trace
-    if (opts.trace !== undefined) {
-        assertStringOrNull(opts.trace, "viewer({ trace })");
-    }
-    const params = {
-        endpoint: opts.endpoint,
-        trace: opts.trace ?? null,
-    };
-    return ctx.addNode("core::viewer", [inputNodeId], params, extensions);
-}
 /** Implementation for core::vm */
 export function vmImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "vm(opts)");
@@ -338,6 +341,7 @@ export function sleepImpl(ctx, inputNodeId, opts) {
 // Task metadata for runtime use
 // =====================================================
 export const GENERATED_TASKS = {
-    source: [],
-    transform: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "viewer", "vm", "busyCpu", "fixedSource", "sleep"],
+    source: ["viewer"],
+    core: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "vm"],
+    test: ["busyCpu", "fixedSource", "sleep"],
 };

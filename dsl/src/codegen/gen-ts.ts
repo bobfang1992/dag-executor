@@ -10,7 +10,7 @@ import type {
   TaskEntry,
   TaskParamEntry,
 } from "./types.js";
-import { friendlyParamName, opToInterfaceName, opToMethodName } from "./utils.js";
+import { friendlyParamName, opToInterfaceName, opToMethodName, opToNamespace } from "./utils.js";
 
 // =====================================================
 // Keys TypeScript Generation
@@ -1021,9 +1021,32 @@ export function generateTaskImplTs(registry: TaskRegistry): string {
   lines.push("// Task metadata for runtime use");
   lines.push("// =====================================================");
   lines.push("");
+
+  // Group transform tasks by namespace
+  const coreTransform: string[] = [];
+  const tasksByNs = new Map<string, string[]>();
+
+  for (const task of transformTasks) {
+    const methodName = opToMethodName(task.op);
+    const ns = opToNamespace(task.op);
+    if (ns === "core" || ns === undefined) {
+      coreTransform.push(methodName);
+    } else {
+      const list = tasksByNs.get(ns) || [];
+      list.push(methodName);
+      tasksByNs.set(ns, list);
+    }
+  }
+
   lines.push("export const GENERATED_TASKS = {");
   lines.push("  source: [" + sourceTasks.map(t => `"${opToMethodName(t.op)}"`).join(", ") + "],");
-  lines.push("  transform: [" + transformTasks.map(t => `"${opToMethodName(t.op)}"`).join(", ") + "],");
+  lines.push("  core: [" + coreTransform.map(m => `"${m}"`).join(", ") + "],");
+
+  // Add namespace objects for non-core namespaces
+  for (const [ns, methods] of Array.from(tasksByNs.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    lines.push(`  ${ns}: [${methods.map(m => `"${m}"`).join(", ")}],`);
+  }
+
   lines.push("} as const;");
   lines.push("");
 

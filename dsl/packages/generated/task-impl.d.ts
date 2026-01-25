@@ -11,6 +11,12 @@ export interface TaskContext {
     addExpr(expr: ExprNode): string;
     addPred(pred: PredNode): string;
 }
+/** Implementation for core::viewer */
+export declare function viewerImpl(ctx: TaskContext, opts: {
+    endpoint: RedisEndpointId;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}): string;
 /** Implementation for core::concat */
 export declare function concatImpl(ctx: TaskContext, inputNodeId: string, opts: {
     rhs: CandidateSetLike;
@@ -57,12 +63,6 @@ export declare function takeImpl(ctx: TaskContext, inputNodeId: string, opts: {
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;
-/** Implementation for core::viewer */
-export declare function viewerImpl(ctx: TaskContext, inputNodeId: string, opts: {
-    endpoint: RedisEndpointId;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-}): string;
 /** Implementation for core::vm */
 export declare function vmImpl(ctx: TaskContext, inputNodeId: string, opts: {
     expr: ExprInput;
@@ -90,7 +90,8 @@ export declare function sleepImpl(ctx: TaskContext, inputNodeId: string, opts: {
     extensions?: Record<string, unknown>;
 }): string;
 export declare const GENERATED_TASKS: {
-    readonly source: readonly [];
-    readonly transform: readonly ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "viewer", "vm", "busyCpu", "fixedSource", "sleep"];
+    readonly source: readonly ["viewer"];
+    readonly core: readonly ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "vm"];
+    readonly test: readonly ["busyCpu", "fixedSource", "sleep"];
 };
 //# sourceMappingURL=task-impl.d.ts.map

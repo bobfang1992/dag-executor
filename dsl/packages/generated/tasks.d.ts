@@ -92,6 +92,11 @@ export type PredInput = PredNode | PredPlaceholder;
 export interface CandidateSetLike {
     getNodeId(): string;
 }
+export interface CoreViewerOpts {
+    endpoint: RedisEndpointId;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}
 export interface CoreConcatOpts {
     rhs: CandidateSetLike;
     trace?: string | null;
@@ -128,11 +133,6 @@ export interface CoreSortOpts {
 }
 export interface CoreTakeOpts {
     count: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-}
-export interface CoreViewerOpts {
-    endpoint: RedisEndpointId;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }

@@ -4,7 +4,7 @@
     {
       "name": "concat_plan",
       "path": "concat_plan.plan.json",
-      "digest": "sha256:303446e4d4704b57f25610b0c043d1378529824a2502a1985292906a18f3637d",
+      "digest": "sha256:80be9f03d642172695bb4170a3c261b423524869cf99db3f284ae1c6e5c2abad",
       "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",
@@ -15,7 +15,18 @@
     {
       "name": "redis_follow_media",
       "path": "redis_follow_media.plan.json",
-      "digest": "sha256:6bbc7bfbb6784effe3427083aa46d6c185c60cca2ddc97c66080d3ee0ee07c89",
+      "digest": "sha256:043cae80d02c4412959eb29dbf6d59bd0c9c1a5d81d44fd40cb470bc97967ec0",
+      "capabilities_digest": "",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "reels_plan_a",
+      "path": "reels_plan_a.plan.json",
+      "digest": "sha256:10aa88175780dd5812c02410addc67c737efa642ed4f4e466b8912c1bceca82c",
       "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",
@@ -26,7 +37,18 @@
     {
       "name": "regex_plan",
       "path": "regex_plan.plan.json",
-      "digest": "sha256:ce81fd6f333c87f2e259ea54de3837d37234c9b6e4715e4aa338a983f51bc6b3",
+      "digest": "sha256:6d233a8022052f502d0bcfd2b1a5cc43ca291f5e76d9d05987b9cc611d6417ce",
+      "capabilities_digest": "",
+      "built_by": {
+        "backend": "quickjs",
+        "tool": "dslc",
+        "tool_version": "0.1.0"
+      }
+    },
+    {
+      "name": "sort_demo",
+      "path": "sort_demo.plan.json",
+      "digest": "sha256:f5b3a2a38245260537d596ae411a49f6f613e824ce0fef7419e94be80c34e7cb",
       "capabilities_digest": "",
       "built_by": {
         "backend": "quickjs",

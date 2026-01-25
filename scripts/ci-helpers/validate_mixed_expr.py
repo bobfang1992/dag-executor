@@ -10,8 +10,8 @@ with open(sys.argv[1]) as f:
 assert "expr_table" in plan, "Missing expr_table"
 assert len(plan["expr_table"]) >= 2, f"Expected at least 2 expressions, got {len(plan['expr_table'])}"
 
-# Find both vm nodes
-vm_nodes = [n for n in plan["nodes"] if n["op"] == "vm"]
+# Find both vm nodes (namespaced as core::vm)
+vm_nodes = [n for n in plan["nodes"] if n["op"] == "core::vm"]
 assert len(vm_nodes) == 2, f"Expected 2 vm nodes, got {len(vm_nodes)}"
 
 # Both should have valid expr_ids pointing to expr_table

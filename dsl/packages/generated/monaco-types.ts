@@ -101,6 +101,12 @@ declare module '@ranking-dsl/runtime' {
   // Plan context and CandidateSet
   // =====================================================
 
+  export interface TestTasks {
+    busyCpu(opts: { busyWaitMs: number; trace?: string }): CandidateSet;
+    fixedSource(opts: { rowCount?: number; trace?: string }): CandidateSet;
+    sleep(opts: { durationMs: number; failAfterSleep?: boolean; trace?: string }): CandidateSet;
+  }
+
   export interface PlanCtx {
     viewer(opts: { endpoint: unknown; trace?: string }): CandidateSet;
     requireCapability(capId: string, payload?: unknown): void;
@@ -115,9 +121,7 @@ declare module '@ranking-dsl/runtime' {
     sort(opts: { by: KeyToken; order?: string; trace?: string }): CandidateSet;
     take(opts: { count: number; trace?: string }): CandidateSet;
     vm(opts: { expr: ExprNode | number; outKey: KeyToken; trace?: string }): CandidateSet;
-    busyCpu(opts: { busyWaitMs: number; trace?: string }): CandidateSet;
-    fixedSource(opts: { rowCount?: number; trace?: string }): CandidateSet;
-    sleep(opts: { durationMs: number; failAfterSleep?: boolean; trace?: string }): CandidateSet;
+    test: TestTasks;
   }
 
   export interface PlanConfig {
