@@ -144,3 +144,11 @@ The destructor includes a runtime assert to catch this during development:
 ```cpp
 assert(!on_loop_thread && "EventLoop destroyed from its own callback");
 ```
+
+## Shutdown & Drain Semantics
+
+See [EVENT_LOOP_SHUTDOWN.md](EVENT_LOOP_SHUTDOWN.md) for the detailed shutdown contract, including:
+- Lifecycle state machine (Idle → Starting → Running → Stopping → Stopped)
+- Post/Stop invariants
+- Thread pool drain ordering
+- Recommended shutdown sequence
