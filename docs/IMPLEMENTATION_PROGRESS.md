@@ -289,30 +289,35 @@ This document tracks the implementation status of all features in the dag-execut
   - Multi-stage pipelines with timeout
   - Repeated operations (leak check)
   - Alternating success/timeout patterns
-- **Known Limitation**: Async tasks (Redis, `sleep`) don't enforce timeout - they run to completion
-  regardless of deadline. Only CPU tasks via `OffloadCpuWithTimeout` respect deadlines.
-  See "Step 14.5c.5c: Async Task Timeout" below for future work.
 - **Usage**: `echo '{"user_id": 1}' | engine/bin/rankd --async_scheduler --deadline_ms 100`
+
+### Step 14.5c.5c: Async Task Timeout ✅
+- **Goal**: Enforce timeout for async tasks (Redis, `sleep`) not just CPU tasks
+- **Status**: Complete (PR #64)
+- **Files**:
+  - `engine/include/cpu_offload.h` - `AsyncWithTimeout` awaitable (rewritten)
+  - `engine/src/async_dag_scheduler.cpp` - Wire `AsyncWithTimeout` for async tasks
+  - `engine/tests/test_dag_scheduler.cpp` - 8 new tests for async timeout
+- **Key Design**:
+  - **First-wins shared-state pattern**: Timer vs async task completion race
+  - **Runner coroutine**: Detached coroutine awaits inner task, posts completion to loop
+  - **State holds runner**: `State::runner` keeps coroutine frame alive until completion
+  - **RunnerCleanup RAII**: Breaks reference cycle by posting cleanup after `final_suspend`
+  - **All resumes via Post()**: Ensures reentrancy safety, no resume inside await_suspend
+  - **await_suspend_returned flag**: Enables safe Post() fallback during shutdown
+  - **Copy ALL ctx data**: Wrapper coroutine captures shared_ptrs to params, expr_table, pred_table, request, endpoints, resolved_refs - prevents UAF on timeout
+- **Late completion handling**: When timeout wins, async task continues in runner until completion, result discarded (no cancellation). `LateCompletionCounter` test hook verifies this.
+- **Tests**: 8 new tests
+  - `sleep respects request deadline` / `sleep respects node timeout`
+  - `late completion increments counter`
+  - `mixed async+CPU pipeline timeout` (async phase / CPU phase)
+  - `mixed async+CPU pipeline succeeds`
+  - `parallel async tasks both respect deadline`
+- **Validation**: 28 test cases, 138 assertions pass; 75 CI tests pass
 
 ---
 
 ## 🔲 Not Yet Implemented
-
-### Step 14.5c.5c: Async Task Timeout (Future Work)
-- **Goal**: Enforce timeout for async tasks (Redis, `sleep`) not just CPU tasks
-- **Problem**: `AsyncWithTimeout` awaitable exists in `cpu_offload.h` but has SIGSEGV issues
-  due to complex coroutine lifetime management:
-  - When timeout fires, inner task still holds wrapper's continuation handle
-  - Destroying wrapper while inner task references it causes use-after-free
-- **Current state**: `AsyncWithTimeout` is WIP/disabled, async tasks run to completion
-- **Possible approaches**:
-  - Fix coroutine lifetime in `AsyncWithTimeout` (needs careful handle management)
-  - Cancellation tokens passed to async tasks (requires task cooperation)
-  - Detached execution with result discarding (complex cleanup)
-- **Files to modify**:
-  - `engine/include/cpu_offload.h` - Fix `AsyncWithTimeout` class
-  - `engine/src/async_dag_scheduler.cpp` - Apply to async task path
-- **Related**: See `AsyncWithTimeout` comments in `cpu_offload.h` for SIGSEGV analysis
 
 ### Step 14.5c.future: EventLoop Benchmarking
 - [ ] Benchmark EventLoop throughput (posts/sec, timers/sec)
