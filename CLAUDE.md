@@ -64,6 +64,7 @@ tsconfig.json       # Root TS config for plan files
 | [PLAN_COMPILER_GUIDE.md](docs/PLAN_COMPILER_GUIDE.md) | All | Compiler internals |
 | [ADDING_CAPABILITIES.md](docs/ADDING_CAPABILITIES.md) | All | How to add IR capabilities |
 | [CAPABILITY_EXAMPLES.md](docs/CAPABILITY_EXAMPLES.md) | All | Capability payload examples |
+| [REDIS_MONITORING.md](docs/REDIS_MONITORING.md) | All | QPS monitoring with RedisTimeSeries |
 
 ## Key Design Constraints
 
