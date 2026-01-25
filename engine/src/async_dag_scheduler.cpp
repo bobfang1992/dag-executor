@@ -255,24 +255,58 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
     auto run_task = [&]() -> Task<rankd::RowSet> {
       if (spec.run_async) {
         // Task has native async implementation - wrap with AsyncWithTimeout
-        // IMPORTANT: Copy inputs/validated into a wrapper coroutine's frame.
-        // If timeout fires, run_task exits, but the wrapper coroutine (held by
-        // AsyncWithTimeout's runner) keeps the copies alive until the async
-        // task truly completes.
+        // IMPORTANT: Copy ALL data that the async task may access after its await.
+        // If timeout fires, run_node_async exits and AsyncSchedulerState is destroyed,
+        // but the async task continues in the runner until it truly completes.
+        // The wrapper coroutine captures shared_ptrs, keeping data alive.
         auto async_inputs = std::make_shared<std::vector<rankd::RowSet>>(inputs);
         auto async_validated = std::make_shared<rankd::ValidatedParams>(validated);
 
-        // Wrapper coroutine captures shared_ptrs, keeping data alive
+        // Copy ctx data into shared storage (same as CPU path)
+        auto params_copy = std::make_shared<rankd::ParamTable>(*ctx.params);
+        auto expr_table_copy = std::make_shared<
+            std::unordered_map<std::string, rankd::ExprNodePtr>>(*ctx.expr_table);
+        auto pred_table_copy = std::make_shared<
+            std::unordered_map<std::string, rankd::PredNodePtr>>(*ctx.pred_table);
+        auto request_copy = std::make_shared<rankd::RequestContext>(*ctx.request);
+        std::shared_ptr<rankd::EndpointRegistry> endpoints_copy =
+            ctx.endpoints ? std::make_shared<rankd::EndpointRegistry>(*ctx.endpoints)
+                          : nullptr;
+        // loop and async_clients must remain valid (owned by caller of execute_plan_async_blocking)
+        // resolved_refs is already a shared_ptr
+
+        // Wrapper coroutine captures all shared_ptrs, keeping data alive
         auto wrapper = [](std::shared_ptr<std::vector<rankd::RowSet>> in,
                           std::shared_ptr<rankd::ValidatedParams> vp,
+                          std::shared_ptr<rankd::ParamTable> params,
+                          std::shared_ptr<std::unordered_map<std::string, rankd::ExprNodePtr>> expr,
+                          std::shared_ptr<std::unordered_map<std::string, rankd::PredNodePtr>> pred,
+                          std::shared_ptr<rankd::RequestContext> req,
+                          std::shared_ptr<rankd::EndpointRegistry> ep,
+                          std::shared_ptr<std::unordered_map<std::string, rankd::RowSet>> refs,
                           AsyncTaskFn run_async_fn,
-                          ranking::ExecCtxAsync async_ctx) -> Task<rankd::RowSet> {
+                          EventLoop* loop,
+                          AsyncIoClients* clients) -> Task<rankd::RowSet> {
+          // Build async ctx from shared copies
+          ranking::ExecCtxAsync async_ctx;
+          async_ctx.params = params.get();
+          async_ctx.expr_table = expr.get();
+          async_ctx.pred_table = pred.get();
+          async_ctx.stats = nullptr;  // Skip stats - result may be discarded on timeout
+          async_ctx.resolved_node_refs = refs->empty() ? nullptr : refs.get();
+          async_ctx.request = req.get();
+          async_ctx.endpoints = ep ? ep.get() : nullptr;
+          async_ctx.loop = loop;
+          async_ctx.async_clients = clients;
+
           co_return co_await run_async_fn(*in, *vp, async_ctx);
         };
 
         co_return co_await AsyncWithTimeout<rankd::RowSet>(
             *ctx.loop, effective_deadline,
-            wrapper(async_inputs, async_validated, spec.run_async, ctx));
+            wrapper(async_inputs, async_validated, params_copy, expr_table_copy,
+                    pred_table_copy, request_copy, endpoints_copy, resolved_refs,
+                    spec.run_async, ctx.loop, ctx.async_clients));
       } else {
         // Wrap sync run() with OffloadCpuWithTimeout for deadline support
         // IMPORTANT: All data must be copied/shared because if timeout fires,
