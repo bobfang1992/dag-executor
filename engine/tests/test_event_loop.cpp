@@ -265,21 +265,31 @@ TEST_CASE("Nested coroutine awaits", "[event_loop][coroutine]") {
   loop.Stop();
 }
 
-TEST_CASE("Post before Start returns false", "[event_loop]") {
+TEST_CASE("Post before Start returns false and callback never executes", "[event_loop]") {
   EventLoop loop;
   // Don't call Start()
 
-  bool posted = loop.Post([]() {});
+  std::atomic<bool> executed{false};
+  bool posted = loop.Post([&]() { executed.store(true); });
   REQUIRE_FALSE(posted);
+
+  // Give any errant execution a chance to happen
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  REQUIRE_FALSE(executed.load());
 }
 
-TEST_CASE("Post after Stop returns false", "[event_loop]") {
+TEST_CASE("Post after Stop returns false and callback never executes", "[event_loop]") {
   EventLoop loop;
   loop.Start();
   loop.Stop();
 
-  bool posted = loop.Post([]() {});
+  std::atomic<bool> executed{false};
+  bool posted = loop.Post([&]() { executed.store(true); });
   REQUIRE_FALSE(posted);
+
+  // Give any errant execution a chance to happen
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  REQUIRE_FALSE(executed.load());
 }
 
 // ============================================================================
@@ -505,19 +515,19 @@ TEST_CASE("Destruction without Start", "[event_loop][edge_case]") {
   REQUIRE(true);
 }
 
-TEST_CASE("Post during Stop is rejected", "[event_loop][edge_case]") {
+TEST_CASE("Post during Stop is rejected and rejected callbacks never execute", "[event_loop][edge_case]") {
   EventLoop loop;
   loop.Start();
 
   std::atomic<bool> stop_started{false};
   std::atomic<int> rejected_count{0};
-  std::atomic<bool> stopper_done{false};
+  std::atomic<int> accepted_count{0};
+  std::atomic<int> executed_count{0};
 
   // Thread that will call Stop
   std::thread stopper([&]() {
     stop_started.store(true);
     loop.Stop();
-    stopper_done.store(true);
   });
 
   // Wait for stop to start
@@ -527,7 +537,9 @@ TEST_CASE("Post during Stop is rejected", "[event_loop][edge_case]") {
 
   // Try to post while stopping - some may succeed, some may be rejected
   for (int i = 0; i < 100; ++i) {
-    if (!loop.Post([]() {})) {
+    if (loop.Post([&]() { executed_count.fetch_add(1); })) {
+      accepted_count.fetch_add(1);
+    } else {
       rejected_count.fetch_add(1);
     }
   }
@@ -535,10 +547,19 @@ TEST_CASE("Post during Stop is rejected", "[event_loop][edge_case]") {
   stopper.join();
 
   // After Stop completes, all posts should be rejected
-  REQUIRE_FALSE(loop.Post([]() {}));
-  // At least some posts during shutdown should have been rejected
-  // (unless they all snuck in before stopping_ was set)
+  std::atomic<bool> final_executed{false};
+  REQUIRE_FALSE(loop.Post([&]() { final_executed.store(true); }));
+
+  // Give any errant execution a chance to happen
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  REQUIRE_FALSE(final_executed.load());
+
+  // Executed count should not exceed accepted count
+  // (rejected callbacks must never execute)
+  INFO("Accepted during stop: " << accepted_count.load());
   INFO("Rejected during stop: " << rejected_count.load());
+  INFO("Executed: " << executed_count.load());
+  REQUIRE(executed_count.load() <= accepted_count.load());
 }
 
 TEST_CASE("Stop on loop thread drains accepted callbacks", "[event_loop][edge_case]") {

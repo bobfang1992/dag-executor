@@ -72,20 +72,25 @@ If `Stop()` is called from within a callback (on the loop thread):
 
 ### The Problem
 
-`OffloadCpuWithTimeout` and `OffloadCpu` submit work to `GetCPUThreadPool()`. When work completes, they call `loop.Post()` to resume the coroutine. If the EventLoop is destroyed while CPU work is in-flight, the completion callback will call `Post()` on a destroyed object.
+Any offload pool that posts completion callbacks back to the EventLoop must be drained before destroying the loop. Currently this includes:
+- `GetCPUThreadPool()` - used by `OffloadCpu` and `OffloadCpuWithTimeout`
+- Future: IO thread pools, if added
+
+If the EventLoop is destroyed while work is in-flight, the completion callback will call `Post()` on a destroyed object.
 
 ### The Solution
 
-**Before destroying EventLoop, drain all thread pools that can Post back:**
+**Before destroying EventLoop, drain all pools that can Post back:**
 
 ```cpp
 // Shutdown sequence
-GetCPUThreadPool().wait_idle();  // Wait for all CPU work to complete
+GetCPUThreadPool().wait_idle();  // Drain CPU pool
+// Future: drain IO pool if applicable
 loop.Stop();                      // Now safe to stop
 // EventLoop destructor runs
 ```
 
-`ThreadPool::wait_idle()` blocks until `in_flight_ == 0`, ensuring no pending CPU jobs can call `Post()` after the loop is destroyed.
+`ThreadPool::wait_idle()` blocks until `in_flight_ == 0`, ensuring no pending jobs can call `Post()` after the loop is destroyed. Any pool with a `wait_idle()` or equivalent drain API should be called here.
 
 ### Late Completion (Async Timeout)
 
@@ -207,12 +212,26 @@ Existing tests in `engine/tests/test_event_loop.cpp` verify:
 
 | Test | Invariant |
 |------|-----------|
-| "Post before Start returns false" | Post rejected in Idle state |
-| "Post after Stop returns false" | Post rejected in Stopped state |
-| "Post during Stop is rejected" | Post rejected during Stopping transition |
+| "Post before Start returns false and callback never executes" | Post rejected in Idle state, callback never runs |
+| "Post after Stop returns false and callback never executes" | Post rejected in Stopped state, callback never runs |
+| "Post during Stop is rejected and rejected callbacks never execute" | Post rejected during Stopping, executed ≤ accepted |
 | "Multiple Stop calls are idempotent" | Stop is safe to call repeatedly |
 | "Stop from within callback" | Stop-from-loop-thread works |
 | "Destruction without Stop" | Destructor calls Stop if needed |
+
+**Key assertion**: Tests verify not only that `Post()` returns `false` when rejected, but also that the callback is never executed.
+
+## Soak Testing
+
+The script `scripts/soak_async_timeout.sh` stress-tests async timeout race conditions:
+- Runs must-timeout + mostly-success scenarios repeatedly
+- **Per-run timeout guard**: Each run has a `TIMEOUT_PER_RUN` (default 30s) to fail fast on hangs
+- Configurable via env vars: `RUNS`, `CONCURRENCY`, `DEADLINE_MS_*`, `NODE_TIMEOUT_MS_*`
+
+```bash
+./scripts/soak_async_timeout.sh                    # Default: 20 runs
+RUNS=50 TIMEOUT_PER_RUN=10 ./scripts/soak_async_timeout.sh
+```
 
 ## Related Documentation
 
