@@ -29,7 +29,7 @@
     {
       "inputs": [],
       "node_id": "n0",
-      "op": "viewer",
+      "op": "core::viewer",
       "params": {
         "endpoint": "ep_0001",
         "trace": null
@@ -40,7 +40,7 @@
         "n0"
       ],
       "node_id": "n1",
-      "op": "follow",
+      "op": "core::follow",
       "params": {
         "endpoint": "ep_0001",
         "fanout": 10,
@@ -52,7 +52,7 @@
         "n1"
       ],
       "node_id": "n2",
-      "op": "vm",
+      "op": "core::vm",
       "params": {
         "expr_id": "e0",
         "out_key": 2001,
@@ -64,7 +64,7 @@
         "n2"
       ],
       "node_id": "n3",
-      "op": "filter",
+      "op": "core::filter",
       "params": {
         "pred_id": "p0",
         "trace": "filter"
@@ -75,7 +75,7 @@
         "n3"
       ],
       "node_id": "n4",
-      "op": "take",
+      "op": "core::take",
       "params": {
         "count": 5,
         "trace": "take"

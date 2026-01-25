@@ -89,7 +89,7 @@ public:
   }
 };
 
-// Auto-register this task
-static TaskRegistrar<SleepTask> registrar;
+// Auto-register this task with namespace
+REGISTER_TASK(SleepTask);
 
 }  // namespace rankd

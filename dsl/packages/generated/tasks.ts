@@ -68,83 +68,87 @@ export interface CandidateSetLike {
 }
 
 // =====================================================
-// Transform task option interfaces
+// Source task option interfaces
 // =====================================================
 
-export interface BusyCpuOpts {
-  busyWaitMs: number;
+export interface CoreViewerOpts {
+  endpoint: RedisEndpointId;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
-export interface ConcatOpts {
-  rhs: CandidateSetLike;
-  trace?: string | null;
-  extensions?: Record<string, unknown>;
-}
-
-export interface FilterOpts {
-  pred: PredInput;
-  trace?: string | null;
-  extensions?: Record<string, unknown>;
-}
-
-export interface FixedSourceOpts {
+export interface TestFixedSourceOpts {
   rowCount?: number;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
-export interface FollowOpts {
+// =====================================================
+// Transform task option interfaces
+// =====================================================
+
+export interface CoreConcatOpts {
+  rhs: CandidateSetLike;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
+export interface CoreFilterOpts {
+  pred: PredInput;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
+export interface CoreFollowOpts {
   endpoint: RedisEndpointId;
   fanout: number;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
-export interface MediaOpts {
+export interface CoreMediaOpts {
   endpoint: RedisEndpointId;
   fanout: number;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
-export interface RecommendationOpts {
+export interface CoreRecommendationOpts {
   endpoint: RedisEndpointId;
   fanout: number;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
-export interface SleepOpts {
-  durationMs: number;
-  failAfterSleep?: boolean;
-  trace?: string | null;
-  extensions?: Record<string, unknown>;
-}
-
-export interface SortOpts {
+export interface CoreSortOpts {
   by: KeyToken;
   order?: string;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
-export interface TakeOpts {
+export interface CoreTakeOpts {
   count: number;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
-export interface ViewerOpts {
-  endpoint: RedisEndpointId;
+export interface CoreVmOpts {
+  expr: ExprInput;
+  outKey: KeyToken;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
 
-export interface VmOpts {
-  expr: ExprInput;
-  outKey: KeyToken;
+export interface TestBusyCpuOpts {
+  busyWaitMs: number;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
+export interface TestSleepOpts {
+  durationMs: number;
+  failAfterSleep?: boolean;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
@@ -153,7 +157,7 @@ export interface VmOpts {
 // Metadata
 // =====================================================
 
-export const TASK_MANIFEST_DIGEST = "432919e0c31b5d80896cfbbc46f65cc2dd8cca3329360a572326bf65e2ef39ad";
+export const TASK_MANIFEST_DIGEST = "4a2e3e796f5c3cf45f1283b4a91580d0f6e3bb2d3b757f06cfd05da5dcaff8a6";
 export const TASK_COUNT = 12;
 
 // =====================================================
@@ -168,8 +172,8 @@ export interface TaskExtractionInfo {
   predProp?: string;
 }
 
-/** Map from method name to extraction info */
+/** Map from qualified op (e.g., 'core::vm') to extraction info */
 export const TASK_EXTRACTION_INFO: Record<string, TaskExtractionInfo> = {
-  "filter": { predProp: "pred" },
-  "vm": { exprProp: "expr" },
+  "core::filter": { predProp: "pred" },
+  "core::vm": { exprProp: "expr" },
 };

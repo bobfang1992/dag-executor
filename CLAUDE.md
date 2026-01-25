@@ -417,10 +417,12 @@ Compiled artifacts include source mapping tables (`source_files`, `source_spans`
 
 ## Build Commands
 
+**IMPORTANT: Use `-j2` for builds, never `--parallel` or high `-j` values to avoid freezing the system.**
+
 ```bash
 # Build engine
 cmake -S engine -B engine/build -DCMAKE_BUILD_TYPE=Release
-cmake --build engine/build --parallel
+cmake --build engine/build -j2
 
 # Run unit tests
 engine/bin/rankd_tests              # RowSet, ParamTable, PredEval, Sort, Request, etc. (290 assertions)

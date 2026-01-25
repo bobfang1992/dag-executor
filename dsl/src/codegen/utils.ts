@@ -63,11 +63,19 @@ export function cppNameToTsName(cppName: string): string {
     .join("");
 }
 
-/** Convert op name to TypeScript interface name (e.g., "viewer.follow" -> "ViewerFollowOpts") */
+/**
+ * Convert op name to TypeScript interface name.
+ * Handles namespaced ops with "::" separator.
+ *
+ * Examples:
+ *   "core::filter" -> "CoreFilterOpts"
+ *   "test::sleep" -> "TestSleepOpts"
+ *   "viewer.follow" -> "ViewerFollowOpts" (legacy)
+ *   "vm" -> "VmOpts"
+ */
 export function opToInterfaceName(op: string): string {
-  // viewer.follow -> ViewerFollowOpts
-  // vm -> VmOpts
-  const parts = op.split(".");
+  // Split by "::" (namespace) or "." (legacy)
+  const parts = op.split(/::|\./).filter(Boolean);
   const pascalParts = parts.map(part => {
     const camel = part.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
     return camel.charAt(0).toUpperCase() + camel.slice(1);
@@ -75,13 +83,49 @@ export function opToInterfaceName(op: string): string {
   return pascalParts.join("") + "Opts";
 }
 
-/** Convert op name to method name (e.g., "viewer.follow" -> "follow") */
+/**
+ * Convert op name to method name (local name without namespace).
+ * Handles namespaced ops with "::" separator.
+ *
+ * Examples:
+ *   "core::filter" -> "filter"
+ *   "test::sleep" -> "sleep"
+ *   "viewer.follow" -> "follow" (legacy)
+ *   "vm" -> "vm"
+ */
 export function opToMethodName(op: string): string {
-  // viewer.follow -> follow
-  // vm -> vm
-  const parts = op.split(".");
+  // Split by "::" (namespace) or "." (legacy)
+  const parts = op.split(/::|\./).filter(Boolean);
   const lastPart = parts[parts.length - 1];
   return lastPart.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+/**
+ * Get namespace from qualified op name.
+ * Returns undefined for unqualified ops.
+ *
+ * Examples:
+ *   "core::filter" -> "core"
+ *   "test::sleep" -> "test"
+ *   "vm" -> undefined
+ */
+export function opToNamespace(op: string): string | undefined {
+  const colonIdx = op.indexOf("::");
+  if (colonIdx === -1) return undefined;
+  return op.substring(0, colonIdx);
+}
+
+/**
+ * Convert TypeScript camelCase method name back to snake_case.
+ * This is the inverse of opToMethodName's snake_case -> camelCase conversion.
+ *
+ * Examples:
+ *   "fixedSource" -> "fixed_source"
+ *   "busyCpu" -> "busy_cpu"
+ *   "vm" -> "vm"
+ */
+export function methodNameToSnakeCase(methodName: string): string {
+  return methodName.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
 }
 
 /**

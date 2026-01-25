@@ -196,7 +196,7 @@ public:
   }
 };
 
-// Auto-register this task
-static TaskRegistrar<SortTask> registrar;
+// Auto-register this task with namespace
+REGISTER_TASK(SortTask);
 
 } // namespace rankd

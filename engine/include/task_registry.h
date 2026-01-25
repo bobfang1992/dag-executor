@@ -180,13 +180,38 @@ private:
 //   static RowSet run(const std::vector<RowSet>&, const ValidatedParams&, const ExecCtx&);
 //
 // Then add at the bottom of the task .cpp file:
-//   static TaskRegistrar<MyTask> registrar;
+//   REGISTER_TASK(MyTask);
 //
-// This will auto-register the task when the translation unit is loaded.
+// The task will be registered with a qualified name: <namespace>::<op>
+// e.g., "core::vm", "test::sleep"
 //
+// Namespace is injected via TASK_NAMESPACE compile definition by CMake
+// based on the folder the task lives in (engine/src/tasks/<namespace>/).
+//
+
+// Helper to register task with namespace prefix
 template <typename T> class TaskRegistrar {
 public:
-  TaskRegistrar() { TaskRegistry::instance().register_task(T::spec(), T::run); }
+  explicit TaskRegistrar(const char *ns) {
+    TaskSpec spec = T::spec();
+    // Combine namespace + local op to form qualified op
+    std::string qualified_op = std::string(ns) + "::" + spec.op;
+    spec.op = std::move(qualified_op);
+    TaskRegistry::instance().register_task(std::move(spec), T::run);
+  }
 };
+
+// Macro that uses TASK_NAMESPACE (defined by CMake per source file)
+// TASK_NAMESPACE is set by CMake's register_task() function based on folder.
+// Example: engine/src/tasks/core/vm.cpp -> TASK_NAMESPACE="core"
+//
+// Usage:
+//   REGISTER_TASK(VmTask);
+//
+// This expands to:
+//   static TaskRegistrar<VmTask> registrar_VmTask("core");
+//
+#define REGISTER_TASK(TaskClass) \
+  static TaskRegistrar<TaskClass> registrar_##TaskClass(TASK_NAMESPACE)
 
 } // namespace rankd

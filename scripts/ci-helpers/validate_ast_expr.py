@@ -10,8 +10,8 @@ with open(sys.argv[1]) as f:
 assert "expr_table" in plan, "Missing expr_table"
 assert len(plan["expr_table"]) >= 1, "expr_table should have at least 1 expression"
 
-# Find the vm node
-vm_node = next((n for n in plan["nodes"] if n["op"] == "vm"), None)
+# Find the vm node (namespaced as core::vm)
+vm_node = next((n for n in plan["nodes"] if n["op"] == "core::vm"), None)
 assert vm_node is not None, "Missing vm node"
 
 # vm node should have expr_id pointing to expr_table entry

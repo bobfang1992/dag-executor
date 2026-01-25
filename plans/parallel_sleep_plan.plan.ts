@@ -24,9 +24,9 @@ export default definePlan({
   build: (ctx) => {
     const source = ctx.viewer({ endpoint: EP.redis.redis_default });
 
-    // Two parallel branches with sleep
-    const branch_a = source.sleep({ durationMs: 20 });
-    const branch_b = source.sleep({ durationMs: 20 });
+    // Two parallel branches with sleep (test:: namespace)
+    const branch_a = source.test.sleep({ durationMs: 20 });
+    const branch_b = source.test.sleep({ durationMs: 20 });
 
     // Merge branches
     const merged = branch_a.concat({ rhs: branch_b });

@@ -4,10 +4,10 @@
 // =====================================================
 // Metadata
 // =====================================================
-export const TASK_MANIFEST_DIGEST = "432919e0c31b5d80896cfbbc46f65cc2dd8cca3329360a572326bf65e2ef39ad";
+export const TASK_MANIFEST_DIGEST = "4a2e3e796f5c3cf45f1283b4a91580d0f6e3bb2d3b757f06cfd05da5dcaff8a6";
 export const TASK_COUNT = 12;
-/** Map from method name to extraction info */
+/** Map from qualified op (e.g., 'core::vm') to extraction info */
 export const TASK_EXTRACTION_INFO = {
-    "filter": { predProp: "pred" },
-    "vm": { exprProp: "expr" },
+    "core::filter": { predProp: "pred" },
+    "core::vm": { exprProp: "expr" },
 };

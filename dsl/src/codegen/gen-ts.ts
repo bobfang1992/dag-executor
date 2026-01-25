@@ -10,7 +10,7 @@ import type {
   TaskEntry,
   TaskParamEntry,
 } from "./types.js";
-import { friendlyParamName, opToInterfaceName, opToMethodName } from "./utils.js";
+import { friendlyParamName, opToInterfaceName, opToMethodName, opToNamespace } from "./utils.js";
 
 // =====================================================
 // Keys TypeScript Generation
@@ -524,12 +524,16 @@ export function generateTasksTs(registry: TaskRegistry): string {
     ""
   );
 
-  // Classify tasks: viewer.* are source tasks, others are transform tasks
+  // Classify tasks: source tasks have no inputs (called via ctx.* or ctx.test.*)
+  // Source tasks: viewer, fixedSource (test namespace)
+  const SOURCE_TASK_METHODS = new Set(["viewer", "fixedSource"]);
+
   const sourceTasks: TaskEntry[] = [];
   const transformTasks: TaskEntry[] = [];
 
   for (const task of registry.tasks) {
-    if (task.op.startsWith("viewer.")) {
+    const methodName = opToMethodName(task.op);
+    if (SOURCE_TASK_METHODS.has(methodName)) {
       sourceTasks.push(task);
     } else {
       transformTasks.push(task);
@@ -604,15 +608,10 @@ export function generateTasksTs(registry: TaskRegistry): string {
   lines.push("  predProp?: string;");
   lines.push("}");
   lines.push("");
-  lines.push("/** Map from method name to extraction info */");
+  lines.push("/** Map from qualified op (e.g., 'core::vm') to extraction info */");
   lines.push("export const TASK_EXTRACTION_INFO: Record<string, TaskExtractionInfo> = {");
 
   for (const task of registry.tasks) {
-    // Method name: for "viewer.foo" it's "foo", otherwise it's the op itself
-    const methodName = task.op.startsWith("viewer.")
-      ? task.op.slice("viewer.".length)
-      : task.op;
-
     // Check if task has expr_id or pred_id params
     let exprProp: string | null = null;
     let predProp: string | null = null;
@@ -627,11 +626,12 @@ export function generateTasksTs(registry: TaskRegistry): string {
     }
 
     // Only add entry if task has extraction targets
+    // Key by qualified op to avoid collisions between namespaces
     if (exprProp || predProp) {
       const props: string[] = [];
       if (exprProp) props.push(`exprProp: "${exprProp}"`);
       if (predProp) props.push(`predProp: "${predProp}"`);
-      lines.push(`  "${methodName}": { ${props.join(", ")} },`);
+      lines.push(`  "${task.op}": { ${props.join(", ")} },`);
     }
   }
 
@@ -808,9 +808,11 @@ export function generateTaskImplTs(registry: TaskRegistry): string {
     "",
   );
 
-  // Classify tasks
-  const sourceTasks = registry.tasks.filter(t => t.op.startsWith("viewer."));
-  const transformTasks = registry.tasks.filter(t => !t.op.startsWith("viewer."));
+  // Classify tasks: source tasks have no inputs
+  // Source tasks: viewer (core), fixedSource (test)
+  const SOURCE_TASK_METHODS = new Set(["viewer", "fixedSource"]);
+  const sourceTasks = registry.tasks.filter(t => SOURCE_TASK_METHODS.has(opToMethodName(t.op)));
+  const transformTasks = registry.tasks.filter(t => !SOURCE_TASK_METHODS.has(opToMethodName(t.op)));
 
   // Generate source task implementations
   if (sourceTasks.length > 0) {
@@ -1021,9 +1023,32 @@ export function generateTaskImplTs(registry: TaskRegistry): string {
   lines.push("// Task metadata for runtime use");
   lines.push("// =====================================================");
   lines.push("");
+
+  // Group transform tasks by namespace
+  const coreTransform: string[] = [];
+  const tasksByNs = new Map<string, string[]>();
+
+  for (const task of transformTasks) {
+    const methodName = opToMethodName(task.op);
+    const ns = opToNamespace(task.op);
+    if (ns === "core" || ns === undefined) {
+      coreTransform.push(methodName);
+    } else {
+      const list = tasksByNs.get(ns) || [];
+      list.push(methodName);
+      tasksByNs.set(ns, list);
+    }
+  }
+
   lines.push("export const GENERATED_TASKS = {");
   lines.push("  source: [" + sourceTasks.map(t => `"${opToMethodName(t.op)}"`).join(", ") + "],");
-  lines.push("  transform: [" + transformTasks.map(t => `"${opToMethodName(t.op)}"`).join(", ") + "],");
+  lines.push("  core: [" + coreTransform.map(m => `"${m}"`).join(", ") + "],");
+
+  // Add namespace objects for non-core namespaces
+  for (const [ns, methods] of Array.from(tasksByNs.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    lines.push(`  ${ns}: [${methods.map(m => `"${m}"`).join(", ")}],`);
+  }
+
   lines.push("} as const;");
   lines.push("");
 

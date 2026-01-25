@@ -96,26 +96,44 @@ function assertEndpointId(value, name) {
     }
 }
 // =====================================================
-// Transform task implementations (for CandidateSet methods)
+// Source task implementations (for PlanCtx.viewer)
 // =====================================================
-/** Implementation for busy_cpu */
-export function busyCpuImpl(ctx, inputNodeId, opts) {
-    assertNotUndefined(opts, "busyCpu(opts)");
-    assertNotUndefined(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
-    assertInteger(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
+/** Implementation for core::viewer */
+export function viewerImpl(ctx, opts) {
+    assertNotUndefined(opts, "viewer(opts)");
+    assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
+    assertEndpointId(opts.endpoint, "viewer({ endpoint })");
     const { extensions, ...rest } = opts;
-    checkNoUndefined(rest, "busyCpu(opts)");
+    checkNoUndefined(rest, "viewer(opts)");
     // Validate trace
     if (opts.trace !== undefined) {
-        assertStringOrNull(opts.trace, "busyCpu({ trace })");
+        assertStringOrNull(opts.trace, "viewer({ trace })");
     }
     const params = {
-        busy_wait_ms: opts.busyWaitMs,
+        endpoint: opts.endpoint,
         trace: opts.trace ?? null,
     };
-    return ctx.addNode("busy_cpu", [inputNodeId], params, extensions);
+    return ctx.addNode("core::viewer", [], params, extensions);
 }
-/** Implementation for concat */
+/** Implementation for test::fixed_source */
+export function fixedSourceImpl(ctx, opts) {
+    assertNotUndefined(opts, "fixedSource(opts)");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "fixedSource(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "fixedSource({ trace })");
+    }
+    const params = {
+        row_count: opts.rowCount,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("test::fixed_source", [], params, extensions);
+}
+// =====================================================
+// Transform task implementations (for CandidateSet methods)
+// =====================================================
+/** Implementation for core::concat */
 export function concatImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "concat(opts)");
     assertNotUndefined(opts.rhs, "concat({ rhs })");
@@ -130,9 +148,9 @@ export function concatImpl(ctx, inputNodeId, opts) {
         rhs: opts.rhs.getNodeId(),
         trace: opts.trace ?? null,
     };
-    return ctx.addNode("concat", [inputNodeId], params, extensions);
+    return ctx.addNode("core::concat", [inputNodeId], params, extensions);
 }
-/** Implementation for filter */
+/** Implementation for core::filter */
 export function filterImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "filter(opts)");
     assertNotUndefined(opts.pred, "filter({ pred })");
@@ -157,24 +175,9 @@ export function filterImpl(ctx, inputNodeId, opts) {
         pred_id: predId,
         trace: opts.trace ?? null,
     };
-    return ctx.addNode("filter", [inputNodeId], params, extensions);
+    return ctx.addNode("core::filter", [inputNodeId], params, extensions);
 }
-/** Implementation for fixed_source */
-export function fixedSourceImpl(ctx, inputNodeId, opts) {
-    assertNotUndefined(opts, "fixedSource(opts)");
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest, "fixedSource(opts)");
-    // Validate trace
-    if (opts.trace !== undefined) {
-        assertStringOrNull(opts.trace, "fixedSource({ trace })");
-    }
-    const params = {
-        row_count: opts.rowCount,
-        trace: opts.trace ?? null,
-    };
-    return ctx.addNode("fixed_source", [inputNodeId], params, extensions);
-}
-/** Implementation for follow */
+/** Implementation for core::follow */
 export function followImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "follow(opts)");
     assertNotUndefined(opts.endpoint, "follow({ endpoint })");
@@ -192,9 +195,9 @@ export function followImpl(ctx, inputNodeId, opts) {
         fanout: opts.fanout,
         trace: opts.trace ?? null,
     };
-    return ctx.addNode("follow", [inputNodeId], params, extensions);
+    return ctx.addNode("core::follow", [inputNodeId], params, extensions);
 }
-/** Implementation for media */
+/** Implementation for core::media */
 export function mediaImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "media(opts)");
     assertNotUndefined(opts.endpoint, "media({ endpoint })");
@@ -212,9 +215,9 @@ export function mediaImpl(ctx, inputNodeId, opts) {
         fanout: opts.fanout,
         trace: opts.trace ?? null,
     };
-    return ctx.addNode("media", [inputNodeId], params, extensions);
+    return ctx.addNode("core::media", [inputNodeId], params, extensions);
 }
-/** Implementation for recommendation */
+/** Implementation for core::recommendation */
 export function recommendationImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "recommendation(opts)");
     assertNotUndefined(opts.endpoint, "recommendation({ endpoint })");
@@ -232,27 +235,9 @@ export function recommendationImpl(ctx, inputNodeId, opts) {
         fanout: opts.fanout,
         trace: opts.trace ?? null,
     };
-    return ctx.addNode("recommendation", [inputNodeId], params, extensions);
+    return ctx.addNode("core::recommendation", [inputNodeId], params, extensions);
 }
-/** Implementation for sleep */
-export function sleepImpl(ctx, inputNodeId, opts) {
-    assertNotUndefined(opts, "sleep(opts)");
-    assertNotUndefined(opts.durationMs, "sleep({ durationMs })");
-    assertInteger(opts.durationMs, "sleep({ durationMs })");
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest, "sleep(opts)");
-    // Validate trace
-    if (opts.trace !== undefined) {
-        assertStringOrNull(opts.trace, "sleep({ trace })");
-    }
-    const params = {
-        duration_ms: opts.durationMs,
-        fail_after_sleep: opts.failAfterSleep,
-        trace: opts.trace ?? null,
-    };
-    return ctx.addNode("sleep", [inputNodeId], params, extensions);
-}
-/** Implementation for sort */
+/** Implementation for core::sort */
 export function sortImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "sort(opts)");
     assertNotUndefined(opts.by, "sort({ by })");
@@ -268,9 +253,9 @@ export function sortImpl(ctx, inputNodeId, opts) {
         order: opts.order,
         trace: opts.trace ?? null,
     };
-    return ctx.addNode("sort", [inputNodeId], params, extensions);
+    return ctx.addNode("core::sort", [inputNodeId], params, extensions);
 }
-/** Implementation for take */
+/** Implementation for core::take */
 export function takeImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "take(opts)");
     assertNotUndefined(opts.count, "take({ count })");
@@ -285,26 +270,9 @@ export function takeImpl(ctx, inputNodeId, opts) {
         count: opts.count,
         trace: opts.trace ?? null,
     };
-    return ctx.addNode("take", [inputNodeId], params, extensions);
+    return ctx.addNode("core::take", [inputNodeId], params, extensions);
 }
-/** Implementation for viewer */
-export function viewerImpl(ctx, inputNodeId, opts) {
-    assertNotUndefined(opts, "viewer(opts)");
-    assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
-    assertEndpointId(opts.endpoint, "viewer({ endpoint })");
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest, "viewer(opts)");
-    // Validate trace
-    if (opts.trace !== undefined) {
-        assertStringOrNull(opts.trace, "viewer({ trace })");
-    }
-    const params = {
-        endpoint: opts.endpoint,
-        trace: opts.trace ?? null,
-    };
-    return ctx.addNode("viewer", [inputNodeId], params, extensions);
-}
-/** Implementation for vm */
+/** Implementation for core::vm */
 export function vmImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "vm(opts)");
     assertNotUndefined(opts.expr, "vm({ expr })");
@@ -332,12 +300,48 @@ export function vmImpl(ctx, inputNodeId, opts) {
         out_key: opts.outKey.id,
         trace: opts.trace ?? null,
     };
-    return ctx.addNode("vm", [inputNodeId], params, extensions);
+    return ctx.addNode("core::vm", [inputNodeId], params, extensions);
+}
+/** Implementation for test::busy_cpu */
+export function busyCpuImpl(ctx, inputNodeId, opts) {
+    assertNotUndefined(opts, "busyCpu(opts)");
+    assertNotUndefined(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
+    assertInteger(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "busyCpu(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "busyCpu({ trace })");
+    }
+    const params = {
+        busy_wait_ms: opts.busyWaitMs,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("test::busy_cpu", [inputNodeId], params, extensions);
+}
+/** Implementation for test::sleep */
+export function sleepImpl(ctx, inputNodeId, opts) {
+    assertNotUndefined(opts, "sleep(opts)");
+    assertNotUndefined(opts.durationMs, "sleep({ durationMs })");
+    assertInteger(opts.durationMs, "sleep({ durationMs })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "sleep(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "sleep({ trace })");
+    }
+    const params = {
+        duration_ms: opts.durationMs,
+        fail_after_sleep: opts.failAfterSleep,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("test::sleep", [inputNodeId], params, extensions);
 }
 // =====================================================
 // Task metadata for runtime use
 // =====================================================
 export const GENERATED_TASKS = {
-    source: [],
-    transform: ["busyCpu", "concat", "filter", "fixedSource", "follow", "media", "recommendation", "sleep", "sort", "take", "viewer", "vm"],
+    source: ["viewer", "fixedSource"],
+    core: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "vm"],
+    test: ["busyCpu", "sleep"],
 };

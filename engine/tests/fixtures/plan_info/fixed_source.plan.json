@@ -9,7 +9,7 @@
     {
       "inputs": [],
       "node_id": "n0",
-      "op": "viewer",
+      "op": "core::viewer",
       "params": {
         "endpoint": "ep_0001",
         "trace": null
@@ -20,7 +20,7 @@
         "n0"
       ],
       "node_id": "n1",
-      "op": "follow",
+      "op": "core::follow",
       "params": {
         "endpoint": "ep_0001",
         "fanout": 4,
@@ -32,7 +32,7 @@
         "n0"
       ],
       "node_id": "n2",
-      "op": "recommendation",
+      "op": "core::recommendation",
       "params": {
         "endpoint": "ep_0001",
         "fanout": 4,
@@ -44,7 +44,7 @@
         "n1"
       ],
       "node_id": "n3",
-      "op": "concat",
+      "op": "core::concat",
       "params": {
         "rhs": "n2",
         "trace": "C"
@@ -55,7 +55,7 @@
         "n3"
       ],
       "node_id": "n4",
-      "op": "take",
+      "op": "core::take",
       "params": {
         "count": 8,
         "trace": "T"

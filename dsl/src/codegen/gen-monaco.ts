@@ -1,7 +1,7 @@
 // Monaco type definitions generator
 
-import type { KeyEntry, ParamEntry, TaskRegistry, TaskEntry } from "./types.js";
-import { friendlyParamName } from "./utils.js";
+import type { KeyEntry, ParamEntry, TaskRegistry, TaskEntry, EndpointEntry } from "./types.js";
+import { friendlyParamName, opToMethodName, opToNamespace } from "./utils.js";
 
 /**
  * Generate inline opts type for Monaco intellisense.
@@ -65,7 +65,8 @@ function generateMonacoOptsType(task: TaskEntry): string {
 export function generateMonacoTypes(
   keys: KeyEntry[],
   params: ParamEntry[],
-  tasks: TaskRegistry
+  tasks: TaskRegistry,
+  endpoints: EndpointEntry[]
 ): string {
   const lines: string[] = [
     "// AUTO-GENERATED from registries - DO NOT EDIT",
@@ -98,6 +99,12 @@ export function generateMonacoTypes(
     "    // Natural expression support: P.weight * 0.5",
     "    valueOf(): number;",
     "  }",
+    "",
+    "  /**",
+    "   * Branded EndpointId type for type-safe endpoint references.",
+    "   * Use EP.redis.* or EP.http.* to get valid endpoint IDs.",
+    "   */",
+    "  export type EndpointId = string & { readonly __brand: 'EndpointId' };",
     "",
     "  // =====================================================",
     "  // Expression types",
@@ -167,27 +174,99 @@ export function generateMonacoTypes(
     "",
   ];
 
-  // Generate source task methods for PlanCtx.viewer
-  const sourceTasks = tasks.tasks.filter(t => t.op.startsWith("viewer."));
-  const transformTasks = tasks.tasks.filter(t => !t.op.startsWith("viewer."));
+  // Source tasks have no inputs (viewer, fixedSource)
+  // Source tasks: viewer (core), fixedSource (test)
+  const SOURCE_TASK_METHODS = new Set(["viewer", "fixedSource"]);
+  const sourceTasks = tasks.tasks.filter(t => SOURCE_TASK_METHODS.has(opToMethodName(t.op)));
+  const transformTasks = tasks.tasks.filter(t => !SOURCE_TASK_METHODS.has(opToMethodName(t.op)));
 
-  lines.push("  export interface PlanCtx {");
-  lines.push("    viewer: {");
+  // Group source tasks by namespace
+  const coreSourceTasks: TaskEntry[] = [];
+  const sourceTasksByNamespace = new Map<string, TaskEntry[]>();
+
   for (const task of sourceTasks) {
-    const methodName = task.op.replace("viewer.", "");
-    const optsType = generateMonacoOptsType(task);
-    lines.push(`      ${methodName}(opts: ${optsType}): CandidateSet;`);
+    const ns = opToNamespace(task.op);
+    if (ns === "core" || ns === undefined) {
+      coreSourceTasks.push(task);
+    } else {
+      const list = sourceTasksByNamespace.get(ns) || [];
+      list.push(task);
+      sourceTasksByNamespace.set(ns, list);
+    }
   }
-  lines.push("    };");
+
+  // Group transform tasks by namespace
+  const coreTransformTasks: TaskEntry[] = [];
+  const transformTasksByNamespace = new Map<string, TaskEntry[]>();
+
+  for (const task of transformTasks) {
+    const ns = opToNamespace(task.op);
+    if (ns === "core" || ns === undefined) {
+      coreTransformTasks.push(task);
+    } else {
+      const list = transformTasksByNamespace.get(ns) || [];
+      list.push(task);
+      transformTasksByNamespace.set(ns, list);
+    }
+  }
+
+  // Generate namespace interfaces for non-core source tasks (PlanCtx namespaces)
+  for (const [ns, nsTasks] of Array.from(sourceTasksByNamespace.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    const pascalNs = ns.charAt(0).toUpperCase() + ns.slice(1);
+    lines.push(`  export interface ${pascalNs}SourceTasks {`);
+    for (const task of nsTasks) {
+      const methodName = opToMethodName(task.op);
+      const optsType = generateMonacoOptsType(task);
+      lines.push(`    ${methodName}(opts: ${optsType}): CandidateSet;`);
+    }
+    lines.push("  }");
+    lines.push("");
+  }
+
+  // Generate namespace interfaces for non-core transform tasks (CandidateSet namespaces)
+  for (const [ns, nsTasks] of Array.from(transformTasksByNamespace.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    const pascalNs = ns.charAt(0).toUpperCase() + ns.slice(1);
+    lines.push(`  export interface ${pascalNs}Tasks {`);
+    for (const task of nsTasks) {
+      const methodName = opToMethodName(task.op);
+      const optsType = generateMonacoOptsType(task);
+      lines.push(`    ${methodName}(opts: ${optsType}): CandidateSet;`);
+    }
+    lines.push("  }");
+    lines.push("");
+  }
+
+  // Generate PlanCtx interface with core source tasks at root level
+  // and namespace objects for non-core source tasks
+  lines.push("  export interface PlanCtx {");
+  // Core source tasks at root level
+  for (const task of coreSourceTasks) {
+    const methodName = opToMethodName(task.op);
+    const optsType = generateMonacoOptsType(task);
+    lines.push(`    ${methodName}(opts: ${optsType}): CandidateSet;`);
+  }
+  // Namespace objects for non-core source tasks
+  for (const ns of Array.from(sourceTasksByNamespace.keys()).sort()) {
+    const pascalNs = ns.charAt(0).toUpperCase() + ns.slice(1);
+    lines.push(`    ${ns}: ${pascalNs}SourceTasks;`);
+  }
   lines.push("    requireCapability(capId: string, payload?: unknown): void;");
   lines.push("  }");
   lines.push("");
 
-  // Generate CandidateSet interface with transform task methods
+  // Generate CandidateSet interface with core transform task methods at root level
+  // and namespace objects for non-core tasks
   lines.push("  export interface CandidateSet {");
-  for (const task of transformTasks) {
+  // Core tasks at root level
+  for (const task of coreTransformTasks) {
+    const methodName = opToMethodName(task.op);
     const optsType = generateMonacoOptsType(task);
-    lines.push(`    ${task.op}(opts: ${optsType}): CandidateSet;`);
+    lines.push(`    ${methodName}(opts: ${optsType}): CandidateSet;`);
+  }
+  // Namespace objects for non-core tasks
+  for (const ns of Array.from(transformTasksByNamespace.keys()).sort()) {
+    const pascalNs = ns.charAt(0).toUpperCase() + ns.slice(1);
+    lines.push(`    ${ns}: ${pascalNs}Tasks;`);
   }
   lines.push("  }");
   lines.push("");
@@ -230,6 +309,29 @@ export function generateMonacoTypes(
     lines.push(`    readonly ${p.name}: ParamToken;`);
   }
   lines.push("  };");
+  lines.push("");
+
+  // Generate EP object with endpoints grouped by kind
+  const byKind = new Map<string, EndpointEntry[]>();
+  for (const ep of endpoints) {
+    const list = byKind.get(ep.kind) ?? [];
+    list.push(ep);
+    byKind.set(ep.kind, list);
+  }
+
+  lines.push("  // =====================================================");
+  lines.push("  // Endpoint registry (generated from endpoints.*.toml)");
+  lines.push("  // =====================================================");
+  lines.push("");
+  lines.push("  export const EP: {");
+  for (const [kind, eps] of Array.from(byKind.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    lines.push(`    readonly ${kind}: {`);
+    for (const ep of eps) {
+      lines.push(`      readonly ${ep.name}: EndpointId;`);
+    }
+    lines.push("    };");
+  }
+  lines.push("  };");
   lines.push("}");
   lines.push("");
 
@@ -245,6 +347,7 @@ export function generateMonacoTypes(
   lines.push("type _KeyToken = import('@ranking-dsl/runtime').KeyToken;");
   lines.push("type _ParamToken = import('@ranking-dsl/runtime').ParamToken;");
   lines.push("type _PredNode = import('@ranking-dsl/runtime').PredNode;");
+  lines.push("type _EndpointId = import('@ranking-dsl/runtime').EndpointId;");
   lines.push("");
 
   // Global Key object
@@ -259,6 +362,18 @@ export function generateMonacoTypes(
   lines.push("declare const P: {");
   for (const p of params) {
     lines.push(`  readonly ${p.name}: _ParamToken;`);
+  }
+  lines.push("};");
+  lines.push("");
+
+  // Global EP object
+  lines.push("declare const EP: {");
+  for (const [kind, eps] of Array.from(byKind.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    lines.push(`  readonly ${kind}: {`);
+    for (const ep of eps) {
+      lines.push(`    readonly ${ep.name}: _EndpointId;`);
+    }
+    lines.push("  };");
   }
   lines.push("};");
   lines.push("");

@@ -64,7 +64,7 @@ public:
   }
 };
 
-// Auto-register this task
-static TaskRegistrar<FilterTask> registrar;
+// Auto-register this task with namespace
+REGISTER_TASK(FilterTask);
 
 } // namespace rankd

@@ -181,7 +181,7 @@ class MediaTask {
   }
 };
 
-// Auto-register this task
-static TaskRegistrar<MediaTask> registrar;
+// Auto-register this task with namespace
+REGISTER_TASK(MediaTask);
 
 }  // namespace rankd

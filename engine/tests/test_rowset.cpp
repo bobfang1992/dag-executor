@@ -42,8 +42,8 @@ TEST_CASE("take limits output and shares batch pointer", "[rowset][task]") {
   // take with count=5
   nlohmann::json take_params_json;
   take_params_json["count"] = 5;
-  auto take_params = registry.validate_params("take", take_params_json);
-  RowSet result = registry.execute("take", {source}, take_params, empty_ctx);
+  auto take_params = registry.validate_params("core::take", take_params_json);
+  RowSet result = registry.execute("core::take", {source}, take_params, empty_ctx);
 
   SECTION("shares batch pointer (no copy)") {
     REQUIRE(result.batchPtr().get() == source.batchPtr().get());
@@ -139,8 +139,8 @@ TEST_CASE("take with selection and order combined", "[rowset][task]") {
   SECTION("take(1) yields first in iteration order") {
     nlohmann::json take_params_json;
     take_params_json["count"] = 1;
-    auto take_params = registry.validate_params("take", take_params_json);
-    RowSet result = registry.execute("take", {input}, take_params, empty_ctx);
+    auto take_params = registry.validate_params("core::take", take_params_json);
+    RowSet result = registry.execute("core::take", {input}, take_params, empty_ctx);
 
     REQUIRE(result.batchPtr().get() == input.batchPtr().get());
 
@@ -153,8 +153,8 @@ TEST_CASE("take with selection and order combined", "[rowset][task]") {
   SECTION("take(2) yields both in iteration order") {
     nlohmann::json take_params_json;
     take_params_json["count"] = 2;
-    auto take_params = registry.validate_params("take", take_params_json);
-    RowSet result = registry.execute("take", {input}, take_params, empty_ctx);
+    auto take_params = registry.validate_params("core::take", take_params_json);
+    RowSet result = registry.execute("core::take", {input}, take_params, empty_ctx);
 
     auto indices = result.materializeIndexViewForOutput(result.batch().size());
     REQUIRE(indices == std::vector<RowIndex>{2, 0});

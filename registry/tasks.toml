@@ -1,26 +1,10 @@
 # AUTO-GENERATED from C++ TaskSpec - DO NOT EDIT
 # Regenerate with: engine/bin/rankd --print-task-manifest > registry/tasks.toml
 schema_version = 1
-manifest_digest = "432919e0c31b5d80896cfbbc46f65cc2dd8cca3329360a572326bf65e2ef39ad"
+manifest_digest = "4a2e3e796f5c3cf45f1283b4a91580d0f6e3bb2d3b757f06cfd05da5dcaff8a6"
 
 [[task]]
-op = "busy_cpu"
-output_pattern = "UnaryPreserveView"
-
-  [[task.param]]
-  name = "busy_wait_ms"
-  type = "int"
-  required = true
-  nullable = false
-
-  [[task.param]]
-  name = "trace"
-  type = "string"
-  required = false
-  nullable = true
-
-[[task]]
-op = "concat"
+op = "core::concat"
 output_pattern = "ConcatDense"
 
   [[task.param]]
@@ -36,7 +20,7 @@ output_pattern = "ConcatDense"
   nullable = true
 
 [[task]]
-op = "filter"
+op = "core::filter"
 output_pattern = "StableFilter"
 
   [[task.param]]
@@ -52,23 +36,7 @@ output_pattern = "StableFilter"
   nullable = true
 
 [[task]]
-op = "fixed_source"
-output_pattern = "VariableDense"
-
-  [[task.param]]
-  name = "row_count"
-  type = "int"
-  required = false
-  nullable = false
-
-  [[task.param]]
-  name = "trace"
-  type = "string"
-  required = false
-  nullable = true
-
-[[task]]
-op = "follow"
+op = "core::follow"
 output_pattern = "VariableDense"
 
   [[task.param]]
@@ -91,7 +59,7 @@ output_pattern = "VariableDense"
   nullable = true
 
 [[task]]
-op = "media"
+op = "core::media"
 output_pattern = "VariableDense"
 
   [[task.param]]
@@ -114,7 +82,7 @@ output_pattern = "VariableDense"
   nullable = true
 
 [[task]]
-op = "recommendation"
+op = "core::recommendation"
 output_pattern = "VariableDense"
 
   [[task.param]]
@@ -137,29 +105,7 @@ output_pattern = "VariableDense"
   nullable = true
 
 [[task]]
-op = "sleep"
-output_pattern = "UnaryPreserveView"
-
-  [[task.param]]
-  name = "duration_ms"
-  type = "int"
-  required = true
-  nullable = false
-
-  [[task.param]]
-  name = "fail_after_sleep"
-  type = "bool"
-  required = false
-  nullable = false
-
-  [[task.param]]
-  name = "trace"
-  type = "string"
-  required = false
-  nullable = true
-
-[[task]]
-op = "sort"
+op = "core::sort"
 output_pattern = "PermutationOfInput"
 
   [[task.param]]
@@ -181,7 +127,7 @@ output_pattern = "PermutationOfInput"
   nullable = true
 
 [[task]]
-op = "take"
+op = "core::take"
 output_pattern = "PrefixOfInput"
 
   [[task.param]]
@@ -197,7 +143,7 @@ output_pattern = "PrefixOfInput"
   nullable = true
 
 [[task]]
-op = "viewer"
+op = "core::viewer"
 output_pattern = "VariableDense"
 
   [[task.param]]
@@ -214,7 +160,7 @@ output_pattern = "VariableDense"
   nullable = true
 
 [[task]]
-op = "vm"
+op = "core::vm"
 output_pattern = "UnaryPreserveView"
 writes_effect = """
 {"kind":"FromParam","param":"out_key"}
@@ -230,6 +176,60 @@ writes_effect = """
   name = "out_key"
   type = "int"
   required = true
+  nullable = false
+
+  [[task.param]]
+  name = "trace"
+  type = "string"
+  required = false
+  nullable = true
+
+[[task]]
+op = "test::busy_cpu"
+output_pattern = "UnaryPreserveView"
+
+  [[task.param]]
+  name = "busy_wait_ms"
+  type = "int"
+  required = true
+  nullable = false
+
+  [[task.param]]
+  name = "trace"
+  type = "string"
+  required = false
+  nullable = true
+
+[[task]]
+op = "test::fixed_source"
+output_pattern = "VariableDense"
+
+  [[task.param]]
+  name = "row_count"
+  type = "int"
+  required = false
+  nullable = false
+
+  [[task.param]]
+  name = "trace"
+  type = "string"
+  required = false
+  nullable = true
+
+[[task]]
+op = "test::sleep"
+output_pattern = "UnaryPreserveView"
+
+  [[task.param]]
+  name = "duration_ms"
+  type = "int"
+  required = true
+  nullable = false
+
+  [[task.param]]
+  name = "fail_after_sleep"
+  type = "bool"
+  required = false
   nullable = false
 
   [[task.param]]

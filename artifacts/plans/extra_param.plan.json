@@ -2,8 +2,8 @@
   "schema_version": 1,
   "plan_name": "extra_param",
   "nodes": [
-    { "node_id": "n0", "op": "viewer", "inputs": [], "params": { "endpoint": "ep_0001", "trace": null } },
-    { "node_id": "n1", "op": "follow", "inputs": ["n0"], "params": { "endpoint": "ep_0001", "fanout": 10, "limit": 5, "trace": null } }
+    { "node_id": "n0", "op": "core::viewer", "inputs": [], "params": { "endpoint": "ep_0001", "trace": null } },
+    { "node_id": "n1", "op": "core::follow", "inputs": ["n0"], "params": { "endpoint": "ep_0001", "fanout": 10, "limit": 5, "trace": null } }
   ],
   "outputs": ["n1"]
 }

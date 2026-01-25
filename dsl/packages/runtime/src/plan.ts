@@ -10,6 +10,7 @@
 
 import type { KeyToken, ExprNode, PredNode, ExprInput, RedisEndpointId } from "@ranking-dsl/generated";
 import {
+  // Core transform tasks
   mediaImpl,
   vmImpl,
   filterImpl,
@@ -18,7 +19,9 @@ import {
   sortImpl,
   followImpl,
   recommendationImpl,
+  // Test namespace transform tasks
   sleepImpl,
+  busyCpuImpl,
 } from "@ranking-dsl/generated";
 import { assertNotUndefined, assertStringOrNull, assertEndpointId, checkNoUndefined } from "./guards.js";
 
@@ -65,12 +68,20 @@ export class PlanCtx {
     }
 
     const nodeId = this.addNode(
-      "viewer",
+      "core::viewer",
       [],
       { endpoint: opts.endpoint, trace: opts.trace ?? null },
       extensions
     );
     return new CandidateSet(this, nodeId);
+  }
+
+  /**
+   * test namespace: source tasks for testing.
+   * Usage: ctx.test.fixedSource({ rowCount: 10 })
+   */
+  get test(): TestSourceTasks {
+    return new TestSourceTasks(this);
   }
 
   private allocateNodeId(): string {
@@ -258,18 +269,6 @@ export class CandidateSet {
   }
 
   /**
-   * sleep: delay execution for testing parallelism.
-   */
-  sleep(opts: {
-    durationMs: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-  }): CandidateSet {
-    const newNodeId = sleepImpl(this.ctx, this.nodeId, opts);
-    return new CandidateSet(this.ctx, newNodeId);
-  }
-
-  /**
    * concat: concatenate two candidate sets.
    */
   concat(opts: {
@@ -290,6 +289,82 @@ export class CandidateSet {
 
   getNodeId(): string {
     return this.nodeId;
+  }
+
+  /**
+   * test namespace: tasks for testing and benchmarking.
+   * Usage: cs.test.sleep({ durationMs: 100 })
+   */
+  get test(): TestTasks {
+    return new TestTasks(this.ctx, this.nodeId);
+  }
+}
+
+/**
+ * Test namespace source tasks - for testing without external dependencies.
+ */
+class TestSourceTasks {
+  constructor(private readonly ctx: PlanCtx) {}
+
+  /**
+   * fixedSource: generate fixed test data with deterministic IDs.
+   * This is a true source task (no inputs required).
+   */
+  fixedSource(opts: {
+    rowCount?: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    assertNotUndefined(opts, "fixedSource(opts)");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest as Record<string, unknown>, "fixedSource(opts)");
+
+    if (opts.trace !== undefined) {
+      assertStringOrNull(opts.trace, "fixedSource({ trace })");
+    }
+
+    const nodeId = this.ctx.addNode(
+      "test::fixed_source",
+      [],  // No inputs - true source task
+      { row_count: opts.rowCount, trace: opts.trace ?? null },
+      extensions
+    );
+    return new CandidateSet(this.ctx, nodeId);
+  }
+}
+
+/**
+ * Test namespace transform tasks - for testing parallelism and benchmarking.
+ */
+class TestTasks {
+  constructor(
+    private readonly ctx: PlanCtx,
+    private readonly nodeId: string
+  ) {}
+
+  /**
+   * sleep: delay execution for testing parallelism.
+   */
+  sleep(opts: {
+    durationMs: number;
+    failAfterSleep?: boolean;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    const newNodeId = sleepImpl(this.ctx, this.nodeId, opts);
+    return new CandidateSet(this.ctx, newNodeId);
+  }
+
+  /**
+   * busyCpu: CPU-bound busy wait for testing thread pool behavior.
+   */
+  busyCpu(opts: {
+    busyWaitMs: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    const newNodeId = busyCpuImpl(this.ctx, this.nodeId, opts);
+    return new CandidateSet(this.ctx, newNodeId);
   }
 }
 

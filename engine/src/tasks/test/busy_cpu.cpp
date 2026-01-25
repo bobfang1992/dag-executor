@@ -68,7 +68,7 @@ class BusyCpuTask {
   }
 };
 
-// Auto-register this task
-static TaskRegistrar<BusyCpuTask> registrar;
+// Auto-register this task with namespace
+REGISTER_TASK(BusyCpuTask);
 
 }  // namespace rankd

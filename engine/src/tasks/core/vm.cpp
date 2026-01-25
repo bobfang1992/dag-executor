@@ -121,7 +121,7 @@ public:
   }
 };
 
-// Auto-register this task
-static TaskRegistrar<VmTask> registrar;
+// Auto-register this task with namespace
+REGISTER_TASK(VmTask);
 
 } // namespace rankd

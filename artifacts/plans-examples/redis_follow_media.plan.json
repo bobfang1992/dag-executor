@@ -1,7 +1,7 @@
 {
   "built_by": {
     "backend": "quickjs",
-    "bundle_digest": "c8499fb6cf114600",
+    "bundle_digest": "6e39d7011f3d975c",
     "tool": "dslc",
     "tool_version": "0.1.0"
   },
@@ -9,7 +9,7 @@
     {
       "inputs": [],
       "node_id": "n0",
-      "op": "viewer",
+      "op": "core::viewer",
       "params": {
         "endpoint": "ep_0001",
         "trace": null
@@ -20,7 +20,7 @@
         "n0"
       ],
       "node_id": "n1",
-      "op": "follow",
+      "op": "core::follow",
       "params": {
         "endpoint": "ep_0001",
         "fanout": 10,
@@ -32,7 +32,7 @@
         "n1"
       ],
       "node_id": "n2",
-      "op": "media",
+      "op": "core::media",
       "params": {
         "endpoint": "ep_0001",
         "fanout": 5,
@@ -44,7 +44,7 @@
         "n2"
       ],
       "node_id": "n3",
-      "op": "take",
+      "op": "core::take",
       "params": {
         "count": 50,
         "trace": "take_50"

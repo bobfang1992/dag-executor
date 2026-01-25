@@ -53,7 +53,7 @@ static Plan create_parallel_sleep_plan(int sleep_ms_a, int sleep_ms_b) {
   // Node 0: viewer source
   Node viewer_node;
   viewer_node.node_id = "source";
-  viewer_node.op = "viewer";
+  viewer_node.op = "core::viewer";
   viewer_node.params = nlohmann::json::object();
   viewer_node.params["endpoint"] = "ep_0001";
   plan.nodes.push_back(viewer_node);
@@ -61,7 +61,7 @@ static Plan create_parallel_sleep_plan(int sleep_ms_a, int sleep_ms_b) {
   // Node 1: sleep_a
   Node sleep_a;
   sleep_a.node_id = "sleep_a";
-  sleep_a.op = "sleep";
+  sleep_a.op = "test::sleep";
   sleep_a.inputs = {"source"};
   sleep_a.params = nlohmann::json::object();
   sleep_a.params["duration_ms"] = sleep_ms_a;
@@ -70,7 +70,7 @@ static Plan create_parallel_sleep_plan(int sleep_ms_a, int sleep_ms_b) {
   // Node 2: sleep_b
   Node sleep_b;
   sleep_b.node_id = "sleep_b";
-  sleep_b.op = "sleep";
+  sleep_b.op = "test::sleep";
   sleep_b.inputs = {"source"};
   sleep_b.params = nlohmann::json::object();
   sleep_b.params["duration_ms"] = sleep_ms_b;
@@ -79,7 +79,7 @@ static Plan create_parallel_sleep_plan(int sleep_ms_a, int sleep_ms_b) {
   // Node 3: concat (sleep_a + sleep_b)
   Node concat;
   concat.node_id = "concat_result";
-  concat.op = "concat";
+  concat.op = "core::concat";
   concat.inputs = {"sleep_a"};
   concat.params = nlohmann::json::object();
   concat.params["rhs"] = "sleep_b";
@@ -99,7 +99,7 @@ static Plan create_sequential_sleep_plan(int sleep_ms_1, int sleep_ms_2) {
   // Node 0: viewer source
   Node viewer_node;
   viewer_node.node_id = "source";
-  viewer_node.op = "viewer";
+  viewer_node.op = "core::viewer";
   viewer_node.params = nlohmann::json::object();
   viewer_node.params["endpoint"] = "ep_0001";
   plan.nodes.push_back(viewer_node);
@@ -107,7 +107,7 @@ static Plan create_sequential_sleep_plan(int sleep_ms_1, int sleep_ms_2) {
   // Node 1: sleep_1
   Node sleep_1;
   sleep_1.node_id = "sleep_1";
-  sleep_1.op = "sleep";
+  sleep_1.op = "test::sleep";
   sleep_1.inputs = {"source"};
   sleep_1.params = nlohmann::json::object();
   sleep_1.params["duration_ms"] = sleep_ms_1;
@@ -116,7 +116,7 @@ static Plan create_sequential_sleep_plan(int sleep_ms_1, int sleep_ms_2) {
   // Node 2: sleep_2 depends on sleep_1
   Node sleep_2;
   sleep_2.node_id = "sleep_2";
-  sleep_2.op = "sleep";
+  sleep_2.op = "test::sleep";
   sleep_2.inputs = {"sleep_1"};
   sleep_2.params = nlohmann::json::object();
   sleep_2.params["duration_ms"] = sleep_ms_2;
@@ -314,13 +314,13 @@ TEST_CASE("sleep task identity behavior", "[sleep][task]") {
   // Run sleep with 0ms
   nlohmann::json sleep_params;
   sleep_params["duration_ms"] = 0;
-  auto vp = registry.validate_params("sleep", sleep_params);
+  auto vp = registry.validate_params("test::sleep", sleep_params);
 
   ExecCtx ctx;
   ParamTable params;
   ctx.params = &params;
 
-  RowSet output = registry.execute("sleep", {input}, vp, ctx);
+  RowSet output = registry.execute("test::sleep", {input}, vp, ctx);
 
   // Sleep should preserve input exactly
   REQUIRE(output.rowCount() == input.rowCount());
@@ -345,7 +345,7 @@ static Plan create_three_branch_dag(int sleep_ms_a, int sleep_ms_b) {
   // Node 0: viewer source
   Node viewer_node;
   viewer_node.node_id = "source";
-  viewer_node.op = "viewer";
+  viewer_node.op = "core::viewer";
   viewer_node.params = nlohmann::json::object();
   viewer_node.params["endpoint"] = "ep_0001";
   plan.nodes.push_back(viewer_node);
@@ -353,7 +353,7 @@ static Plan create_three_branch_dag(int sleep_ms_a, int sleep_ms_b) {
   // Node 1: sleep_a (async timer)
   Node sleep_a;
   sleep_a.node_id = "sleep_a";
-  sleep_a.op = "sleep";
+  sleep_a.op = "test::sleep";
   sleep_a.inputs = {"source"};
   sleep_a.params = nlohmann::json::object();
   sleep_a.params["duration_ms"] = sleep_ms_a;
@@ -362,7 +362,7 @@ static Plan create_three_branch_dag(int sleep_ms_a, int sleep_ms_b) {
   // Node 2: sleep_b (async timer)
   Node sleep_b;
   sleep_b.node_id = "sleep_b";
-  sleep_b.op = "sleep";
+  sleep_b.op = "test::sleep";
   sleep_b.inputs = {"source"};
   sleep_b.params = nlohmann::json::object();
   sleep_b.params["duration_ms"] = sleep_ms_b;
@@ -371,7 +371,7 @@ static Plan create_three_branch_dag(int sleep_ms_a, int sleep_ms_b) {
   // Node 3: vm (CPU offload) - add a constant to model_score_1
   Node vm_node;
   vm_node.node_id = "vm_branch";
-  vm_node.op = "vm";
+  vm_node.op = "core::vm";
   vm_node.inputs = {"source"};
   vm_node.params = nlohmann::json::object();
   vm_node.params["out_key"] = 1001;  // Key.model_score_1
@@ -387,7 +387,7 @@ static Plan create_three_branch_dag(int sleep_ms_a, int sleep_ms_b) {
   // Node 4: concat sleep_a + sleep_b
   Node concat_ab;
   concat_ab.node_id = "concat_ab";
-  concat_ab.op = "concat";
+  concat_ab.op = "core::concat";
   concat_ab.inputs = {"sleep_a"};
   concat_ab.params = nlohmann::json::object();
   concat_ab.params["rhs"] = "sleep_b";
@@ -396,7 +396,7 @@ static Plan create_three_branch_dag(int sleep_ms_a, int sleep_ms_b) {
   // Node 5: concat result + vm_branch
   Node concat_final;
   concat_final.node_id = "output";
-  concat_final.op = "concat";
+  concat_final.op = "core::concat";
   concat_final.inputs = {"concat_ab"};
   concat_final.params = nlohmann::json::object();
   concat_final.params["rhs"] = "vm_branch";
@@ -415,7 +415,7 @@ static Plan create_fault_injection_plan(int sleep_ms_ok, int sleep_ms_fail) {
   // Node 0: viewer source
   Node viewer_node;
   viewer_node.node_id = "source";
-  viewer_node.op = "viewer";
+  viewer_node.op = "core::viewer";
   viewer_node.params = nlohmann::json::object();
   viewer_node.params["endpoint"] = "ep_0001";
   plan.nodes.push_back(viewer_node);
@@ -423,7 +423,7 @@ static Plan create_fault_injection_plan(int sleep_ms_ok, int sleep_ms_fail) {
   // Node 1: sleep_ok (completes normally)
   Node sleep_ok;
   sleep_ok.node_id = "sleep_ok";
-  sleep_ok.op = "sleep";
+  sleep_ok.op = "test::sleep";
   sleep_ok.inputs = {"source"};
   sleep_ok.params = nlohmann::json::object();
   sleep_ok.params["duration_ms"] = sleep_ms_ok;
@@ -433,7 +433,7 @@ static Plan create_fault_injection_plan(int sleep_ms_ok, int sleep_ms_fail) {
   // Node 2: sleep_fail (throws after sleeping)
   Node sleep_fail;
   sleep_fail.node_id = "sleep_fail";
-  sleep_fail.op = "sleep";
+  sleep_fail.op = "test::sleep";
   sleep_fail.inputs = {"source"};
   sleep_fail.params = nlohmann::json::object();
   sleep_fail.params["duration_ms"] = sleep_ms_fail;
@@ -443,7 +443,7 @@ static Plan create_fault_injection_plan(int sleep_ms_ok, int sleep_ms_fail) {
   // Node 3: concat (won't run if either fails)
   Node concat;
   concat.node_id = "concat_result";
-  concat.op = "concat";
+  concat.op = "core::concat";
   concat.inputs = {"sleep_ok"};
   concat.params = nlohmann::json::object();
   concat.params["rhs"] = "sleep_fail";
@@ -562,7 +562,7 @@ static Plan create_deadline_test_plan(int sleep_ms) {
   // Node 0: fixed_source (no Redis, deterministic output)
   Node source;
   source.node_id = "source";
-  source.op = "fixed_source";
+  source.op = "test::fixed_source";
   source.params = nlohmann::json::object();
   source.params["row_count"] = 1;
   plan.nodes.push_back(source);
@@ -570,7 +570,7 @@ static Plan create_deadline_test_plan(int sleep_ms) {
   // Node 1: sleep (async timer)
   Node sleep_node;
   sleep_node.node_id = "sleep";
-  sleep_node.op = "sleep";
+  sleep_node.op = "test::sleep";
   sleep_node.inputs = {"source"};
   sleep_node.params = nlohmann::json::object();
   sleep_node.params["duration_ms"] = sleep_ms;
@@ -590,7 +590,7 @@ static Plan create_cpu_timeout_test_plan(int busy_wait_ms) {
   // Node 0: fixed_source (no Redis, deterministic output)
   Node source;
   source.node_id = "source";
-  source.op = "fixed_source";
+  source.op = "test::fixed_source";
   source.params = nlohmann::json::object();
   source.params["row_count"] = 1;
   plan.nodes.push_back(source);
@@ -598,7 +598,7 @@ static Plan create_cpu_timeout_test_plan(int busy_wait_ms) {
   // Node 1: busy_cpu (CPU spin - no run_async, uses OffloadCpuWithTimeout)
   Node busy;
   busy.node_id = "busy";
-  busy.op = "busy_cpu";
+  busy.op = "test::busy_cpu";
   busy.inputs = {"source"};
   busy.params = nlohmann::json::object();
   busy.params["busy_wait_ms"] = busy_wait_ms;
@@ -730,7 +730,7 @@ static Plan create_multi_stage_cpu_plan(int stage1_ms, int stage2_ms) {
   // Node 0: fixed_source
   Node source;
   source.node_id = "source";
-  source.op = "fixed_source";
+  source.op = "test::fixed_source";
   source.inputs = {};
   source.params = nlohmann::json::object();
   source.params["row_count"] = 1;
@@ -739,7 +739,7 @@ static Plan create_multi_stage_cpu_plan(int stage1_ms, int stage2_ms) {
   // Node 1: busy_cpu stage 1
   Node stage1;
   stage1.node_id = "stage1";
-  stage1.op = "busy_cpu";
+  stage1.op = "test::busy_cpu";
   stage1.inputs = {"source"};
   stage1.params = nlohmann::json::object();
   stage1.params["busy_wait_ms"] = stage1_ms;
@@ -748,7 +748,7 @@ static Plan create_multi_stage_cpu_plan(int stage1_ms, int stage2_ms) {
   // Node 2: busy_cpu stage 2
   Node stage2;
   stage2.node_id = "stage2";
-  stage2.op = "busy_cpu";
+  stage2.op = "test::busy_cpu";
   stage2.inputs = {"stage1"};
   stage2.params = nlohmann::json::object();
   stage2.params["busy_wait_ms"] = stage2_ms;
@@ -953,7 +953,7 @@ TEST_CASE("async scheduler: fixed_source only (no CPU offload)", "[async_schedul
 
   Node source;
   source.node_id = "source";
-  source.op = "fixed_source";
+  source.op = "test::fixed_source";
   source.inputs = {};
   source.params = nlohmann::json::object();
   source.params["row_count"] = 5;
@@ -1195,7 +1195,7 @@ static Plan create_mixed_async_cpu_plan(int sleep_ms, int busy_ms) {
   // Node 0: fixed_source
   Node source;
   source.node_id = "source";
-  source.op = "fixed_source";
+  source.op = "test::fixed_source";
   source.inputs = {};
   source.params = nlohmann::json::object();
   source.params["row_count"] = 1;
@@ -1204,7 +1204,7 @@ static Plan create_mixed_async_cpu_plan(int sleep_ms, int busy_ms) {
   // Node 1: sleep (async)
   Node sleep_node;
   sleep_node.node_id = "sleep";
-  sleep_node.op = "sleep";
+  sleep_node.op = "test::sleep";
   sleep_node.inputs = {"source"};
   sleep_node.params = nlohmann::json::object();
   sleep_node.params["duration_ms"] = sleep_ms;
@@ -1213,7 +1213,7 @@ static Plan create_mixed_async_cpu_plan(int sleep_ms, int busy_ms) {
   // Node 2: busy_cpu (sync, CPU offload)
   Node busy;
   busy.node_id = "busy";
-  busy.op = "busy_cpu";
+  busy.op = "test::busy_cpu";
   busy.inputs = {"sleep"};
   busy.params = nlohmann::json::object();
   busy.params["busy_wait_ms"] = busy_ms;
@@ -1291,7 +1291,7 @@ TEST_CASE("async scheduler: parallel async tasks both respect deadline",
   // Node 0: fixed_source
   Node source;
   source.node_id = "source";
-  source.op = "fixed_source";
+  source.op = "test::fixed_source";
   source.inputs = {};
   source.params = nlohmann::json::object();
   source.params["row_count"] = 1;
@@ -1300,7 +1300,7 @@ TEST_CASE("async scheduler: parallel async tasks both respect deadline",
   // Node 1: sleep_a (200ms)
   Node sleep_a;
   sleep_a.node_id = "sleep_a";
-  sleep_a.op = "sleep";
+  sleep_a.op = "test::sleep";
   sleep_a.inputs = {"source"};
   sleep_a.params = nlohmann::json::object();
   sleep_a.params["duration_ms"] = 200;
@@ -1309,7 +1309,7 @@ TEST_CASE("async scheduler: parallel async tasks both respect deadline",
   // Node 2: sleep_b (200ms)
   Node sleep_b;
   sleep_b.node_id = "sleep_b";
-  sleep_b.op = "sleep";
+  sleep_b.op = "test::sleep";
   sleep_b.inputs = {"source"};
   sleep_b.params = nlohmann::json::object();
   sleep_b.params["duration_ms"] = 200;
@@ -1318,7 +1318,7 @@ TEST_CASE("async scheduler: parallel async tasks both respect deadline",
   // Node 3: concat
   Node concat;
   concat.node_id = "concat";
-  concat.op = "concat";
+  concat.op = "core::concat";
   concat.inputs = {"sleep_a"};
   concat.params = nlohmann::json::object();
   concat.params["rhs"] = "sleep_b";

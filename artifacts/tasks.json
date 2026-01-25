@@ -2,25 +2,7 @@
   "schema_version": 1,
   "tasks": [
     {
-      "op": "busy_cpu",
-      "output_pattern": "UnaryPreserveView",
-      "params": [
-        {
-          "name": "busy_wait_ms",
-          "type": "int",
-          "required": true,
-          "nullable": false
-        },
-        {
-          "name": "trace",
-          "type": "string",
-          "required": false,
-          "nullable": true
-        }
-      ]
-    },
-    {
-      "op": "concat",
+      "op": "core::concat",
       "output_pattern": "ConcatDense",
       "params": [
         {
@@ -38,7 +20,7 @@
       ]
     },
     {
-      "op": "filter",
+      "op": "core::filter",
       "output_pattern": "StableFilter",
       "params": [
         {
@@ -56,25 +38,7 @@
       ]
     },
     {
-      "op": "fixed_source",
-      "output_pattern": "VariableDense",
-      "params": [
-        {
-          "name": "row_count",
-          "type": "int",
-          "required": false,
-          "nullable": false
-        },
-        {
-          "name": "trace",
-          "type": "string",
-          "required": false,
-          "nullable": true
-        }
-      ]
-    },
-    {
-      "op": "follow",
+      "op": "core::follow",
       "output_pattern": "VariableDense",
       "params": [
         {
@@ -99,7 +63,7 @@
       ]
     },
     {
-      "op": "media",
+      "op": "core::media",
       "output_pattern": "VariableDense",
       "params": [
         {
@@ -124,7 +88,7 @@
       ]
     },
     {
-      "op": "recommendation",
+      "op": "core::recommendation",
       "output_pattern": "VariableDense",
       "params": [
         {
@@ -149,31 +113,7 @@
       ]
     },
     {
-      "op": "sleep",
-      "output_pattern": "UnaryPreserveView",
-      "params": [
-        {
-          "name": "duration_ms",
-          "type": "int",
-          "required": true,
-          "nullable": false
-        },
-        {
-          "name": "fail_after_sleep",
-          "type": "bool",
-          "required": false,
-          "nullable": false
-        },
-        {
-          "name": "trace",
-          "type": "string",
-          "required": false,
-          "nullable": true
-        }
-      ]
-    },
-    {
-      "op": "sort",
+      "op": "core::sort",
       "output_pattern": "PermutationOfInput",
       "params": [
         {
@@ -197,7 +137,7 @@
       ]
     },
     {
-      "op": "take",
+      "op": "core::take",
       "output_pattern": "PrefixOfInput",
       "params": [
         {
@@ -215,7 +155,7 @@
       ]
     },
     {
-      "op": "viewer",
+      "op": "core::viewer",
       "output_pattern": "VariableDense",
       "params": [
         {
@@ -234,7 +174,7 @@
       ]
     },
     {
-      "op": "vm",
+      "op": "core::vm",
       "output_pattern": "UnaryPreserveView",
       "params": [
         {
@@ -260,6 +200,66 @@
         "kind": "FromParam",
         "param": "out_key"
       }
+    },
+    {
+      "op": "test::busy_cpu",
+      "output_pattern": "UnaryPreserveView",
+      "params": [
+        {
+          "name": "busy_wait_ms",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "op": "test::fixed_source",
+      "output_pattern": "VariableDense",
+      "params": [
+        {
+          "name": "row_count",
+          "type": "int",
+          "required": false,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "op": "test::sleep",
+      "output_pattern": "UnaryPreserveView",
+      "params": [
+        {
+          "name": "duration_ms",
+          "type": "int",
+          "required": true,
+          "nullable": false
+        },
+        {
+          "name": "fail_after_sleep",
+          "type": "bool",
+          "required": false,
+          "nullable": false
+        },
+        {
+          "name": "trace",
+          "type": "string",
+          "required": false,
+          "nullable": true
+        }
+      ]
     }
   ]
 }

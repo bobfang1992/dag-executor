@@ -132,7 +132,7 @@ function main() {
     { path: "dsl/packages/generated/endpoints.ts", content: generateEndpointsTs(endpoints.dev, endpointRegistryDigest) },
     { path: "dsl/packages/generated/tasks.ts", content: generateTasksTs(tasks) },
     { path: "dsl/packages/generated/task-impl.ts", content: generateTaskImplTs(tasks) },
-    { path: "dsl/packages/generated/monaco-types.ts", content: generateMonacoTypes(keys, params, tasks) },
+    { path: "dsl/packages/generated/monaco-types.ts", content: generateMonacoTypes(keys, params, tasks, endpoints.dev) },
     { path: "dsl/packages/generated/index.ts", content: generateIndexTs() },
     // Plan globals declaration for editor support
     { path: "plan-globals.d.ts", content: generatePlanGlobalsDts() },

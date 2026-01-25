@@ -91,7 +91,7 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
     // Concat them - now uses params.rhs instead of inputs[1]
     nlohmann::json concat_params;
     concat_params["rhs"] = "rhs_node";  // node_id reference (not used in direct test)
-    auto cp = registry.validate_params("concat", concat_params);
+    auto cp = registry.validate_params("core::concat", concat_params);
 
     // Set up resolved_node_refs for the task execution
     std::unordered_map<std::string, RowSet> resolved_refs;
@@ -99,7 +99,7 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
     ExecCtx exec_ctx = ctx;
     exec_ctx.resolved_node_refs = &resolved_refs;
 
-    RowSet result = registry.execute("concat", {lhs}, cp, exec_ctx);
+    RowSet result = registry.execute("core::concat", {lhs}, cp, exec_ctx);
 
     REQUIRE(result.rowCount() == 8);
     REQUIRE(result.logicalSize() == 8);
@@ -138,8 +138,8 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
     nlohmann::json concat_params;
     // No rhs param - should fail
     REQUIRE_THROWS_WITH(
-        registry.validate_params("concat", concat_params),
-        "Invalid params for op 'concat': missing required field 'rhs'");
+        registry.validate_params("core::concat", concat_params),
+        "Invalid params for op 'core::concat': missing required field 'rhs'");
   }
 
   SECTION("concat with wrong input arity (0 inputs) throws") {
@@ -147,7 +147,7 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
 
     nlohmann::json concat_params;
     concat_params["rhs"] = "rhs_node";
-    auto cp = registry.validate_params("concat", concat_params);
+    auto cp = registry.validate_params("core::concat", concat_params);
 
     std::unordered_map<std::string, RowSet> resolved_refs;
     resolved_refs.emplace("rhs", rhs);
@@ -155,7 +155,7 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
     exec_ctx.resolved_node_refs = &resolved_refs;
 
     REQUIRE_THROWS_WITH(
-        registry.execute("concat", {}, cp, exec_ctx),
+        registry.execute("core::concat", {}, cp, exec_ctx),
         "Error: op 'concat' expects exactly 1 input, got 0");
   }
 
@@ -166,7 +166,7 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
 
     nlohmann::json concat_params;
     concat_params["rhs"] = "rhs_node";
-    auto cp = registry.validate_params("concat", concat_params);
+    auto cp = registry.validate_params("core::concat", concat_params);
 
     std::unordered_map<std::string, RowSet> resolved_refs;
     resolved_refs.emplace("rhs", c);
@@ -174,7 +174,7 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
     exec_ctx.resolved_node_refs = &resolved_refs;
 
     REQUIRE_THROWS_WITH(
-        registry.execute("concat", {a, b}, cp, exec_ctx),
+        registry.execute("core::concat", {a, b}, cp, exec_ctx),
         "Error: op 'concat' expects exactly 1 input, got 2");
   }
 
@@ -183,11 +183,11 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
 
     nlohmann::json concat_params;
     concat_params["rhs"] = "rhs_node";
-    auto cp = registry.validate_params("concat", concat_params);
+    auto cp = registry.validate_params("core::concat", concat_params);
 
     // No resolved_node_refs set - should fail
     REQUIRE_THROWS_WITH(
-        registry.execute("concat", {lhs}, cp, ctx),
+        registry.execute("core::concat", {lhs}, cp, ctx),
         "Error: op 'concat' missing resolved 'rhs' NodeRef");
   }
 }
@@ -230,5 +230,5 @@ TEST_CASE("concat_bad_arity.plan.json fails validation (missing rhs)", "[concat]
   // Validation should fail because rhs param is missing
   REQUIRE_THROWS_WITH(
       validate_plan(plan, &get_test_endpoint_registry()),
-      "Node 'n2': Invalid params for op 'concat': missing required field 'rhs'");
+      "Node 'n2': Invalid params for op 'core::concat': missing required field 'rhs'");
 }
