@@ -524,12 +524,14 @@ export function generateTasksTs(registry: TaskRegistry): string {
     ""
   );
 
-  // Classify tasks: viewer.* are source tasks, others are transform tasks
+  // Classify tasks: viewer is source task, others are transform tasks
+  // Source task has no required CandidateSet input (called via ctx.viewer())
   const sourceTasks: TaskEntry[] = [];
   const transformTasks: TaskEntry[] = [];
 
   for (const task of registry.tasks) {
-    if (task.op.startsWith("viewer.")) {
+    const methodName = opToMethodName(task.op);
+    if (methodName === "viewer") {
       sourceTasks.push(task);
     } else {
       transformTasks.push(task);
@@ -806,9 +808,9 @@ export function generateTaskImplTs(registry: TaskRegistry): string {
     "",
   );
 
-  // Classify tasks
-  const sourceTasks = registry.tasks.filter(t => t.op.startsWith("viewer."));
-  const transformTasks = registry.tasks.filter(t => !t.op.startsWith("viewer."));
+  // Classify tasks: viewer is source, others are transform
+  const sourceTasks = registry.tasks.filter(t => opToMethodName(t.op) === "viewer");
+  const transformTasks = registry.tasks.filter(t => opToMethodName(t.op) !== "viewer");
 
   // Generate source task implementations
   if (sourceTasks.length > 0) {

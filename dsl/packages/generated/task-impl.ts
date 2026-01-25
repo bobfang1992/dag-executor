@@ -132,6 +132,38 @@ function assertEndpointId(value: unknown, name: string): void {
 }
 
 // =====================================================
+// Source task implementations (for PlanCtx.viewer)
+// =====================================================
+
+/** Implementation for core::viewer */
+export function viewerImpl(
+  ctx: TaskContext,
+  opts: {
+    endpoint: RedisEndpointId;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "viewer(opts)");
+  assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
+  assertEndpointId(opts.endpoint, "viewer({ endpoint })");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "viewer(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "viewer({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    endpoint: opts.endpoint,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("core::viewer", [], params, extensions);
+}
+
+// =====================================================
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
 
@@ -362,35 +394,6 @@ export function takeImpl(
   return ctx.addNode("core::take", [inputNodeId], params, extensions);
 }
 
-/** Implementation for core::viewer */
-export function viewerImpl(
-  ctx: TaskContext,
-  inputNodeId: string,
-  opts: {
-    endpoint: RedisEndpointId;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-  }
-): string {
-  assertNotUndefined(opts, "viewer(opts)");
-  assertNotUndefined(opts.endpoint, "viewer({ endpoint })");
-  assertEndpointId(opts.endpoint, "viewer({ endpoint })");
-  const { extensions, ...rest } = opts;
-  checkNoUndefined(rest as Record<string, unknown>, "viewer(opts)");
-
-  // Validate trace
-  if (opts.trace !== undefined) {
-    assertStringOrNull(opts.trace, "viewer({ trace })");
-  }
-
-  const params: Record<string, unknown> = {
-    endpoint: opts.endpoint,
-    trace: opts.trace ?? null,
-  };
-
-  return ctx.addNode("core::viewer", [inputNodeId], params, extensions);
-}
-
 /** Implementation for core::vm */
 export function vmImpl(
   ctx: TaskContext,
@@ -526,6 +529,6 @@ export function sleepImpl(
 // =====================================================
 
 export const GENERATED_TASKS = {
-  source: [],
-  transform: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "viewer", "vm", "busyCpu", "fixedSource", "sleep"],
+  source: ["viewer"],
+  transform: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "vm", "busyCpu", "fixedSource", "sleep"],
 } as const;

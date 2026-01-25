@@ -68,6 +68,16 @@ export interface CandidateSetLike {
 }
 
 // =====================================================
+// Source task option interfaces
+// =====================================================
+
+export interface CoreViewerOpts {
+  endpoint: RedisEndpointId;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
+// =====================================================
 // Transform task option interfaces
 // =====================================================
 
@@ -113,12 +123,6 @@ export interface CoreSortOpts {
 
 export interface CoreTakeOpts {
   count: number;
-  trace?: string | null;
-  extensions?: Record<string, unknown>;
-}
-
-export interface CoreViewerOpts {
-  endpoint: RedisEndpointId;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }
