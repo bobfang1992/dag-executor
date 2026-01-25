@@ -95,6 +95,7 @@ add_executable(rankd
   src/event_loop.cpp
   src/async_redis_client.cpp
   src/async_io_clients.cpp
+  src/bench_event_loop.cpp
   ${TASK_SOURCES}
 )
 

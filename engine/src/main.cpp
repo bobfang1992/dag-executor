@@ -16,6 +16,7 @@
 
 #include "async_dag_scheduler.h"
 #include "async_io_clients.h"
+#include "bench_event_loop.h"
 #include "capability_registry.h"
 #include "cpu_pool.h"
 #include "capability_registry_gen.h"
@@ -76,6 +77,13 @@ int main(int argc, char *argv[]) {
   bool async_scheduler = false;
   int deadline_ms = 0;
   int node_timeout_ms = 0;
+  bool bench_eventloop = false;
+  std::string bench_eventloop_mode = "all";
+  int bench_n = 0;
+  int bench_producers = 1;
+  int bench_sleep_ms = 1;
+  int bench_tasks = 1000;
+  bool bench_json = false;
 
   app.add_option("--plan", plan_path, "Path to plan JSON file");
   app.add_flag("--async_scheduler", async_scheduler,
@@ -116,8 +124,38 @@ int main(int argc, char *argv[]) {
   app.add_option("--node_timeout_ms", node_timeout_ms,
                  "Per-node timeout in milliseconds (0 = disabled, async only)")
       ->check(CLI::NonNegativeNumber);
+  app.add_flag("--bench_eventloop", bench_eventloop,
+               "Run EventLoop microbenchmarks and exit");
+  app.add_option("--bench_eventloop_mode", bench_eventloop_mode,
+                 "EventLoop benchmark mode: posts|timers|sleep_vs_pool|all (default: all)");
+  app.add_option("--bench_n", bench_n,
+                 "Number of operations for bench_eventloop (0 = use mode default)")
+      ->check(CLI::NonNegativeNumber);
+  app.add_option("--bench_producers", bench_producers,
+                 "Number of producer threads for posts mode (default: 1)")
+      ->check(CLI::PositiveNumber);
+  app.add_option("--bench_sleep_ms", bench_sleep_ms,
+                 "Timer timeout in ms for timers mode, sleep duration for sleep_vs_pool (default: 1, 0 = immediate)")
+      ->check(CLI::NonNegativeNumber);
+  app.add_option("--bench_tasks", bench_tasks,
+                 "Number of concurrent tasks for timer/sleep modes (default: 1000)")
+      ->check(CLI::PositiveNumber);
+  app.add_flag("--bench_json", bench_json,
+               "Output benchmark results as JSON");
 
   CLI11_PARSE(app, argc, argv);
+
+  // Handle --bench_eventloop (early exit, no dependencies required)
+  if (bench_eventloop) {
+    ranking::BenchEventLoopConfig config;
+    config.mode = bench_eventloop_mode;
+    config.n = bench_n;
+    config.producers = bench_producers;
+    config.sleep_ms = bench_sleep_ms;
+    config.tasks = bench_tasks;
+    config.json_output = bench_json;
+    return ranking::run_bench_eventloop(config);
+  }
 
   // Initialize CPU thread pool (for within-request parallelism)
   rankd::InitCPUThreadPool(static_cast<size_t>(cpu_threads));

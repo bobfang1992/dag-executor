@@ -330,15 +330,29 @@ This document tracks the implementation status of all features in the dag-execut
 - **Tests**: Existing EventLoop tests cover shutdown cases (84 assertions in 28 test cases)
 - **Soak script**: `./scripts/soak_async_timeout.sh` runs must-timeout + mostly-success scenarios
 
+### Step 14.5c.future: EventLoop Benchmarking ✅
+- **Goal**: Add EventLoop micro-benchmarking for throughput and latency measurement
+- **Status**: Complete
+- **Files**:
+  - `engine/include/bench_stats.h` - LatencyStats, percentile computation, RSS helpers
+  - `engine/include/bench_event_loop.h` - BenchEventLoopConfig, run_bench_eventloop()
+  - `engine/src/bench_event_loop.cpp` - All benchmark implementations
+  - `docs/EVENT_LOOP_BENCH.md` - Usage documentation
+- **CLI Flags**:
+  - `--bench_eventloop`: Enable benchmark mode (early exit, no dependencies)
+  - `--bench_eventloop_mode`: posts|timers|sleep_vs_pool|all
+  - `--bench_n`, `--bench_producers`, `--bench_sleep_ms`, `--bench_tasks`: Mode-specific params
+  - `--bench_json`: JSON output format
+- **Benchmark Modes**:
+  - `posts`: Post() throughput with 1 or N producer threads
+  - `timers`: Timer callback throughput via SleepMs(0) coroutines
+  - `sleep_vs_pool`: Compare N concurrent sleeps (EventLoop coroutines vs ThreadPool)
+- **Output**: Latency distribution (p50/p90/p99/max/mean), throughput, RSS memory
+- **Usage**: `engine/bin/rankd --bench_eventloop --bench_json`
+
 ---
 
 ## 🔲 Not Yet Implemented
-
-### Step 14.5c.future: EventLoop Benchmarking
-- [ ] Benchmark EventLoop throughput (posts/sec, timers/sec)
-- [ ] Compare coroutine overhead vs thread pool for IO-bound workloads
-- [ ] Profile memory usage (coroutine frames vs thread stacks)
-- [ ] Measure latency distribution under load
 
 ### Step 14.2 Follow-up: Endpoint Registry Hardening
 - [ ] Validate endpoint digests: recompute from parsed entries, compare against JSON values, reject mismatched --env
