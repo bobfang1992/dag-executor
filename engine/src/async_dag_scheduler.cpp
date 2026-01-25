@@ -273,7 +273,8 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
             ctx.endpoints ? std::make_shared<rankd::EndpointRegistry>(*ctx.endpoints)
                           : nullptr;
         // loop and async_clients must remain valid (owned by caller of execute_plan_async_blocking)
-        // resolved_refs is already a shared_ptr
+        // resolved_refs is already a shared_ptr, passed to wrapper which captures it in
+        // the coroutine frame - keeps map alive even if run_node_async exits on timeout
 
         // Wrapper coroutine captures all shared_ptrs, keeping data alive
         auto wrapper = [](std::shared_ptr<std::vector<rankd::RowSet>> in,
