@@ -470,9 +470,17 @@ int main(int argc, char *argv[]) {
 
       // Stop async infrastructure if used
       if (loop) {
-        loop->Stop();
-        // Drain CPU pool before destroying loop - pending CPU jobs may Post() to it
+        // Clean up async clients BEFORE stopping loop - they need the loop
+        // to process disconnect callbacks. Skipping this causes hiredis's
+        // UV_POLL handles to interfere with loop shutdown.
+        async_clients.reset();
+
+        // Drain CPU pool WHILE loop is still running - CPU offload completions
+        // need to Post() back to the loop. If we stop the loop first, those
+        // Posts fail and we may lose completion signals.
         rankd::GetCPUThreadPool().wait_idle();
+
+        loop->Stop();
       }
 
       auto total_end = std::chrono::steady_clock::now();
@@ -635,14 +643,16 @@ int main(int argc, char *argv[]) {
               plan.pred_table, *endpoint_registry, request_context, nullptr,
               request_deadline, node_timeout);
         } catch (...) {
-          loop.Stop();
+          // Drain CPU pool WHILE loop running, then stop
           rankd::GetCPUThreadPool().wait_idle();
+          loop.Stop();
           throw;  // Rethrow after drain
         }
 
-        loop.Stop();
-        // Drain CPU pool before destroying loop - pending CPU jobs may Post() to it
+        // Drain CPU pool WHILE loop is still running - CPU offload completions
+        // need to Post() back to the loop.
         rankd::GetCPUThreadPool().wait_idle();
+        loop.Stop();
       } else {
         // Sync execution path
         ctx.expr_table = &plan.expr_table;

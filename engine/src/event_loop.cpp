@@ -13,7 +13,19 @@ namespace {
 void CloseWalkCallback(uv_handle_t* handle, void* arg) {
   auto* async_handle = static_cast<uv_async_t*>(arg);
   // Don't close the async handle here - we handle it separately
-  if (handle == reinterpret_cast<uv_handle_t*>(async_handle) || uv_is_closing(handle)) {
+  if (handle == reinterpret_cast<uv_handle_t*>(async_handle)) {
+    return;
+  }
+
+  // Check if already closing - MUST do this to avoid double-close assertion
+  if (uv_is_closing(handle)) {
+    return;
+  }
+
+  // Skip UV_POLL handles - these are owned by external libraries (e.g., hiredis)
+  // that manage their own handle lifecycle. Closing them here causes double-close
+  // when the library later tries to clean up.
+  if (handle->type == UV_POLL) {
     return;
   }
 

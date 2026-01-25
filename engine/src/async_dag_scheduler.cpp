@@ -13,6 +13,82 @@ namespace ranking {
 
 namespace {
 
+/**
+ * BlockingTask - coroutine type that signals completion from final_suspend.
+ *
+ * Used by execute_plan_async_blocking to safely synchronize with the main thread.
+ * Unlike Task<void>, this signals completion AFTER the coroutine body has fully
+ * completed and reached final_suspend, avoiding the race where main thread could
+ * destroy the coroutine frame while it's still running.
+ *
+ * The key insight: signaling from final_suspend guarantees the coroutine is
+ * suspended (not running) when the main thread wakes up, so destroying the
+ * Task from main thread is safe.
+ */
+struct BlockingPromise {
+  std::exception_ptr exception_;
+  std::mutex* done_mutex_ = nullptr;
+  bool* done_ = nullptr;
+  std::condition_variable* done_cv_ = nullptr;
+
+  struct BlockingTask {
+    using promise_type = BlockingPromise;
+    std::coroutine_handle<BlockingPromise> handle_;
+
+    explicit BlockingTask(std::coroutine_handle<BlockingPromise> h) : handle_(h) {}
+    BlockingTask(BlockingTask&& o) noexcept : handle_(std::exchange(o.handle_, nullptr)) {}
+    ~BlockingTask() {
+      if (handle_) handle_.destroy();
+    }
+
+    BlockingTask(const BlockingTask&) = delete;
+    BlockingTask& operator=(const BlockingTask&) = delete;
+    BlockingTask& operator=(BlockingTask&&) = delete;
+
+    void start() {
+      if (handle_ && !handle_.done()) handle_.resume();
+    }
+
+    void set_sync_state(std::mutex* m, bool* d, std::condition_variable* cv) {
+      handle_.promise().done_mutex_ = m;
+      handle_.promise().done_ = d;
+      handle_.promise().done_cv_ = cv;
+    }
+  };
+
+  BlockingTask get_return_object() {
+    return BlockingTask{std::coroutine_handle<BlockingPromise>::from_promise(*this)};
+  }
+
+  std::suspend_always initial_suspend() noexcept { return {}; }
+
+  // Signal completion from final_suspend - guaranteed to run on loop thread
+  // AFTER all coroutine body has completed. This is the key to avoiding UB:
+  // main thread only wakes after coroutine is suspended at final_suspend.
+  auto final_suspend() noexcept {
+    struct SignalingAwaiter {
+      BlockingPromise& p;
+      bool await_ready() noexcept { return false; }
+      void await_suspend(std::coroutine_handle<>) noexcept {
+        if (p.done_mutex_ && p.done_ && p.done_cv_) {
+          std::lock_guard<std::mutex> lock(*p.done_mutex_);
+          *p.done_ = true;
+        }
+        if (p.done_cv_) {
+          p.done_cv_->notify_one();
+        }
+      }
+      void await_resume() noexcept {}
+    };
+    return SignalingAwaiter{*this};
+  }
+
+  void return_void() {}
+  void unhandled_exception() { exception_ = std::current_exception(); }
+};
+
+using BlockingTask = BlockingPromise::BlockingTask;
+
 // Forward declaration
 struct AsyncSchedulerState;
 
@@ -509,33 +585,33 @@ rankd::ExecutionResult execute_plan_async_blocking(
   std::mutex done_mutex;
   std::condition_variable done_cv;
 
-  // Wrapper coroutine that signals completion
-  auto wrapper = [&]() -> Task<void> {
+  // Wrapper coroutine using BlockingTask - signals completion from final_suspend
+  // This avoids the race where main thread could wake before coroutine reaches
+  // final_suspend, which would cause UB when destroying the Task.
+  auto wrapper = [&]() -> BlockingTask {
     try {
       result = co_await execute_plan_async(plan, ctx, request_deadline, node_timeout);
     } catch (...) {
       error = std::current_exception();
     }
-
-    // Signal completion - we're on loop thread, cv notify is thread-safe
-    {
-      std::lock_guard<std::mutex> lock(done_mutex);
-      done = true;
-    }
-    done_cv.notify_one();
+    // Completion signaled automatically from final_suspend
   };
 
   // Start the wrapper coroutine on the event loop
-  Task<void> task = wrapper();
+  BlockingTask task = wrapper();
+  task.set_sync_state(&done_mutex, &done, &done_cv);
   if (!loop.Post([&task]() { task.start(); })) {
     throw std::runtime_error("Failed to start async plan execution: EventLoop not running");
   }
 
-  // Wait for completion
+  // Wait for completion - signaled from final_suspend, so coroutine is
+  // guaranteed to be suspended (not running) when we wake up
   {
     std::unique_lock<std::mutex> lock(done_mutex);
     done_cv.wait(lock, [&] { return done; });
   }
+
+  // Safe to destroy task now - coroutine is suspended at final_suspend
 
   // Propagate errors
   if (error) {
