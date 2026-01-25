@@ -64,6 +64,7 @@ Start from `0000-template.md`.
 | [0005](0005-key-effects-writes-exact.md) | Key Effects (writes_exact) | Draft | `cap.rfc.0005.key_effects_writes_exact.v1` |
 | [0006](0006-plan-visualizer.md) | Plan Visualizer | Draft | `cap.rfc.0006.plan-visualizer.v1` |
 | [0007](0007-namespaced-task-ops.md) | Namespaced Task Operation Names | **Implemented** | N/A (registry change) |
+| [0008](0008-team-folder-structure.md) | Team-Based Plan Folder Structure | Draft | N/A (tooling change) |
 
 ## Adding Capabilities
 
