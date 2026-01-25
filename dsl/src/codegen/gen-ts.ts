@@ -608,13 +608,10 @@ export function generateTasksTs(registry: TaskRegistry): string {
   lines.push("  predProp?: string;");
   lines.push("}");
   lines.push("");
-  lines.push("/** Map from method name to extraction info */");
+  lines.push("/** Map from qualified op (e.g., 'core::vm') to extraction info */");
   lines.push("export const TASK_EXTRACTION_INFO: Record<string, TaskExtractionInfo> = {");
 
   for (const task of registry.tasks) {
-    // Method name: extract local name from namespaced op (e.g., "core::vm" -> "vm")
-    const methodName = opToMethodName(task.op);
-
     // Check if task has expr_id or pred_id params
     let exprProp: string | null = null;
     let predProp: string | null = null;
@@ -629,11 +626,12 @@ export function generateTasksTs(registry: TaskRegistry): string {
     }
 
     // Only add entry if task has extraction targets
+    // Key by qualified op to avoid collisions between namespaces
     if (exprProp || predProp) {
       const props: string[] = [];
       if (exprProp) props.push(`exprProp: "${exprProp}"`);
       if (predProp) props.push(`predProp: "${predProp}"`);
-      lines.push(`  "${methodName}": { ${props.join(", ")} },`);
+      lines.push(`  "${task.op}": { ${props.join(", ")} },`);
     }
   }
 

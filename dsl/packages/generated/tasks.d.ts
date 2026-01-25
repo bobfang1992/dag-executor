@@ -167,6 +167,6 @@ export interface TaskExtractionInfo {
     /** Property name containing predicate (for tasks with pred_id param) */
     predProp?: string;
 }
-/** Map from method name to extraction info */
+/** Map from qualified op (e.g., 'core::vm') to extraction info */
 export declare const TASK_EXTRACTION_INFO: Record<string, TaskExtractionInfo>;
 //# sourceMappingURL=tasks.d.ts.map

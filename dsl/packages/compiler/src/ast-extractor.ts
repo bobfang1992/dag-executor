@@ -24,6 +24,14 @@ import { compilePred } from "./pred-compiler.js";
 import type { ExprNode, PredNode } from "@ranking-dsl/runtime";
 import { Key, P, TASK_EXTRACTION_INFO } from "@ranking-dsl/generated";
 
+/**
+ * Convert TypeScript camelCase method name back to snake_case.
+ * This is the inverse of opToMethodName's snake_case -> camelCase conversion.
+ */
+function methodNameToSnakeCase(methodName: string): string {
+  return methodName.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+}
+
 export interface ExtractionError {
   message: string;
   line: number;
@@ -316,9 +324,42 @@ export function extractExpressions(
     ts.forEachChild(node, visit);
   }
 
+  /**
+   * Determine namespace from property access chain.
+   * - cs.vm(...) → "core" (root-level = core namespace)
+   * - cs.test.sleep(...) → "test" (nested = use property name as namespace)
+   * - ctx.viewer(...) → "core"
+   * - ctx.test.fixedSource(...) → "test"
+   */
+  function getNamespaceFromCall(call: ts.CallExpression): string {
+    const callExpr = call.expression;
+    if (!ts.isPropertyAccessExpression(callExpr)) {
+      return "core"; // Shouldn't happen for our cases
+    }
+
+    // Check if the object being accessed is itself a PropertyAccessExpression
+    // If so, it's a namespaced call like cs.test.sleep
+    if (ts.isPropertyAccessExpression(callExpr.expression)) {
+      // callExpr.expression is cs.test, get the "test" part
+      return callExpr.expression.name.text;
+    }
+
+    // Otherwise it's a root-level call like cs.vm, assume core namespace
+    return "core";
+  }
+
   function processMethodCall(methodName: string, call: ts.CallExpression): void {
-    // Look up extraction info for this task based on method name
-    const extractionInfo = TASK_EXTRACTION_INFO[methodName];
+    // Determine namespace from property access chain
+    const namespace = getNamespaceFromCall(call);
+
+    // Convert camelCase method name to snake_case for op lookup
+    const snakeCaseName = methodNameToSnakeCase(methodName);
+
+    // Construct qualified op: "namespace::local_name"
+    const qualifiedOp = `${namespace}::${snakeCaseName}`;
+
+    // Look up extraction info for this task based on qualified op
+    const extractionInfo = TASK_EXTRACTION_INFO[qualifiedOp];
     if (!extractionInfo) {
       // Task doesn't have expr_id or pred_id params - nothing to extract
       return;

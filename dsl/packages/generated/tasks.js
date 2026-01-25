@@ -6,8 +6,8 @@
 // =====================================================
 export const TASK_MANIFEST_DIGEST = "4a2e3e796f5c3cf45f1283b4a91580d0f6e3bb2d3b757f06cfd05da5dcaff8a6";
 export const TASK_COUNT = 12;
-/** Map from method name to extraction info */
+/** Map from qualified op (e.g., 'core::vm') to extraction info */
 export const TASK_EXTRACTION_INFO = {
-    "filter": { predProp: "pred" },
-    "vm": { exprProp: "expr" },
+    "core::filter": { predProp: "pred" },
+    "core::vm": { exprProp: "expr" },
 };

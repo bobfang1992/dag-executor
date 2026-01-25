@@ -116,6 +116,19 @@ export function opToNamespace(op: string): string | undefined {
 }
 
 /**
+ * Convert TypeScript camelCase method name back to snake_case.
+ * This is the inverse of opToMethodName's snake_case -> camelCase conversion.
+ *
+ * Examples:
+ *   "fixedSource" -> "fixed_source"
+ *   "busyCpu" -> "busy_cpu"
+ *   "vm" -> "vm"
+ */
+export function methodNameToSnakeCase(methodName: string): string {
+  return methodName.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+}
+
+/**
  * Get user-friendly property name for task options interface.
  * For expr_id and pred_id params, use shorter friendly names (expr, pred).
  */

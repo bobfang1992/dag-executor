@@ -172,8 +172,8 @@ export interface TaskExtractionInfo {
   predProp?: string;
 }
 
-/** Map from method name to extraction info */
+/** Map from qualified op (e.g., 'core::vm') to extraction info */
 export const TASK_EXTRACTION_INFO: Record<string, TaskExtractionInfo> = {
-  "filter": { predProp: "pred" },
-  "vm": { exprProp: "expr" },
+  "core::filter": { predProp: "pred" },
+  "core::vm": { exprProp: "expr" },
 };
