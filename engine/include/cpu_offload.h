@@ -415,9 +415,13 @@ class AsyncWithTimeout {
     struct RunnerCleanup {
       std::shared_ptr<State> s;
       ~RunnerCleanup() {
-        s->loop->Post([s = this->s]() mutable {
-          s->runner = std::nullopt;  // Destroys runner, breaks cycle
-        });
+        // If Post fails during shutdown, fall back to direct cleanup to
+        // avoid leaking the runner coroutine frame.
+        if (!s->loop->Post([s = this->s]() mutable {
+              s->runner = std::nullopt;  // Destroys runner, breaks cycle
+            })) {
+          s->runner = std::nullopt;
+        }
       }
     };
 
