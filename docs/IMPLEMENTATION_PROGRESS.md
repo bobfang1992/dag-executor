@@ -326,7 +326,7 @@ This document tracks the implementation status of all features in the dag-execut
   - Lifecycle states: Idle → Starting → Running → Stopping → Stopped
   - Post contract: returns bool, rejected after Stop begins
   - Drain contract: `GetCPUThreadPool().wait_idle()` before EventLoop destruction
-  - Documented known limitation: async wrapper holds raw pointers (UAF risk on premature destruction)
+  - Coroutine lifetime safety: `execute_plan_async_blocking` waits for `task.done()` before destroying Task
 - **Tests**: Existing EventLoop tests cover shutdown cases (84 assertions in 28 test cases)
 - **Soak script**: `./scripts/soak_async_timeout.sh` runs must-timeout + mostly-success scenarios
 
@@ -349,6 +349,13 @@ This document tracks the implementation status of all features in the dag-execut
   - `sleep_vs_pool`: Compare N concurrent sleeps (EventLoop coroutines vs ThreadPool)
 - **Output**: Latency distribution (p50/p90/p99/max/mean), throughput, RSS memory
 - **Usage**: `engine/bin/rankd --bench_eventloop --bench_json`
+- **Bug Fixes** (discovered during benchmarking):
+  - **UV_POLL double-close**: Skip UV_POLL handles in `CloseWalkCallback` (owned by hiredis)
+  - **Coroutine lifetime race**: Replaced cross-thread `coroutine_handle::done()` polling with `BlockingPromise`/`BlockingTask` that signal completion from `final_suspend`. At `final_suspend`, the coroutine is guaranteed suspended so main thread destruction is safe. Fixed shutdown ordering: `async_clients.reset()` → `wait_idle()` → `loop->Stop()` to allow CPU pool completions to Post() while loop is running.
+- **Additional Tools**:
+  - `docs/PERF_VM.md` - VM setup guide for safe benchmarking in resource-capped QEMU/UTM
+  - `scripts/perf_throughput_sweep.sh` - Throughput/latency sweep across concurrency levels
+  - `scripts/plot_perf_sweep.py` - Generate plots from sweep CSV (QPS scaling, latency curves, Pareto frontier)
 
 ---
 
