@@ -101,12 +101,14 @@ declare module '@ranking-dsl/runtime' {
   }
 
   export interface CandidateSet {
+    busy_cpu(opts: { busyWaitMs: number; trace?: string }): CandidateSet;
     concat(opts: { rhs: CandidateSet; trace?: string }): CandidateSet;
     filter(opts: { pred: PredNode; trace?: string }): CandidateSet;
+    fixed_source(opts: { rowCount?: number; trace?: string }): CandidateSet;
     follow(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
     media(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
     recommendation(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
-    sleep(opts: { durationMs: number; trace?: string }): CandidateSet;
+    sleep(opts: { durationMs: number; failAfterSleep?: boolean; trace?: string }): CandidateSet;
     sort(opts: { by: KeyToken; order?: string; trace?: string }): CandidateSet;
     take(opts: { count: number; trace?: string }): CandidateSet;
     viewer(opts: { endpoint: unknown; trace?: string }): CandidateSet;

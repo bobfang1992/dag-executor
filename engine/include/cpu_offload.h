@@ -275,7 +275,12 @@ class OffloadCpuWithTimeout {
     uv_close(reinterpret_cast<uv_handle_t*>(t),
              [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
 
-    state->handle.resume();
+    // Resume via Post for consistency and reentrancy safety.
+    // If Post fails (loop stopping), resume directly - we're on loop thread.
+    auto handle = state->handle;
+    if (!state->loop->Post([handle]() { handle.resume(); })) {
+      handle.resume();
+    }
   }
 
   EventLoop& loop_;
@@ -297,31 +302,34 @@ OffloadCpuWithTimeout(EventLoop&, std::optional<std::chrono::steady_clock::time_
  * Redis operations or sleep) against a timer.
  *
  * Key invariant: ALL state mutations happen on the loop thread.
- * The wrapper coroutine and timer callback both run on the loop thread.
+ * Both the detached runner coroutine and timer callback run on the loop thread.
  *
  * Thread model:
  *   1. Caller suspends on event loop thread
- *   2. Inner task awaited in wrapper coroutine (loop thread)
+ *   2. Detached coroutine starts inner task (loop thread)
  *   3. Timer started on loop thread (if deadline set)
- *   4. First-wins: inner task completion or timeout
- *   5. Caller resumes on event loop thread
+ *   4. First-wins: task completion or timeout, whoever sets done=true first
+ *   5. Caller resumes on event loop thread via loop.Post()
  *
  * If timeout fires before task completes:
- *   - Sets timeout error in result
- *   - Resumes caller with error
- *   - Task continues to run (wrapper still alive in State) but result is discarded
+ *   - Sets done=true and stores timeout error
+ *   - Posts resume to loop
+ *   - Task continues in detached coroutine but result is discarded (late completion)
  *
  * If task completes before timeout:
- *   - Cancels timer (if set)
- *   - Resumes caller with result
+ *   - Sets done=true, cancels timer, stores result
+ *   - Posts resume to loop
  *
- * IMPORTANT: The wrapper coroutine is stored in State (shared_ptr) so it survives
- * after AsyncWithTimeout is destroyed. This is necessary because on timeout, the
- * inner task still holds a reference to the wrapper's continuation handle.
+ * IMPORTANT: The detached runner coroutine only captures shared_ptr<State>, never
+ * references the AsyncWithTimeout object. This allows AsyncWithTimeout to be destroyed
+ * after timeout while the detached coroutine continues safely.
  *
  * Usage:
  *   OptionalDeadline deadline = std::chrono::steady_clock::now() + 50ms;
  *   auto result = co_await AsyncWithTimeout(loop, deadline, asyncOperation());
+ *
+ * Test hook:
+ *   Pass a shared_ptr<atomic<int>> to count late completions (for testing).
  */
 template <typename T>
 class AsyncWithTimeout {
@@ -330,28 +338,49 @@ class AsyncWithTimeout {
   using StoredResult =
       std::conditional_t<std::is_void_v<T>, std::monostate, T>;
 
-  // Shared state - must outlive AsyncWithTimeout because wrapper coroutine
-  // may still be running after timeout
+  // Test hook for counting late completions
+  using LateCompletionCounter = std::shared_ptr<std::atomic<int>>;
+
+  // Shared state between runner coroutine, timer callback, and awaiter.
+  // Must be shared_ptr so runner can safely access after timeout.
   struct State {
-    bool completed = false;  // First-wins guard (loop-thread only)
+    bool done = false;  // First-wins guard (loop-thread only)
     std::variant<StoredResult, std::exception_ptr> result{std::exception_ptr{}};
     std::coroutine_handle<> waiter;
     uv_timer_t* timer = nullptr;
     EventLoop* loop = nullptr;
-    // Wrapper coroutine stored here (not in AsyncWithTimeout) so it survives
-    // after timeout resumes the caller and destroys AsyncWithTimeout.
-    // The wrapper is still awaiting the inner task.
-    std::optional<Task<void>> wrapper;
+    LateCompletionCounter late_counter;  // Optional test hook
+
+    // Runner coroutine stored here to keep it alive until completion.
+    // This creates a reference cycle (State -> runner -> frame -> state -> State)
+    // which is broken by posting cleanup after runner completes.
+    std::optional<Task<void>> runner;
+
+    // Set to true after await_suspend returns. Used by runner to know
+    // if it's safe to do direct resume when Post() fails during shutdown.
+    bool await_suspend_returned = false;
+
+    // Cancel and close the timer (idempotent)
+    void cancel_timer() {
+      if (timer) {
+        uv_timer_stop(timer);
+        uv_close(reinterpret_cast<uv_handle_t*>(timer),
+                 [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
+        timer = nullptr;
+      }
+    }
   };
 
   AsyncWithTimeout(EventLoop& loop,
                    std::optional<std::chrono::steady_clock::time_point> deadline,
-                   Task<T> task)
+                   Task<T> task,
+                   LateCompletionCounter late_counter = nullptr)
       : loop_(loop),
         deadline_(deadline),
         task_(std::move(task)),
         state_(std::make_shared<State>()) {
     state_->loop = &loop;
+    state_->late_counter = late_counter;
   }
 
   // Check if deadline already exceeded (don't suspend)
@@ -367,70 +396,118 @@ class AsyncWithTimeout {
 
     // Check deadline again (might have passed since await_ready)
     if (deadline_ && std::chrono::steady_clock::now() >= *deadline_) {
-      state_->completed = true;
+      state_->done = true;
       state_->result = std::make_exception_ptr(
           std::runtime_error("Node execution timeout (deadline exceeded before start)"));
       return false;  // Don't suspend - resume immediately
     }
 
-    // Create wrapper coroutine that awaits inner task
-    // The wrapper captures state (shared_ptr) to keep State alive
-    //
-    // IMPORTANT: There's a reference cycle: State -> wrapper -> frame -> s -> State
-    // We break this cycle by posting a cleanup callback when wrapper finishes.
-    // The WrapperCleanup RAII guard posts s->wrapper = nullopt to the event loop,
-    // which runs after wrapper is suspended at final_suspend, safely destroying it.
+    // Launch runner coroutine that awaits the inner task.
+    // The runner only captures shared_ptr<State> and the task - it does NOT
+    // reference `this` (AsyncWithTimeout), so it's safe for this object to
+    // be destroyed on timeout while the runner continues.
     auto state = state_;
+    auto task = std::move(task_);
 
-    // RAII guard that breaks the cycle when wrapper body exits
-    struct WrapperCleanup {
+    // RAII guard that breaks the reference cycle when runner body exits.
+    // State -> runner -> frame -> s -> State is broken by posting cleanup
+    // to destroy runner after the coroutine is suspended at final_suspend.
+    struct RunnerCleanup {
       std::shared_ptr<State> s;
-      ~WrapperCleanup() {
-        // Post cleanup to break the cycle after wrapper is suspended
+      ~RunnerCleanup() {
         s->loop->Post([s = this->s]() mutable {
-          s->wrapper = std::nullopt;  // Destroys wrapper, breaks cycle
+          s->runner = std::nullopt;  // Destroys runner, breaks cycle
         });
       }
     };
 
-    auto make_wrapper = [](std::shared_ptr<State> s, Task<T> t) -> Task<void> {
-      WrapperCleanup cleanup{s};  // RAII guard - destructor posts cleanup
+    // The runner coroutine awaits the inner task and posts completion to loop.
+    // It's stored in State to keep the coroutine frame alive until completion.
+    auto make_runner = [](std::shared_ptr<State> s, Task<T> t) -> Task<void> {
+      RunnerCleanup cleanup{s};  // RAII guard - destructor posts cleanup
       try {
         if constexpr (std::is_void_v<T>) {
           co_await t;
-          if (!s->completed) {
-            s->completed = true;
+          // We're on the loop thread. Set done and cancel timer immediately
+          // to prevent race where timer fires before posted callback runs.
+          // (P2 fix: avoid deferring completion past deadline)
+          if (s->done) {
+            // Late completion - timeout already fired
+            if (s->late_counter) {
+              s->late_counter->fetch_add(1, std::memory_order_relaxed);
+            }
+          } else {
+            s->done = true;
             s->result.template emplace<0>(std::monostate{});
-            cancel_timer_impl(s.get());
-            s->waiter.resume();
+            s->cancel_timer();
+            // Post resume for reentrancy safety.
+            auto waiter = s->waiter;
+            if (!s->loop->Post([waiter]() { waiter.resume(); })) {
+              // Post failed (loop stopping). Safe to direct resume only if
+              // await_suspend has returned (otherwise we're inside await_suspend
+              // and direct resume would violate coroutine contract).
+              if (s->await_suspend_returned) {
+                waiter.resume();
+              }
+              // If !await_suspend_returned, we're inside await_suspend and the
+              // caller will return false from await_suspend, resuming the waiter.
+            }
           }
         } else {
           T result = co_await t;
-          if (!s->completed) {
-            s->completed = true;
+          // We're on the loop thread. Set done and cancel timer immediately.
+          if (s->done) {
+            // Late completion - timeout already fired
+            if (s->late_counter) {
+              s->late_counter->fetch_add(1, std::memory_order_relaxed);
+            }
+          } else {
+            s->done = true;
             s->result.template emplace<0>(std::move(result));
-            cancel_timer_impl(s.get());
-            s->waiter.resume();
+            s->cancel_timer();
+            auto waiter = s->waiter;
+            if (!s->loop->Post([waiter]() { waiter.resume(); })) {
+              if (s->await_suspend_returned) {
+                waiter.resume();
+              }
+            }
           }
         }
       } catch (...) {
-        if (!s->completed) {
-          s->completed = true;
-          s->result.template emplace<1>(std::current_exception());
-          cancel_timer_impl(s.get());
-          s->waiter.resume();
+        auto eptr = std::current_exception();
+        // We're on the loop thread. Set done and cancel timer immediately.
+        if (s->done) {
+          // Late completion (exception after timeout)
+          if (s->late_counter) {
+            s->late_counter->fetch_add(1, std::memory_order_relaxed);
+          }
+        } else {
+          s->done = true;
+          s->result.template emplace<1>(eptr);
+          s->cancel_timer();
+          auto waiter = s->waiter;
+          if (!s->loop->Post([waiter]() { waiter.resume(); })) {
+            if (s->await_suspend_returned) {
+              waiter.resume();
+            }
+          }
         }
       }
-      // WrapperCleanup destructor runs here, posting cleanup to event loop
+      // RunnerCleanup destructor runs here, posting cleanup to event loop
     };
 
-    // Store wrapper in State (shared_ptr) so it survives after AsyncWithTimeout
-    // is destroyed on timeout
-    state_->wrapper = make_wrapper(state, std::move(task_));
-    state_->wrapper->start();
+    // Store runner in State (shared_ptr) to keep coroutine frame alive.
+    // The reference cycle is broken by RunnerCleanup posting cleanup after
+    // the runner reaches final_suspend.
+    state_->runner = make_runner(state, std::move(task));
+    state_->runner->start();
 
-    // Start deadline timer (if deadline set)
-    if (deadline_) {
+    // Start deadline timer only if:
+    // 1. Deadline is set, AND
+    // 2. Runner hasn't already completed synchronously (done is still false)
+    // If done is true, we've already posted the resume and must not start a timer
+    // that would access State after it's destroyed.
+    if (deadline_ && !state_->done) {
       auto now = std::chrono::steady_clock::now();
       auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(*deadline_ - now).count();
       if (ms <= 0) {
@@ -445,12 +522,18 @@ class AsyncWithTimeout {
       uv_timer_start(timer, OnTimeout, static_cast<uint64_t>(ms), 0);
     }
 
+    // Mark that await_suspend has returned. This allows runner completion
+    // to safely do direct resume if Post() fails (loop is stopping).
+    // If runner completed synchronously (before this line), it already posted
+    // the resume callback, so this flag doesn't matter.
+    state_->await_suspend_returned = true;
+
     return true;  // Suspend
   }
 
   ResultType await_resume() {
     // Handle deadline-exceeded-before-start case
-    if (!state_->completed && deadline_ && std::chrono::steady_clock::now() >= *deadline_) {
+    if (!state_->done && deadline_ && std::chrono::steady_clock::now() >= *deadline_) {
       throw std::runtime_error("Node execution timeout (deadline exceeded)");
     }
 
@@ -471,21 +554,16 @@ class AsyncWithTimeout {
   }
 
  private:
-  static void cancel_timer_impl(State* state) {
-    if (state->timer) {
-      uv_timer_stop(state->timer);
-      uv_close(reinterpret_cast<uv_handle_t*>(state->timer),
-               [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
-      state->timer = nullptr;
-    }
-  }
-
   static void OnTimeout(uv_timer_t* t) {
     auto* state = static_cast<State*>(t->data);
-    if (state->completed) {
-      return;  // Task already finished
+    if (state->done) {
+      // Task completed before timer - shouldn't happen since we cancel timer,
+      // but handle gracefully
+      uv_close(reinterpret_cast<uv_handle_t*>(t),
+               [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
+      return;
     }
-    state->completed = true;
+    state->done = true;
     state->result = std::make_exception_ptr(
         std::runtime_error("Node execution timeout"));
     state->timer = nullptr;
@@ -493,7 +571,12 @@ class AsyncWithTimeout {
     uv_close(reinterpret_cast<uv_handle_t*>(t),
              [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
 
-    state->waiter.resume();
+    // Resume via Post for consistency and reentrancy safety.
+    // If Post fails (loop stopping), resume directly - we're on loop thread.
+    auto waiter = state->waiter;
+    if (!state->loop->Post([waiter]() { waiter.resume(); })) {
+      waiter.resume();
+    }
   }
 
   EventLoop& loop_;
@@ -505,6 +588,12 @@ class AsyncWithTimeout {
 // Deduction guide for AsyncWithTimeout
 template <typename T>
 AsyncWithTimeout(EventLoop&, std::optional<std::chrono::steady_clock::time_point>, Task<T>)
+    -> AsyncWithTimeout<T>;
+
+// Deduction guide with late completion counter
+template <typename T>
+AsyncWithTimeout(EventLoop&, std::optional<std::chrono::steady_clock::time_point>, Task<T>,
+                 std::shared_ptr<std::atomic<int>>)
     -> AsyncWithTimeout<T>;
 
 }  // namespace ranking

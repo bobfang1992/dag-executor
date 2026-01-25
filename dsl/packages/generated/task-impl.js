@@ -98,6 +98,23 @@ function assertEndpointId(value, name) {
 // =====================================================
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
+/** Implementation for busy_cpu */
+export function busyCpuImpl(ctx, inputNodeId, opts) {
+    assertNotUndefined(opts, "busyCpu(opts)");
+    assertNotUndefined(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
+    assertInteger(opts.busyWaitMs, "busyCpu({ busyWaitMs })");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "busyCpu(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "busyCpu({ trace })");
+    }
+    const params = {
+        busy_wait_ms: opts.busyWaitMs,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("busy_cpu", [inputNodeId], params, extensions);
+}
 /** Implementation for concat */
 export function concatImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "concat(opts)");
@@ -141,6 +158,21 @@ export function filterImpl(ctx, inputNodeId, opts) {
         trace: opts.trace ?? null,
     };
     return ctx.addNode("filter", [inputNodeId], params, extensions);
+}
+/** Implementation for fixed_source */
+export function fixedSourceImpl(ctx, inputNodeId, opts) {
+    assertNotUndefined(opts, "fixedSource(opts)");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "fixedSource(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "fixedSource({ trace })");
+    }
+    const params = {
+        row_count: opts.rowCount,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("fixed_source", [inputNodeId], params, extensions);
 }
 /** Implementation for follow */
 export function followImpl(ctx, inputNodeId, opts) {
@@ -215,6 +247,7 @@ export function sleepImpl(ctx, inputNodeId, opts) {
     }
     const params = {
         duration_ms: opts.durationMs,
+        fail_after_sleep: opts.failAfterSleep,
         trace: opts.trace ?? null,
     };
     return ctx.addNode("sleep", [inputNodeId], params, extensions);
@@ -306,5 +339,5 @@ export function vmImpl(ctx, inputNodeId, opts) {
 // =====================================================
 export const GENERATED_TASKS = {
     source: [],
-    transform: ["concat", "filter", "follow", "media", "recommendation", "sleep", "sort", "take", "viewer", "vm"],
+    transform: ["busyCpu", "concat", "filter", "fixedSource", "follow", "media", "recommendation", "sleep", "sort", "take", "viewer", "vm"],
 };

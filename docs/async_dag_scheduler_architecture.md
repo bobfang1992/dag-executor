@@ -315,13 +315,60 @@ For CPU tasks, `OffloadCpuWithTimeout` implements a **first-wins** pattern betwe
 2. **All state on loop thread**: Timer callback and CPU Post callback both run on loop thread
 3. **Capture-by-value**: CPU lambda owns `inputs`, `validated`, `op` to avoid use-after-free
 
-### Current Limitations
+### AsyncWithTimeout (Step 14.5c.5c)
 
-**CPU tasks only**: Deadline/timeout is currently enforced only for CPU-bound tasks (those without `run_async`, like `vm`, `filter`, `sort`, `busy_cpu`). These use `OffloadCpuWithTimeout`.
+For async tasks (those with `run_async`, like `viewer`, `follow`, `sleep`, Redis-backed tasks), `AsyncWithTimeout` implements timeout using a **detached runner coroutine**:
 
-**Async tasks pending**: Tasks with `run_async` (like `viewer`, `follow`, `sleep`, Redis-backed tasks) do not yet enforce timeout. They will run to completion regardless of deadline. This is a known limitation tracked for future work (Step 14.5c.5c).
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      AsyncWithTimeout                            │
+├─────────────────────────────────────────────────────────────────┤
+│  shared State {                                                  │
+│    bool done = false;           // First-wins guard              │
+│    variant<Result, exception_ptr> result;                        │
+│    optional<Task<void>> runner; // Keeps coroutine frame alive   │
+│    bool await_suspend_returned; // Safe Post() fallback          │
+│  }                                                               │
+├─────────────────────────────────────────────────────────────────┤
+│  Runner Coroutine (loop thread)    Timer (loop thread)           │
+│  ─────────────────────────────     ───────────────────           │
+│  co_await inner_task               Start uv_timer                │
+│       │                                 │                        │
+│       │                                 ▼                        │
+│       │                            Timer fires                   │
+│       │                            if (!done) {                  │
+│       │                              done = true ◄── WINS        │
+│       │                              result = timeout_error      │
+│       │                              Post(resume)                │
+│       │                            }                             │
+│       ▼                                                          │
+│  inner_task completes                                            │
+│  if (!done) {                                                    │
+│    done = true  ◄── WINS                                         │
+│    result = success/error                                        │
+│    cancel_timer()                                                │
+│    Post(resume)                                                  │
+│  } else {                                                        │
+│    late_counter++ // Discard result                              │
+│  }                                                               │
+│                                                                  │
+│  RunnerCleanup posts: runner = nullopt (breaks cycle)            │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-The `AsyncWithTimeout` awaitable exists in `cpu_offload.h` but has coroutine lifetime issues that cause SIGSEGV when the timeout fires. Fixing this requires careful management of the inner task's continuation handle, which references the wrapper coroutine that may be destroyed on timeout.
+**Key design points:**
+
+1. **Runner stored in State**: The detached runner coroutine is stored in `State::runner` to keep its frame alive until completion. Without this, the Task destructor destroys the frame, causing SIGSEGV.
+
+2. **Reference cycle breaking**: `State → runner → frame → state → State` cycle is broken by `RunnerCleanup` RAII guard that posts cleanup after the runner reaches `final_suspend`.
+
+3. **All resumes via Post()**: Runner completion paths use `loop.Post()` to resume the waiter, ensuring we never resume inside `await_suspend` (which would violate the coroutine contract).
+
+4. **await_suspend_returned flag**: Tracks when `await_suspend` has returned, enabling safe direct resume fallback if `Post()` fails during shutdown.
+
+5. **Copy ALL ctx data**: The wrapper coroutine captures `shared_ptr` copies of all data (params, expr_table, pred_table, request, endpoints, resolved_refs) to prevent UAF when timeout fires and `run_node_async` exits.
+
+**Late completion**: When timeout wins, the async task continues in the runner until it completes, but the result is discarded. A `LateCompletionCounter` test hook verifies this behavior.
 
 ### Safety Mechanisms
 
@@ -462,7 +509,7 @@ engine/bin/rankd --async_scheduler --bench 1000 --bench_concurrency 100 --plan_n
 
 | File | Purpose |
 |------|---------|
-| `engine/include/cpu_offload.h` | OffloadCpu, OffloadCpuWithTimeout awaitables |
+| `engine/include/cpu_offload.h` | OffloadCpu, OffloadCpuWithTimeout, AsyncWithTimeout awaitables |
 | `engine/include/deadline.h` | Deadline types and helpers |
 | `engine/include/async_dag_scheduler.h` | ExecCtxAsync, scheduler declarations |
 | `engine/src/async_dag_scheduler.cpp` | Scheduler implementation |
@@ -496,6 +543,13 @@ Located in `engine/tests/test_dag_scheduler.cpp`:
 | `repeated timeout operations` | 5 iterations (leak check) |
 | `repeated success operations` | 10 iterations (stability) |
 | `alternating success and timeout` | 6 iterations mixed |
+| `sleep respects request deadline` | Async task timeout via AsyncWithTimeout |
+| `sleep respects node timeout` | Async task node timeout |
+| `late completion increments counter` | Verifies late completion handling |
+| `mixed async+CPU pipeline timeout (async)` | Timeout in async phase |
+| `mixed async+CPU pipeline timeout (CPU)` | Timeout in CPU phase |
+| `mixed async+CPU pipeline succeeds` | Generous deadline passes |
+| `parallel async tasks both respect deadline` | Multiple concurrent async timeouts |
 
 ### Fault Injection
 
@@ -519,7 +573,7 @@ The `sleep` task supports fault injection for testing error handling:
 # All DAG scheduler tests (sync + async)
 engine/bin/dag_scheduler_tests
 
-# Only async scheduler tests (16 tests, 97 assertions)
+# Only async scheduler tests (28 tests, 138 assertions)
 engine/bin/dag_scheduler_tests "[async_scheduler]"
 
 # Deadline/timeout tests

@@ -1043,11 +1043,299 @@ TEST_CASE("async scheduler: alternating success and timeout", "[async_scheduler]
 }
 
 // ============================================================================
-// Async Task Timeout Tests - DISABLED
+// Async Task Timeout Tests
 // ============================================================================
-// TODO: AsyncWithTimeout for async tasks (sleep, Redis) needs more work.
-// Currently only CPU tasks (OffloadCpuWithTimeout) support deadline enforcement.
-// The following tests are disabled until AsyncWithTimeout is fixed:
-// - sleep task with request deadline
-// - sleep task with node timeout
-// - mixed async+CPU pipeline with deadline during async phase
+// These tests verify that AsyncWithTimeout correctly enforces deadlines for
+// async tasks (sleep, Redis). Previously only CPU tasks supported deadline
+// enforcement via OffloadCpuWithTimeout.
+
+TEST_CASE("async scheduler: sleep respects request deadline", "[async_scheduler][async_timeout]") {
+  // Create plan: fixed_source -> sleep(200ms)
+  // Request deadline: 50ms
+  // Expected: timeout error before sleep completes
+  Plan plan = create_deadline_test_plan(200);  // 200ms sleep
+  validate_plan(plan, nullptr);
+
+  ranking::EventLoop loop;
+  loop.Start();
+
+  ranking::AsyncIoClients async_clients;
+  ParamTable params;
+  RequestContext request_ctx;
+  request_ctx.user_id = 1;
+  request_ctx.request_id = "test_async_deadline";
+
+  // Set request deadline to 50ms from now
+  auto request_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+
+  auto start = std::chrono::steady_clock::now();
+
+  bool caught_error = false;
+  std::string error_message;
+
+  try {
+    ranking::execute_plan_async_blocking(
+        plan, loop, async_clients, params, plan.expr_table, plan.pred_table,
+        get_test_endpoint_registry(), request_ctx, nullptr,
+        request_deadline, std::nullopt);
+  } catch (const std::exception& e) {
+    caught_error = true;
+    error_message = e.what();
+  }
+
+  auto end = std::chrono::steady_clock::now();
+  double elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
+
+  loop.Stop();
+
+  // Verify error was thrown
+  REQUIRE(caught_error);
+  REQUIRE_THAT(error_message, Catch::Matchers::ContainsSubstring("timeout"));
+
+  // Verify timing: should complete well before 200ms sleep would finish
+  INFO("Elapsed time: " << elapsed_ms << "ms");
+  REQUIRE(elapsed_ms < 150.0);  // Generous margin for CI
+}
+
+TEST_CASE("async scheduler: sleep respects node timeout", "[async_scheduler][async_timeout]") {
+  // Create plan: fixed_source -> sleep(200ms)
+  // Node timeout: 50ms
+  // Expected: timeout error before sleep completes
+  Plan plan = create_deadline_test_plan(200);  // 200ms sleep
+  validate_plan(plan, nullptr);
+
+  ranking::EventLoop loop;
+  loop.Start();
+
+  ranking::AsyncIoClients async_clients;
+  ParamTable params;
+  RequestContext request_ctx;
+  request_ctx.user_id = 1;
+  request_ctx.request_id = "test_async_node_timeout";
+
+  // Set node timeout to 50ms
+  auto node_timeout = std::chrono::milliseconds(50);
+
+  auto start = std::chrono::steady_clock::now();
+
+  bool caught_error = false;
+  std::string error_message;
+
+  try {
+    ranking::execute_plan_async_blocking(
+        plan, loop, async_clients, params, plan.expr_table, plan.pred_table,
+        get_test_endpoint_registry(), request_ctx, nullptr,
+        std::nullopt, node_timeout);
+  } catch (const std::exception& e) {
+    caught_error = true;
+    error_message = e.what();
+  }
+
+  auto end = std::chrono::steady_clock::now();
+  double elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
+
+  loop.Stop();
+
+  // Verify error was thrown
+  REQUIRE(caught_error);
+  REQUIRE_THAT(error_message, Catch::Matchers::ContainsSubstring("timeout"));
+
+  // Verify timing: should complete well before 200ms sleep would finish
+  INFO("Elapsed time: " << elapsed_ms << "ms");
+  REQUIRE(elapsed_ms < 150.0);
+}
+
+TEST_CASE("async scheduler: late async completion does not crash", "[async_scheduler][async_timeout]") {
+  // Create plan: fixed_source -> sleep(150ms)
+  // Request deadline: 30ms
+  // After timeout, wait for sleep to complete and verify no crash/UAF
+  Plan plan = create_deadline_test_plan(150);  // 150ms sleep
+  validate_plan(plan, nullptr);
+
+  ranking::EventLoop loop;
+  loop.Start();
+
+  ranking::AsyncIoClients async_clients;
+  ParamTable params;
+  RequestContext request_ctx;
+  request_ctx.user_id = 1;
+  request_ctx.request_id = "test_late_completion";
+
+  auto request_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(30);
+
+  bool caught_error = false;
+
+  try {
+    ranking::execute_plan_async_blocking(
+        plan, loop, async_clients, params, plan.expr_table, plan.pred_table,
+        get_test_endpoint_registry(), request_ctx, nullptr,
+        request_deadline, std::nullopt);
+  } catch (const std::exception&) {
+    caught_error = true;
+  }
+
+  REQUIRE(caught_error);
+
+  // Wait for the late completion to occur (sleep was 150ms, we timed out at 30ms)
+  // The async sleep timer is still running on the loop thread
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+  // Stop loop - this should complete without crash
+  loop.Stop();
+
+  // If we get here without crash, late completion was handled safely!
+}
+
+// Helper to create a mixed async+CPU plan: fixed_source -> sleep -> busy_cpu
+static Plan create_mixed_async_cpu_plan(int sleep_ms, int busy_ms) {
+  Plan plan;
+  plan.schema_version = 1;
+  plan.plan_name = "test_mixed_async_cpu";
+
+  // Node 0: fixed_source
+  Node source;
+  source.node_id = "source";
+  source.op = "fixed_source";
+  source.inputs = {};
+  source.params = nlohmann::json::object();
+  source.params["row_count"] = 1;
+  plan.nodes.push_back(source);
+
+  // Node 1: sleep (async)
+  Node sleep_node;
+  sleep_node.node_id = "sleep";
+  sleep_node.op = "sleep";
+  sleep_node.inputs = {"source"};
+  sleep_node.params = nlohmann::json::object();
+  sleep_node.params["duration_ms"] = sleep_ms;
+  plan.nodes.push_back(sleep_node);
+
+  // Node 2: busy_cpu (sync, CPU offload)
+  Node busy;
+  busy.node_id = "busy";
+  busy.op = "busy_cpu";
+  busy.inputs = {"sleep"};
+  busy.params = nlohmann::json::object();
+  busy.params["busy_wait_ms"] = busy_ms;
+  plan.nodes.push_back(busy);
+
+  plan.outputs = {"busy"};
+  return plan;
+}
+
+TEST_CASE("async scheduler: mixed async+CPU pipeline timeout during async phase",
+          "[async_scheduler][async_timeout]") {
+  // Pipeline: fixed_source -> sleep(100ms) -> busy_cpu(50ms)
+  // Deadline: 50ms (should timeout during sleep phase)
+  Plan plan = create_mixed_async_cpu_plan(100, 50);
+  validate_plan(plan, nullptr);
+
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+
+  auto result = run_async_with_deadline(plan, deadline, std::nullopt);
+
+  REQUIRE(result.caught_error);
+  REQUIRE_THAT(result.error_message, Catch::Matchers::ContainsSubstring("timeout"));
+
+  // Should timeout during async phase (~50ms), not after full pipeline (150ms)
+  INFO("Elapsed time: " << result.elapsed_ms << "ms");
+  REQUIRE(result.elapsed_ms < 120.0);
+}
+
+TEST_CASE("async scheduler: mixed async+CPU pipeline timeout during CPU phase",
+          "[async_scheduler][async_timeout]") {
+  // Pipeline: fixed_source -> sleep(20ms) -> busy_cpu(100ms)
+  // Deadline: 50ms (should timeout during CPU phase)
+  Plan plan = create_mixed_async_cpu_plan(20, 100);
+  validate_plan(plan, nullptr);
+
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+
+  auto result = run_async_with_deadline(plan, deadline, std::nullopt);
+
+  REQUIRE(result.caught_error);
+  REQUIRE_THAT(result.error_message, Catch::Matchers::ContainsSubstring("timeout"));
+
+  // Should timeout during CPU phase (~50ms), not after full pipeline (120ms)
+  INFO("Elapsed time: " << result.elapsed_ms << "ms");
+  REQUIRE(result.elapsed_ms < 100.0);
+}
+
+TEST_CASE("async scheduler: mixed async+CPU pipeline succeeds with generous deadline",
+          "[async_scheduler][async_timeout]") {
+  // Pipeline: fixed_source -> sleep(20ms) -> busy_cpu(20ms)
+  // Deadline: 500ms (generous, should succeed)
+  Plan plan = create_mixed_async_cpu_plan(20, 20);
+  validate_plan(plan, nullptr);
+
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+
+  auto result = run_async_with_deadline(plan, deadline, std::nullopt);
+
+  REQUIRE(result.success);
+  REQUIRE_FALSE(result.caught_error);
+
+  // Should complete in ~40ms + overhead
+  INFO("Elapsed time: " << result.elapsed_ms << "ms");
+  REQUIRE(result.elapsed_ms < 150.0);
+}
+
+TEST_CASE("async scheduler: parallel async tasks both respect deadline",
+          "[async_scheduler][async_timeout]") {
+  // Create plan with two parallel sleep nodes: fixed_source -> [sleep_a, sleep_b] -> concat
+  // Both should respect the deadline
+  Plan plan;
+  plan.schema_version = 1;
+  plan.plan_name = "test_parallel_async_timeout";
+
+  // Node 0: fixed_source
+  Node source;
+  source.node_id = "source";
+  source.op = "fixed_source";
+  source.inputs = {};
+  source.params = nlohmann::json::object();
+  source.params["row_count"] = 1;
+  plan.nodes.push_back(source);
+
+  // Node 1: sleep_a (200ms)
+  Node sleep_a;
+  sleep_a.node_id = "sleep_a";
+  sleep_a.op = "sleep";
+  sleep_a.inputs = {"source"};
+  sleep_a.params = nlohmann::json::object();
+  sleep_a.params["duration_ms"] = 200;
+  plan.nodes.push_back(sleep_a);
+
+  // Node 2: sleep_b (200ms)
+  Node sleep_b;
+  sleep_b.node_id = "sleep_b";
+  sleep_b.op = "sleep";
+  sleep_b.inputs = {"source"};
+  sleep_b.params = nlohmann::json::object();
+  sleep_b.params["duration_ms"] = 200;
+  plan.nodes.push_back(sleep_b);
+
+  // Node 3: concat
+  Node concat;
+  concat.node_id = "concat";
+  concat.op = "concat";
+  concat.inputs = {"sleep_a"};
+  concat.params = nlohmann::json::object();
+  concat.params["rhs"] = "sleep_b";
+  plan.nodes.push_back(concat);
+
+  plan.outputs = {"concat"};
+  validate_plan(plan, nullptr);
+
+  // 50ms deadline - both parallel sleeps should timeout
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(50);
+
+  auto result = run_async_with_deadline(plan, deadline, std::nullopt);
+
+  REQUIRE(result.caught_error);
+  REQUIRE_THAT(result.error_message, Catch::Matchers::ContainsSubstring("timeout"));
+
+  // Should timeout around 50ms, not at 200ms
+  INFO("Elapsed time: " << result.elapsed_ms << "ms");
+  REQUIRE(result.elapsed_ms < 150.0);
+}

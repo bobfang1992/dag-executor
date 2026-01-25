@@ -92,6 +92,11 @@ export type PredInput = PredNode | PredPlaceholder;
 export interface CandidateSetLike {
     getNodeId(): string;
 }
+export interface BusyCpuOpts {
+    busyWaitMs: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}
 export interface ConcatOpts {
     rhs: CandidateSetLike;
     trace?: string | null;
@@ -99,6 +104,11 @@ export interface ConcatOpts {
 }
 export interface FilterOpts {
     pred: PredInput;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}
+export interface FixedSourceOpts {
+    rowCount?: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
@@ -122,6 +132,7 @@ export interface RecommendationOpts {
 }
 export interface SleepOpts {
     durationMs: number;
+    failAfterSleep?: boolean;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
@@ -147,8 +158,8 @@ export interface VmOpts {
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
-export declare const TASK_MANIFEST_DIGEST = "2b7ecee984cfb73c6f3d27aca4dd1c72e255a714524de8edf307dd4707ffc26a";
-export declare const TASK_COUNT = 10;
+export declare const TASK_MANIFEST_DIGEST = "432919e0c31b5d80896cfbbc46f65cc2dd8cca3329360a572326bf65e2ef39ad";
+export declare const TASK_COUNT = 12;
 /** Extraction info for a task - which properties to extract as expr/pred */
 export interface TaskExtractionInfo {
     /** Property name containing expression (for tasks with expr_id param) */
