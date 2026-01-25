@@ -293,7 +293,10 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
           async_ctx.params = params.get();
           async_ctx.expr_table = expr.get();
           async_ctx.pred_table = pred.get();
-          async_ctx.stats = nullptr;  // Skip stats - result may be discarded on timeout
+          // Note: stats intentionally null for async tasks. On timeout, the task continues
+          // as a late completion and we can't reliably attribute timing. Caller handles
+          // overall request timing. See also CPU path (sync_ctx.stats = nullptr).
+          async_ctx.stats = nullptr;
           async_ctx.resolved_node_refs = refs->empty() ? nullptr : refs.get();
           async_ctx.request = req.get();
           async_ctx.endpoints = ep ? ep.get() : nullptr;

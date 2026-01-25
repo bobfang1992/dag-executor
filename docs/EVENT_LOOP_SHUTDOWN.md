@@ -100,6 +100,26 @@ If `Post()` returns false (loop stopping), the cleanup is skipped safely because
 - Shared state uses `shared_ptr` (prevents UAF)
 - Late completion checks `await_suspend_returned` flag before direct resume fallback
 
+### Known Limitation: Async Task Late Completions
+
+**Warning**: The async wrapper coroutine holds raw `EventLoop*` and `AsyncIoClients*` pointers. On timeout, the runner continues executing with these pointers. If the caller destroys EventLoop or AsyncIoClients before the late completion finishes, use-after-free may occur.
+
+**Current mitigation**:
+- `Post()` returns false after `Stop()` begins, preventing new callbacks
+- CPU tasks drain via `ThreadPool::wait_idle()` before EventLoop destruction
+- `Stop()` closes handles and drains pending work on the loop thread
+
+**Residual risk**:
+- Async tasks (Redis, sleep) may still reference `EventLoop*` during IO operations
+- The runner holds raw pointers that become dangling if objects are destroyed prematurely
+
+**Required caller behavior**:
+1. Call `Stop()` to close handles and drain pending loop work
+2. Ensure `ThreadPool::wait_idle()` is called for CPU pool
+3. For async-heavy workloads with timeouts, consider adding explicit wait time or late-completion tracking
+
+**Future improvement**: Track active async runners and provide `wait_for_runners()` API to ensure all late completions finish before destruction.
+
 ## Recommended Shutdown Sequence
 
 For the engine/server/benchmark harness, follow this order:
