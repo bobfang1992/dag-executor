@@ -421,53 +421,54 @@ class AsyncWithTimeout {
       try {
         if constexpr (std::is_void_v<T>) {
           co_await t;
-          // Post completion to loop thread (even though we're already on it)
-          // for consistent resume path and reentrancy safety.
-          s->loop->Post([s]() {
-            if (s->done) {
-              // Late completion - timeout already fired
-              if (s->late_counter) {
-                s->late_counter->fetch_add(1, std::memory_order_relaxed);
-              }
-              return;
-            }
-            s->done = true;
-            s->result.template emplace<0>(std::monostate{});
-            s->cancel_timer();
-            s->waiter.resume();
-          });
-        } else {
-          T result = co_await t;
-          // Post completion with result
-          s->loop->Post([s, result = std::move(result)]() mutable {
-            if (s->done) {
-              // Late completion - timeout already fired
-              if (s->late_counter) {
-                s->late_counter->fetch_add(1, std::memory_order_relaxed);
-              }
-              return;
-            }
-            s->done = true;
-            s->result.template emplace<0>(std::move(result));
-            s->cancel_timer();
-            s->waiter.resume();
-          });
-        }
-      } catch (...) {
-        auto eptr = std::current_exception();
-        s->loop->Post([s, eptr]() {
+          // We're on the loop thread. Set done and cancel timer immediately
+          // to prevent race where timer fires before posted callback runs.
+          // (P2 fix: avoid deferring completion past deadline)
           if (s->done) {
-            // Late completion (exception after timeout)
+            // Late completion - timeout already fired
             if (s->late_counter) {
               s->late_counter->fetch_add(1, std::memory_order_relaxed);
             }
-            return;
+          } else {
+            s->done = true;
+            s->result.template emplace<0>(std::monostate{});
+            s->cancel_timer();
+            // Post resume for reentrancy safety (avoid resuming while still
+            // in this coroutine frame which might trigger destruction)
+            auto waiter = s->waiter;
+            s->loop->Post([waiter]() { waiter.resume(); });
           }
+        } else {
+          T result = co_await t;
+          // We're on the loop thread. Set done and cancel timer immediately.
+          if (s->done) {
+            // Late completion - timeout already fired
+            if (s->late_counter) {
+              s->late_counter->fetch_add(1, std::memory_order_relaxed);
+            }
+          } else {
+            s->done = true;
+            s->result.template emplace<0>(std::move(result));
+            s->cancel_timer();
+            auto waiter = s->waiter;
+            s->loop->Post([waiter]() { waiter.resume(); });
+          }
+        }
+      } catch (...) {
+        auto eptr = std::current_exception();
+        // We're on the loop thread. Set done and cancel timer immediately.
+        if (s->done) {
+          // Late completion (exception after timeout)
+          if (s->late_counter) {
+            s->late_counter->fetch_add(1, std::memory_order_relaxed);
+          }
+        } else {
           s->done = true;
           s->result.template emplace<1>(eptr);
           s->cancel_timer();
-          s->waiter.resume();
-        });
+          auto waiter = s->waiter;
+          s->loop->Post([waiter]() { waiter.resume(); });
+        }
       }
       // RunnerCleanup destructor runs here, posting cleanup to event loop
     };
@@ -478,8 +479,12 @@ class AsyncWithTimeout {
     state_->runner = make_runner(state, std::move(task));
     state_->runner->start();
 
-    // Start deadline timer (if deadline set)
-    if (deadline_) {
+    // Start deadline timer only if:
+    // 1. Deadline is set, AND
+    // 2. Runner hasn't already completed synchronously (done is still false)
+    // If done is true, we've already posted the resume and must not start a timer
+    // that would access State after it's destroyed.
+    if (deadline_ && !state_->done) {
       auto now = std::chrono::steady_clock::now();
       auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(*deadline_ - now).count();
       if (ms <= 0) {
