@@ -2,9 +2,9 @@
   "schema_version": 1,
   "plan_name": "regex_param_demo",
   "nodes": [
-    { "node_id": "n0", "op": "viewer", "inputs": [], "params": { "endpoint": "ep_0001", "trace": null } },
-    { "node_id": "n1", "op": "follow", "inputs": ["n0"], "params": { "endpoint": "ep_0001", "fanout": 10, "trace": null } },
-    { "node_id": "n2", "op": "filter", "inputs": ["n1"], "params": { "pred_id": "p0", "trace": null } }
+    { "node_id": "n0", "op": "core::viewer", "inputs": [], "params": { "endpoint": "ep_0001", "trace": null } },
+    { "node_id": "n1", "op": "core::follow", "inputs": ["n0"], "params": { "endpoint": "ep_0001", "fanout": 10, "trace": null } },
+    { "node_id": "n2", "op": "core::filter", "inputs": ["n1"], "params": { "pred_id": "p0", "trace": null } }
   ],
   "outputs": ["n2"],
   "pred_table": {

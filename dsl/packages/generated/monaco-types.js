@@ -101,24 +101,22 @@ declare module '@ranking-dsl/runtime' {
   // =====================================================
 
   export interface PlanCtx {
-    viewer: {
-    };
+    viewer(opts: { endpoint: unknown; trace?: string }): CandidateSet;
     requireCapability(capId: string, payload?: unknown): void;
   }
 
   export interface CandidateSet {
-    core::concat(opts: { rhs: CandidateSet; trace?: string }): CandidateSet;
-    core::filter(opts: { pred: PredNode; trace?: string }): CandidateSet;
-    core::follow(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
-    core::media(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
-    core::recommendation(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
-    core::sort(opts: { by: KeyToken; order?: string; trace?: string }): CandidateSet;
-    core::take(opts: { count: number; trace?: string }): CandidateSet;
-    core::viewer(opts: { endpoint: unknown; trace?: string }): CandidateSet;
-    core::vm(opts: { expr: ExprNode | number; outKey: KeyToken; trace?: string }): CandidateSet;
-    test::busy_cpu(opts: { busyWaitMs: number; trace?: string }): CandidateSet;
-    test::fixed_source(opts: { rowCount?: number; trace?: string }): CandidateSet;
-    test::sleep(opts: { durationMs: number; failAfterSleep?: boolean; trace?: string }): CandidateSet;
+    concat(opts: { rhs: CandidateSet; trace?: string }): CandidateSet;
+    filter(opts: { pred: PredNode; trace?: string }): CandidateSet;
+    follow(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
+    media(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
+    recommendation(opts: { endpoint: unknown; fanout: number; trace?: string }): CandidateSet;
+    sort(opts: { by: KeyToken; order?: string; trace?: string }): CandidateSet;
+    take(opts: { count: number; trace?: string }): CandidateSet;
+    vm(opts: { expr: ExprNode | number; outKey: KeyToken; trace?: string }): CandidateSet;
+    busyCpu(opts: { busyWaitMs: number; trace?: string }): CandidateSet;
+    fixedSource(opts: { rowCount?: number; trace?: string }): CandidateSet;
+    sleep(opts: { durationMs: number; failAfterSleep?: boolean; trace?: string }): CandidateSet;
   }
 
   export interface PlanConfig {
