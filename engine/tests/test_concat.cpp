@@ -139,7 +139,7 @@ TEST_CASE("concat task produces correct output", "[concat][task]") {
     // No rhs param - should fail
     REQUIRE_THROWS_WITH(
         registry.validate_params("core::concat", concat_params),
-        "Invalid params for op 'concat': missing required field 'rhs'");
+        "Invalid params for op 'core::concat': missing required field 'rhs'");
   }
 
   SECTION("concat with wrong input arity (0 inputs) throws") {
@@ -230,5 +230,5 @@ TEST_CASE("concat_bad_arity.plan.json fails validation (missing rhs)", "[concat]
   // Validation should fail because rhs param is missing
   REQUIRE_THROWS_WITH(
       validate_plan(plan, &get_test_endpoint_registry()),
-      "Node 'n2': Invalid params for op 'concat': missing required field 'rhs'");
+      "Node 'n2': Invalid params for op 'core::concat': missing required field 'rhs'");
 }
