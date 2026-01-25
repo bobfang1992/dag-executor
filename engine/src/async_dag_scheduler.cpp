@@ -255,9 +255,24 @@ Task<void> run_node_async(AsyncSchedulerState& state, size_t node_idx) {
     auto run_task = [&]() -> Task<rankd::RowSet> {
       if (spec.run_async) {
         // Task has native async implementation - wrap with AsyncWithTimeout
+        // IMPORTANT: Copy inputs/validated into a wrapper coroutine's frame.
+        // If timeout fires, run_task exits, but the wrapper coroutine (held by
+        // AsyncWithTimeout's runner) keeps the copies alive until the async
+        // task truly completes.
+        auto async_inputs = std::make_shared<std::vector<rankd::RowSet>>(inputs);
+        auto async_validated = std::make_shared<rankd::ValidatedParams>(validated);
+
+        // Wrapper coroutine captures shared_ptrs, keeping data alive
+        auto wrapper = [](std::shared_ptr<std::vector<rankd::RowSet>> in,
+                          std::shared_ptr<rankd::ValidatedParams> vp,
+                          AsyncTaskFn run_async_fn,
+                          ranking::ExecCtxAsync async_ctx) -> Task<rankd::RowSet> {
+          co_return co_await run_async_fn(*in, *vp, async_ctx);
+        };
+
         co_return co_await AsyncWithTimeout<rankd::RowSet>(
             *ctx.loop, effective_deadline,
-            spec.run_async(inputs, validated, ctx));
+            wrapper(async_inputs, async_validated, spec.run_async, ctx));
       } else {
         // Wrap sync run() with OffloadCpuWithTimeout for deadline support
         // IMPORTANT: All data must be copied/shared because if timeout fires,
