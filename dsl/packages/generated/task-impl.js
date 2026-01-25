@@ -115,6 +115,21 @@ export function viewerImpl(ctx, opts) {
     };
     return ctx.addNode("core::viewer", [], params, extensions);
 }
+/** Implementation for test::fixed_source */
+export function fixedSourceImpl(ctx, opts) {
+    assertNotUndefined(opts, "fixedSource(opts)");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest, "fixedSource(opts)");
+    // Validate trace
+    if (opts.trace !== undefined) {
+        assertStringOrNull(opts.trace, "fixedSource({ trace })");
+    }
+    const params = {
+        row_count: opts.rowCount,
+        trace: opts.trace ?? null,
+    };
+    return ctx.addNode("test::fixed_source", [], params, extensions);
+}
 // =====================================================
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
@@ -304,21 +319,6 @@ export function busyCpuImpl(ctx, inputNodeId, opts) {
     };
     return ctx.addNode("test::busy_cpu", [inputNodeId], params, extensions);
 }
-/** Implementation for test::fixed_source */
-export function fixedSourceImpl(ctx, inputNodeId, opts) {
-    assertNotUndefined(opts, "fixedSource(opts)");
-    const { extensions, ...rest } = opts;
-    checkNoUndefined(rest, "fixedSource(opts)");
-    // Validate trace
-    if (opts.trace !== undefined) {
-        assertStringOrNull(opts.trace, "fixedSource({ trace })");
-    }
-    const params = {
-        row_count: opts.rowCount,
-        trace: opts.trace ?? null,
-    };
-    return ctx.addNode("test::fixed_source", [inputNodeId], params, extensions);
-}
 /** Implementation for test::sleep */
 export function sleepImpl(ctx, inputNodeId, opts) {
     assertNotUndefined(opts, "sleep(opts)");
@@ -341,7 +341,7 @@ export function sleepImpl(ctx, inputNodeId, opts) {
 // Task metadata for runtime use
 // =====================================================
 export const GENERATED_TASKS = {
-    source: ["viewer"],
+    source: ["viewer", "fixedSource"],
     core: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "vm"],
-    test: ["busyCpu", "fixedSource", "sleep"],
+    test: ["busyCpu", "sleep"],
 };

@@ -174,27 +174,57 @@ export function generateMonacoTypes(
     "",
   ];
 
-  // Source task is viewer (core::viewer), transform tasks are everything else
-  const viewerTask = tasks.tasks.find(t => opToMethodName(t.op) === "viewer");
-  const transformTasks = tasks.tasks.filter(t => opToMethodName(t.op) !== "viewer");
+  // Source tasks have no inputs (viewer, fixedSource)
+  // Source tasks: viewer (core), fixedSource (test)
+  const SOURCE_TASK_METHODS = new Set(["viewer", "fixedSource"]);
+  const sourceTasks = tasks.tasks.filter(t => SOURCE_TASK_METHODS.has(opToMethodName(t.op)));
+  const transformTasks = tasks.tasks.filter(t => !SOURCE_TASK_METHODS.has(opToMethodName(t.op)));
+
+  // Group source tasks by namespace
+  const coreSourceTasks: TaskEntry[] = [];
+  const sourceTasksByNamespace = new Map<string, TaskEntry[]>();
+
+  for (const task of sourceTasks) {
+    const ns = opToNamespace(task.op);
+    if (ns === "core" || ns === undefined) {
+      coreSourceTasks.push(task);
+    } else {
+      const list = sourceTasksByNamespace.get(ns) || [];
+      list.push(task);
+      sourceTasksByNamespace.set(ns, list);
+    }
+  }
 
   // Group transform tasks by namespace
   const coreTransformTasks: TaskEntry[] = [];
-  const tasksByNamespace = new Map<string, TaskEntry[]>();
+  const transformTasksByNamespace = new Map<string, TaskEntry[]>();
 
   for (const task of transformTasks) {
     const ns = opToNamespace(task.op);
     if (ns === "core" || ns === undefined) {
       coreTransformTasks.push(task);
     } else {
-      const list = tasksByNamespace.get(ns) || [];
+      const list = transformTasksByNamespace.get(ns) || [];
       list.push(task);
-      tasksByNamespace.set(ns, list);
+      transformTasksByNamespace.set(ns, list);
     }
   }
 
-  // Generate namespace interfaces for non-core namespaces
-  for (const [ns, nsTasks] of Array.from(tasksByNamespace.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+  // Generate namespace interfaces for non-core source tasks (PlanCtx namespaces)
+  for (const [ns, nsTasks] of Array.from(sourceTasksByNamespace.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    const pascalNs = ns.charAt(0).toUpperCase() + ns.slice(1);
+    lines.push(`  export interface ${pascalNs}SourceTasks {`);
+    for (const task of nsTasks) {
+      const methodName = opToMethodName(task.op);
+      const optsType = generateMonacoOptsType(task);
+      lines.push(`    ${methodName}(opts: ${optsType}): CandidateSet;`);
+    }
+    lines.push("  }");
+    lines.push("");
+  }
+
+  // Generate namespace interfaces for non-core transform tasks (CandidateSet namespaces)
+  for (const [ns, nsTasks] of Array.from(transformTasksByNamespace.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
     const pascalNs = ns.charAt(0).toUpperCase() + ns.slice(1);
     lines.push(`  export interface ${pascalNs}Tasks {`);
     for (const task of nsTasks) {
@@ -206,10 +236,19 @@ export function generateMonacoTypes(
     lines.push("");
   }
 
+  // Generate PlanCtx interface with core source tasks at root level
+  // and namespace objects for non-core source tasks
   lines.push("  export interface PlanCtx {");
-  if (viewerTask) {
-    const optsType = generateMonacoOptsType(viewerTask);
-    lines.push(`    viewer(opts: ${optsType}): CandidateSet;`);
+  // Core source tasks at root level
+  for (const task of coreSourceTasks) {
+    const methodName = opToMethodName(task.op);
+    const optsType = generateMonacoOptsType(task);
+    lines.push(`    ${methodName}(opts: ${optsType}): CandidateSet;`);
+  }
+  // Namespace objects for non-core source tasks
+  for (const ns of Array.from(sourceTasksByNamespace.keys()).sort()) {
+    const pascalNs = ns.charAt(0).toUpperCase() + ns.slice(1);
+    lines.push(`    ${ns}: ${pascalNs}SourceTasks;`);
   }
   lines.push("    requireCapability(capId: string, payload?: unknown): void;");
   lines.push("  }");
@@ -225,7 +264,7 @@ export function generateMonacoTypes(
     lines.push(`    ${methodName}(opts: ${optsType}): CandidateSet;`);
   }
   // Namespace objects for non-core tasks
-  for (const ns of Array.from(tasksByNamespace.keys()).sort()) {
+  for (const ns of Array.from(transformTasksByNamespace.keys()).sort()) {
     const pascalNs = ns.charAt(0).toUpperCase() + ns.slice(1);
     lines.push(`    ${ns}: ${pascalNs}Tasks;`);
   }

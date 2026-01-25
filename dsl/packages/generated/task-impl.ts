@@ -163,6 +163,32 @@ export function viewerImpl(
   return ctx.addNode("core::viewer", [], params, extensions);
 }
 
+/** Implementation for test::fixed_source */
+export function fixedSourceImpl(
+  ctx: TaskContext,
+  opts: {
+    rowCount?: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }
+): string {
+  assertNotUndefined(opts, "fixedSource(opts)");
+  const { extensions, ...rest } = opts;
+  checkNoUndefined(rest as Record<string, unknown>, "fixedSource(opts)");
+
+  // Validate trace
+  if (opts.trace !== undefined) {
+    assertStringOrNull(opts.trace, "fixedSource({ trace })");
+  }
+
+  const params: Record<string, unknown> = {
+    row_count: opts.rowCount,
+    trace: opts.trace ?? null,
+  };
+
+  return ctx.addNode("test::fixed_source", [], params, extensions);
+}
+
 // =====================================================
 // Transform task implementations (for CandidateSet methods)
 // =====================================================
@@ -466,33 +492,6 @@ export function busyCpuImpl(
   return ctx.addNode("test::busy_cpu", [inputNodeId], params, extensions);
 }
 
-/** Implementation for test::fixed_source */
-export function fixedSourceImpl(
-  ctx: TaskContext,
-  inputNodeId: string,
-  opts: {
-    rowCount?: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-  }
-): string {
-  assertNotUndefined(opts, "fixedSource(opts)");
-  const { extensions, ...rest } = opts;
-  checkNoUndefined(rest as Record<string, unknown>, "fixedSource(opts)");
-
-  // Validate trace
-  if (opts.trace !== undefined) {
-    assertStringOrNull(opts.trace, "fixedSource({ trace })");
-  }
-
-  const params: Record<string, unknown> = {
-    row_count: opts.rowCount,
-    trace: opts.trace ?? null,
-  };
-
-  return ctx.addNode("test::fixed_source", [inputNodeId], params, extensions);
-}
-
 /** Implementation for test::sleep */
 export function sleepImpl(
   ctx: TaskContext,
@@ -529,7 +528,7 @@ export function sleepImpl(
 // =====================================================
 
 export const GENERATED_TASKS = {
-  source: ["viewer"],
+  source: ["viewer", "fixedSource"],
   core: ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "vm"],
-  test: ["busyCpu", "fixedSource", "sleep"],
+  test: ["busyCpu", "sleep"],
 } as const;

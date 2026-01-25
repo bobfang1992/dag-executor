@@ -17,6 +17,12 @@ export declare function viewerImpl(ctx: TaskContext, opts: {
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;
+/** Implementation for test::fixed_source */
+export declare function fixedSourceImpl(ctx: TaskContext, opts: {
+    rowCount?: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}): string;
 /** Implementation for core::concat */
 export declare function concatImpl(ctx: TaskContext, inputNodeId: string, opts: {
     rhs: CandidateSetLike;
@@ -76,12 +82,6 @@ export declare function busyCpuImpl(ctx: TaskContext, inputNodeId: string, opts:
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }): string;
-/** Implementation for test::fixed_source */
-export declare function fixedSourceImpl(ctx: TaskContext, inputNodeId: string, opts: {
-    rowCount?: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-}): string;
 /** Implementation for test::sleep */
 export declare function sleepImpl(ctx: TaskContext, inputNodeId: string, opts: {
     durationMs: number;
@@ -90,8 +90,8 @@ export declare function sleepImpl(ctx: TaskContext, inputNodeId: string, opts: {
     extensions?: Record<string, unknown>;
 }): string;
 export declare const GENERATED_TASKS: {
-    readonly source: readonly ["viewer"];
+    readonly source: readonly ["viewer", "fixedSource"];
     readonly core: readonly ["concat", "filter", "follow", "media", "recommendation", "sort", "take", "vm"];
-    readonly test: readonly ["busyCpu", "fixedSource", "sleep"];
+    readonly test: readonly ["busyCpu", "sleep"];
 };
 //# sourceMappingURL=task-impl.d.ts.map

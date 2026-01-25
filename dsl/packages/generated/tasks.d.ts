@@ -97,6 +97,11 @@ export interface CoreViewerOpts {
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }
+export interface TestFixedSourceOpts {
+    rowCount?: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+}
 export interface CoreConcatOpts {
     rhs: CandidateSetLike;
     trace?: string | null;
@@ -144,11 +149,6 @@ export interface CoreVmOpts {
 }
 export interface TestBusyCpuOpts {
     busyWaitMs: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-}
-export interface TestFixedSourceOpts {
-    rowCount?: number;
     trace?: string | null;
     extensions?: Record<string, unknown>;
 }

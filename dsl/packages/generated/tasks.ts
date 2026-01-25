@@ -77,6 +77,12 @@ export interface CoreViewerOpts {
   extensions?: Record<string, unknown>;
 }
 
+export interface TestFixedSourceOpts {
+  rowCount?: number;
+  trace?: string | null;
+  extensions?: Record<string, unknown>;
+}
+
 // =====================================================
 // Transform task option interfaces
 // =====================================================
@@ -136,12 +142,6 @@ export interface CoreVmOpts {
 
 export interface TestBusyCpuOpts {
   busyWaitMs: number;
-  trace?: string | null;
-  extensions?: Record<string, unknown>;
-}
-
-export interface TestFixedSourceOpts {
-  rowCount?: number;
   trace?: string | null;
   extensions?: Record<string, unknown>;
 }

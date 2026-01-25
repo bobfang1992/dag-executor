@@ -19,10 +19,9 @@ import {
   sortImpl,
   followImpl,
   recommendationImpl,
-  // Test namespace tasks
+  // Test namespace transform tasks
   sleepImpl,
   busyCpuImpl,
-  fixedSourceImpl,
 } from "@ranking-dsl/generated";
 import { assertNotUndefined, assertStringOrNull, assertEndpointId, checkNoUndefined } from "./guards.js";
 
@@ -75,6 +74,14 @@ export class PlanCtx {
       extensions
     );
     return new CandidateSet(this, nodeId);
+  }
+
+  /**
+   * test namespace: source tasks for testing.
+   * Usage: ctx.test.fixedSource({ rowCount: 10 })
+   */
+  get test(): TestSourceTasks {
+    return new TestSourceTasks(this);
   }
 
   private allocateNodeId(): string {
@@ -294,7 +301,40 @@ export class CandidateSet {
 }
 
 /**
- * Test namespace tasks - for testing parallelism and benchmarking.
+ * Test namespace source tasks - for testing without external dependencies.
+ */
+class TestSourceTasks {
+  constructor(private readonly ctx: PlanCtx) {}
+
+  /**
+   * fixedSource: generate fixed test data with deterministic IDs.
+   * This is a true source task (no inputs required).
+   */
+  fixedSource(opts: {
+    rowCount?: number;
+    trace?: string | null;
+    extensions?: Record<string, unknown>;
+  }): CandidateSet {
+    assertNotUndefined(opts, "fixedSource(opts)");
+    const { extensions, ...rest } = opts;
+    checkNoUndefined(rest as Record<string, unknown>, "fixedSource(opts)");
+
+    if (opts.trace !== undefined) {
+      assertStringOrNull(opts.trace, "fixedSource({ trace })");
+    }
+
+    const nodeId = this.ctx.addNode(
+      "test::fixed_source",
+      [],  // No inputs - true source task
+      { row_count: opts.rowCount, trace: opts.trace ?? null },
+      extensions
+    );
+    return new CandidateSet(this.ctx, nodeId);
+  }
+}
+
+/**
+ * Test namespace transform tasks - for testing parallelism and benchmarking.
  */
 class TestTasks {
   constructor(
@@ -324,18 +364,6 @@ class TestTasks {
     extensions?: Record<string, unknown>;
   }): CandidateSet {
     const newNodeId = busyCpuImpl(this.ctx, this.nodeId, opts);
-    return new CandidateSet(this.ctx, newNodeId);
-  }
-
-  /**
-   * fixedSource: generate fixed test data (source-like behavior on existing set).
-   */
-  fixedSource(opts: {
-    rowCount?: number;
-    trace?: string | null;
-    extensions?: Record<string, unknown>;
-  }): CandidateSet {
-    const newNodeId = fixedSourceImpl(this.ctx, this.nodeId, opts);
     return new CandidateSet(this.ctx, newNodeId);
   }
 }

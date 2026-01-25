@@ -524,14 +524,16 @@ export function generateTasksTs(registry: TaskRegistry): string {
     ""
   );
 
-  // Classify tasks: viewer is source task, others are transform tasks
-  // Source task has no required CandidateSet input (called via ctx.viewer())
+  // Classify tasks: source tasks have no inputs (called via ctx.* or ctx.test.*)
+  // Source tasks: viewer, fixedSource (test namespace)
+  const SOURCE_TASK_METHODS = new Set(["viewer", "fixedSource"]);
+
   const sourceTasks: TaskEntry[] = [];
   const transformTasks: TaskEntry[] = [];
 
   for (const task of registry.tasks) {
     const methodName = opToMethodName(task.op);
-    if (methodName === "viewer") {
+    if (SOURCE_TASK_METHODS.has(methodName)) {
       sourceTasks.push(task);
     } else {
       transformTasks.push(task);
@@ -808,9 +810,11 @@ export function generateTaskImplTs(registry: TaskRegistry): string {
     "",
   );
 
-  // Classify tasks: viewer is source, others are transform
-  const sourceTasks = registry.tasks.filter(t => opToMethodName(t.op) === "viewer");
-  const transformTasks = registry.tasks.filter(t => opToMethodName(t.op) !== "viewer");
+  // Classify tasks: source tasks have no inputs
+  // Source tasks: viewer (core), fixedSource (test)
+  const SOURCE_TASK_METHODS = new Set(["viewer", "fixedSource"]);
+  const sourceTasks = registry.tasks.filter(t => SOURCE_TASK_METHODS.has(opToMethodName(t.op)));
+  const transformTasks = registry.tasks.filter(t => !SOURCE_TASK_METHODS.has(opToMethodName(t.op)));
 
   // Generate source task implementations
   if (sourceTasks.length > 0) {

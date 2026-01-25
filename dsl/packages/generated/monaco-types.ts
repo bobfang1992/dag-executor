@@ -101,14 +101,18 @@ declare module '@ranking-dsl/runtime' {
   // Plan context and CandidateSet
   // =====================================================
 
+  export interface TestSourceTasks {
+    fixedSource(opts: { rowCount?: number; trace?: string }): CandidateSet;
+  }
+
   export interface TestTasks {
     busyCpu(opts: { busyWaitMs: number; trace?: string }): CandidateSet;
-    fixedSource(opts: { rowCount?: number; trace?: string }): CandidateSet;
     sleep(opts: { durationMs: number; failAfterSleep?: boolean; trace?: string }): CandidateSet;
   }
 
   export interface PlanCtx {
     viewer(opts: { endpoint: unknown; trace?: string }): CandidateSet;
+    test: TestSourceTasks;
     requireCapability(capId: string, payload?: unknown): void;
   }
 
