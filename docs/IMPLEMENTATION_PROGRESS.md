@@ -315,6 +315,21 @@ This document tracks the implementation status of all features in the dag-execut
   - `parallel async tasks both respect deadline`
 - **Validation**: 28 test cases, 138 assertions pass; 75 CI tests pass
 
+### Step 14 Hardening: Shutdown/Drain Contract ✅
+- **Goal**: Lock down EventLoop lifecycle semantics, document shutdown ordering, add stress testing
+- **Status**: Complete (PR #65 merged)
+- **Files**:
+  - `docs/EVENT_LOOP_SHUTDOWN.md` - Explicit shutdown/drain contract
+  - `docs/REQUEST_LIFECYCLE.md` - Request execution walkthrough with diagrams
+  - `scripts/soak_async_timeout.sh` - Local stress test for async timeout races
+- **Key Design**:
+  - Lifecycle states: Idle → Starting → Running → Stopping → Stopped
+  - Post contract: returns bool, rejected after Stop begins
+  - Drain contract: `GetCPUThreadPool().wait_idle()` before EventLoop destruction
+  - Documented known limitation: async wrapper holds raw pointers (UAF risk on premature destruction)
+- **Tests**: Existing EventLoop tests cover shutdown cases (84 assertions in 28 test cases)
+- **Soak script**: `./scripts/soak_async_timeout.sh` runs must-timeout + mostly-success scenarios
+
 ---
 
 ## 🔲 Not Yet Implemented

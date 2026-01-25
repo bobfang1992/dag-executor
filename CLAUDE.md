@@ -545,6 +545,26 @@ Codex will post inline comments with severity labels (P0/P1/P2). Address P0/P1 f
 - Creating a new PR
 - Pushing updates to an existing PR
 
+## Pre-Merge Documentation Checklist
+
+Before merging any PR, verify all relevant documentation is updated:
+
+| Doc | When to Update |
+|-----|----------------|
+| `docs/IMPLEMENTATION_PROGRESS.md` | Any new step/feature completed |
+| `docs/THREADING_MODEL.md` | Changes to threading, pools, or async |
+| `docs/EVENT_LOOP_SHUTDOWN.md` | Changes to EventLoop lifecycle |
+| `docs/REQUEST_LIFECYCLE.md` | Changes to request flow or scheduler |
+| `docs/async_dag_scheduler_architecture.md` | Changes to async scheduler |
+| `docs/event_loop_architecture.md` | Changes to EventLoop |
+| `CLAUDE.md` | New commands, workflows, or constraints |
+
+**Checklist:**
+- [ ] `docs/IMPLEMENTATION_PROGRESS.md` updated with step status
+- [ ] Architecture docs updated if internals changed
+- [ ] `CLAUDE.md` updated if new commands/flags added
+- [ ] Cross-references added between related docs
+
 ---
 
 ## Capabilities and Extensions (RFC 0001)
