@@ -275,9 +275,12 @@ class OffloadCpuWithTimeout {
     uv_close(reinterpret_cast<uv_handle_t*>(t),
              [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
 
-    // Resume via Post for consistency and reentrancy safety
+    // Resume via Post for consistency and reentrancy safety.
+    // If Post fails (loop stopping), resume directly - we're on loop thread.
     auto handle = state->handle;
-    state->loop->Post([handle]() { handle.resume(); });
+    if (!state->loop->Post([handle]() { handle.resume(); })) {
+      handle.resume();
+    }
   }
 
   EventLoop& loop_;
@@ -433,10 +436,12 @@ class AsyncWithTimeout {
             s->done = true;
             s->result.template emplace<0>(std::monostate{});
             s->cancel_timer();
-            // Post resume for reentrancy safety (avoid resuming while still
-            // in this coroutine frame which might trigger destruction)
+            // Post resume for reentrancy safety. If Post fails (loop stopping),
+            // resume directly - we're on loop thread and runner holds s alive.
             auto waiter = s->waiter;
-            s->loop->Post([waiter]() { waiter.resume(); });
+            if (!s->loop->Post([waiter]() { waiter.resume(); })) {
+              waiter.resume();
+            }
           }
         } else {
           T result = co_await t;
@@ -451,7 +456,9 @@ class AsyncWithTimeout {
             s->result.template emplace<0>(std::move(result));
             s->cancel_timer();
             auto waiter = s->waiter;
-            s->loop->Post([waiter]() { waiter.resume(); });
+            if (!s->loop->Post([waiter]() { waiter.resume(); })) {
+              waiter.resume();
+            }
           }
         }
       } catch (...) {
@@ -467,7 +474,9 @@ class AsyncWithTimeout {
           s->result.template emplace<1>(eptr);
           s->cancel_timer();
           auto waiter = s->waiter;
-          s->loop->Post([waiter]() { waiter.resume(); });
+          if (!s->loop->Post([waiter]() { waiter.resume(); })) {
+            waiter.resume();
+          }
         }
       }
       // RunnerCleanup destructor runs here, posting cleanup to event loop
@@ -542,9 +551,12 @@ class AsyncWithTimeout {
     uv_close(reinterpret_cast<uv_handle_t*>(t),
              [](uv_handle_t* h) { delete reinterpret_cast<uv_timer_t*>(h); });
 
-    // Resume via Post for consistency and reentrancy safety
+    // Resume via Post for consistency and reentrancy safety.
+    // If Post fails (loop stopping), resume directly - we're on loop thread.
     auto waiter = state->waiter;
-    state->loop->Post([waiter]() { waiter.resume(); });
+    if (!state->loop->Post([waiter]() { waiter.resume(); })) {
+      waiter.resume();
+    }
   }
 
   EventLoop& loop_;
